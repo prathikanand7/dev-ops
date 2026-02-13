@@ -1,20 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Notebook Platform</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <meta name="csrf-token" content="{{ csrf_token }}">
-</head>
-<body class="bg-light">
+{% extends 'base.html' %}
 
-<nav class="navbar navbar-dark bg-dark mb-4">
-    <div class="container">
-        <span class="navbar-brand">Notebook Ops Platform</span>
-        <a href="{% url 'upload_notebook' %}" class="btn btn-outline-light btn-sm">+ Upload New Notebook</a>
-    </div>
-</nav>
-
-<div class="container">
+{% block content %}
     <h4 class="mb-3">Available Notebooks (APIs)</h4>
     <div class="row mb-5">
         {% for nb in notebooks %}
@@ -45,7 +31,7 @@
     </div>
 
     <h4 class="mb-3">Job History</h4>
-    <div class="card shadow-sm">
+    <div class="card shadow-sm mb-5">
         <table class="table table-hover mb-0">
             <thead class="table-light">
                 <tr>
@@ -59,7 +45,7 @@
             <tbody id="job-table-body">
                 {% for job in jobs %}
                 <tr>
-                    <td>
+                    <td id="status-cell-{{ job.id }}">
                         {% if job.status == 'SUCCESS' %} <span class="badge bg-success">Success</span>
                         {% elif job.status == 'PENDING' %} <span class="badge bg-secondary">Pending</span>
                         {% elif job.status == 'RUNNING' %} <span class="badge bg-warning text-dark">Running</span>
@@ -69,10 +55,10 @@
                     <td><small class="text-muted">{{ job.id|stringformat:"s"|slice:":8" }}...</small></td>
                     <td>{{ job.created_at|date:"H:i" }}</td>
                     <td>
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2" id="actions-{{ job.id }}">
                             {% if job.status == 'SUCCESS' and job.output_file %}
                                 <a href="{{ job.output_file.url }}" class="btn btn-sm btn-success" download>
-                                    ⬇️ Result
+                                    ⬇️ Download All (.zip)
                                 </a>
                             {% endif %}
                             <button class="btn btn-sm btn-outline-danger" onclick="deleteItem('job', '{{ job.id }}')">
@@ -87,7 +73,6 @@
             </tbody>
         </table>
     </div>
-</div>
 
 <div class="modal fade" id="runJobModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
@@ -99,7 +84,6 @@
             <div class="modal-body">
                 <form id="runJobForm">
                     <input type="hidden" id="modalNotebookId" name="notebook_id">
-                    
                     <div id="dynamicFormFields"></div>
                 </form>
             </div>
@@ -110,7 +94,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -238,7 +224,47 @@ async function deleteItem(type, id) {
         alert("System Error during deletion.");
     }
 }
-</script>
 
-</body>
-</html>
+async function fetchLiveStatuses() {
+    try {
+        const response = await fetch('/api/jobs/poll-status/');
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        
+        data.jobs.forEach(job => {
+            // Update the Status Badge
+            const statusCell = document.getElementById(`status-cell-${job.id}`);
+            if (statusCell) {
+                let badgeHtml = '';
+                if (job.status === 'SUCCESS') badgeHtml = '<span class="badge bg-success">Success</span>';
+                else if (job.status === 'PENDING') badgeHtml = '<span class="badge bg-secondary">Pending</span>';
+                else if (job.status === 'RUNNING') badgeHtml = '<span class="badge bg-warning text-dark">Running</span>';
+                else badgeHtml = `<span class="badge bg-danger">${job.status}</span>`;
+                
+                // Update DOM only on change
+                if (statusCell.innerHTML.trim() !== badgeHtml) {
+                    statusCell.innerHTML = badgeHtml;
+                }
+            }
+
+            const actionsDiv = document.getElementById(`actions-${job.id}`);
+            if (actionsDiv && job.status === 'SUCCESS' && job.file_url) {
+                if (!actionsDiv.innerHTML.includes('⬇️ Download All')) {
+                    const downloadBtn = `
+                        <a href="${job.file_url}" class="btn btn-sm btn-success" download>
+                            ⬇️ Download All (.zip)
+                        </a>`;
+                    actionsDiv.insertAdjacentHTML('afterbegin', downloadBtn);
+                }
+            }
+        });
+    } catch (error) {
+        console.error("Polling error:", error);
+    }
+}
+
+// Poll every 3 secs
+setInterval(fetchLiveStatuses, 3000);
+</script>
+{% endblock %}

@@ -13,4 +13,5 @@ urlpatterns = [
     path('api/delete-job/<str:job_id>/', views.delete_job, name='delete_job'),
     path('api/run/', TriggerJobAPI.as_view(), name='trigger_job'),
     path('api/jobs/<str:job_id>/complete/', views.job_complete_callback, name='job_complete_callback'),
+    path('api/jobs/poll-status/', views.poll_job_statuses, name='poll_job_statuses'),
 ]

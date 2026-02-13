@@ -4,6 +4,7 @@ import sys
 import json
 import requests
 import subprocess
+import shutil
 
 # Constants
 BASE_DIR = "/app"
@@ -115,6 +116,7 @@ system_config = {
 final_parameters = {**user_parameters, **system_config}
 
 print(f"Starting Execution: {notebook_filename}")
+report_status_to_django('RUNNING', 'Environment built. Starting notebook execution...')
 
 # Execute
 try:
@@ -127,7 +129,12 @@ try:
         cwd=INPUT_DIR
     )
     print("Execution Successful")
-    report_status_to_django('SUCCESS', 'Execution completed successfully.', output_nb_path)
+    
+    zip_base_name = os.path.join(BASE_DIR, "result_archive")
+    shutil.make_archive(zip_base_name, 'zip', OUTPUT_DIR)
+    final_zip_path = f"{zip_base_name}.zip"
+    
+    report_status_to_django('SUCCESS', 'Execution completed and outputs zipped.', final_zip_path)
     
 except pm.PapermillExecutionError as e:
     error_msg = f"Notebook Logic Error in cell {e.exec_count}: {e}"

@@ -133,3 +133,24 @@ def job_complete_callback(request, job_id):
         
     job.save()
     return JsonResponse({"message": f"Job {job_id} updated successfully."})
+
+
+@login_required
+def poll_job_statuses(request):
+    """Returns the live status of all jobs for the current user."""
+    jobs = Job.objects.filter(user=request.user).values('id', 'status', 'output_file')
+    
+    job_data = []
+    for job in jobs:
+        file_url = None
+        if job['output_file']:
+            from django.conf import settings
+            file_url = f"{settings.MEDIA_URL}{job['output_file']}"
+            
+        job_data.append({
+            'id': str(job['id']),
+            'status': job['status'],
+            'file_url': file_url
+        })
+        
+    return JsonResponse({'jobs': job_data})

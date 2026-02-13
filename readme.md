@@ -14,11 +14,14 @@ python manage.py runserver
 .\.env\Scripts\Activate
 celery -A notebook_platform worker --loglevel=info --pool=solo
 
-
-# Watch the podss
+# Watch the pods
 kubectl get pods --watch
 
 # Build the Container
+## Get in Miniqube first (Miniqube must be running)
+& minikube -p minikube docker-env --shell powershell | Invoke-Expression
+
+## Then build
 docker build -t r-notebook-worker .
 
 # Run Docker Container Manually

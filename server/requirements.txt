@@ -1,0 +1,7 @@
+celery
+redis
+docker
+django-jazzmin
+djangorestframework
+django-filter
+kubernetes
