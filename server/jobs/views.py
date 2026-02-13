@@ -12,6 +12,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from .tasks import dispatch_job_task
 from .utils import parse_notebook_parameters
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from django.contrib.auth.decorators import login_required
+from .models import Job
 import os
 
 BASE_URL = "http://host.docker.internal:8000"
@@ -154,3 +158,9 @@ def poll_job_statuses(request):
         })
         
     return JsonResponse({'jobs': job_data})
+
+@login_required
+def get_job_logs(request, job_id):
+    """Returns the text logs for a specific job."""
+    job = get_object_or_404(Job, id=job_id, user=request.user)
+    return JsonResponse({'logs': job.logs or "No logs available yet..."})

@@ -61,6 +61,11 @@
                                     ⬇️ Download All (.zip)
                                 </a>
                             {% endif %}
+                            
+                            <button class="btn btn-sm btn-outline-info" onclick="viewLogs('{{ job.id }}')">
+                                📜 Logs
+                            </button>
+
                             <button class="btn btn-sm btn-outline-danger" onclick="deleteItem('job', '{{ job.id }}')">
                                 Delete
                             </button>
@@ -90,6 +95,22 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-success" onclick="submitRunJob()">Submit Job</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="logsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Execution Logs</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body bg-dark text-light p-0">
+                <pre id="logOutput" class="p-3 m-0" style="max-height: 500px; overflow-y: auto; font-family: monospace; font-size: 0.85rem;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -261,6 +282,28 @@ async function fetchLiveStatuses() {
         });
     } catch (error) {
         console.error("Polling error:", error);
+    }
+}
+
+async function viewLogs(jobId) {
+    const logOutput = document.getElementById('logOutput');
+    logOutput.innerText = "Fetching logs...";
+    
+    const modal = new bootstrap.Modal(document.getElementById('logsModal'));
+    modal.show();
+
+    try {
+        const response = await fetch(`/api/jobs/${jobId}/logs/`);
+        if (response.ok) {
+            const data = await response.json();
+            logOutput.innerText = data.logs;
+            
+            logOutput.scrollTop = logOutput.scrollHeight;
+        } else {
+            logOutput.innerText = "Failed to fetch logs.";
+        }
+    } catch (error) {
+        logOutput.innerText = "System Error: Could not reach server.";
     }
 }
 
