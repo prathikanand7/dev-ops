@@ -1,1 +1,8 @@
-/outputs
+/server/.env
+/server/.vscode
+server/db.sqlite3
+/server/jobs/__pycache__
+/worker/outputs
+/server/notebook_platform/__pycache__
+/server/jobs/migrations/__pycache__
+/server/media/*

@@ -15,4 +15,11 @@ RUN mamba env update --name base --file /tmp/environment.yaml && \
 # Set the working directory
 WORKDIR /app
 
+# Copy scripts and files
+# This includes the given env as a base
+# TODO: We must check if we can use another env that is common for ERIC?
+COPY . /app 
+
+RUN chown -R ${NB_UID} /app
+
 USER ${NB_UID}
