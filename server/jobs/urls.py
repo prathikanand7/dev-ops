@@ -15,4 +15,5 @@ urlpatterns = [
     path('api/jobs/<str:job_id>/complete/', views.job_complete_callback, name='job_complete_callback'),
     path('api/jobs/poll-status/', views.poll_job_statuses, name='poll_job_statuses'),
     path('api/jobs/<uuid:job_id>/logs/', views.get_job_logs, name='get_job_logs'),
+    path('api/v1/notebooks/<uuid:notebook_id>/run/', views.TriggerNotebookAPIView.as_view(), name='api_trigger_notebook'),
 ]

@@ -6,3 +6,4 @@ server/db.sqlite3
 /server/notebook_platform/__pycache__
 /server/jobs/migrations/__pycache__
 /server/media/*
+requests/request.py

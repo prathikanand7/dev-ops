@@ -1,5 +1,6 @@
 from celery import shared_task
-from django.conf import settings
+
+from notebook_platform.settings import WORKER_CALLBACK_URL
 from .models import Job
 import json
 from kubernetes import client, config
@@ -21,7 +22,7 @@ def dispatch_job_task(job_id):
 
         k8s_batch_v1 = client.BatchV1Api()
 
-        base_url = "http://host.docker.internal:8000"
+        base_url = WORKER_CALLBACK_URL
         
         payload = {
             "_notebook_url": f"{base_url}{job_record.notebook.notebook_file.url}",

@@ -1,24 +1,26 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
-from django.core.files.storage import default_storage
-from .models import Notebook, Job
-from .forms import NotebookUploadForm 
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from .tasks import dispatch_job_task
-from .utils import parse_notebook_parameters
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
-from django.contrib.auth.decorators import login_required
-from .models import Job
+import json
 import os
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.core.files.storage import default_storage
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from django.conf import settings
+from rest_framework.authentication import SessionAuthentication, TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework import status
+from notebook_platform.settings import WORKER_CALLBACK_URL
 
-BASE_URL = "http://host.docker.internal:8000"
+from .forms import NotebookUploadForm
+from .models import Job, Notebook
+from .tasks import dispatch_job_task
+from .utils import parse_notebook_parameters, parse_notebook_parameters_from_payload
+
+BASE_URL = WORKER_CALLBACK_URL
 
 @login_required
 def upload_notebook(request):
@@ -77,7 +79,7 @@ class TriggerJobAPI(APIView):
             return Response({"error": "Notebook not found"}, status=404)
 
         params = {}
-        base_url = BASE_URL
+        base_url = WORKER_CALLBACK_URL
 
         for key, value in request.POST.items():
             if key not in ['notebook_id', 'csrfmiddlewaretoken']:
@@ -164,3 +166,47 @@ def get_job_logs(request, job_id):
     """Returns the text logs for a specific job."""
     job = get_object_or_404(Job, id=job_id, user=request.user)
     return JsonResponse({'logs': job.logs or "No logs available yet..."})
+
+class TriggerNotebookAPIView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, notebook_id):
+        try:
+            notebook = Notebook.objects.get(id=notebook_id)
+            final_payload = {}
+            schema_data = notebook.parameter_schema
+            param_list = [item for item in schema_data if isinstance(item, dict)]
+
+            final_payload = parse_notebook_parameters_from_payload(param_list, request.data.items(), request.FILES)
+
+            for key, uploaded_file in request.FILES.items():
+                saved_path = default_storage.save(f"api_uploads/{uploaded_file.name}", uploaded_file)
+                
+                relative_path = settings.MEDIA_URL + saved_path
+                file_url = f"{WORKER_CALLBACK_URL}{relative_path}"
+                
+                final_payload[f"_download_{key}"] = file_url
+                final_payload[key] = os.path.basename(saved_path)
+            
+            job = Job.objects.create(
+                user=request.user,
+                notebook=notebook,
+                status='PENDING',
+                job_parameters=final_payload
+            )
+
+            dispatch_job_task.delay(job.id)
+
+            return Response({
+                "message": "Job successfully queued.",
+                "job_id": str(job.id),
+                "status": "PENDING",
+                "resolved_payload": final_payload 
+            }, status=status.HTTP_202_ACCEPTED)
+
+        except Exception as e:
+            return Response(
+                {"error": f"Server Error: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
