@@ -16,10 +16,13 @@
                     
                     <div class="d-flex gap-2 mt-3">
                         <button class="btn btn-primary flex-grow-1" onclick="openRunModal('{{ nb.id }}', '{{ nb.name|escapejs }}')">
-                            🚀 Run Analysis
+                            Run Analysis
                         </button>
                         <button class="btn btn-outline-danger" title="Delete Notebook" onclick="deleteItem('notebook', '{{ nb.id }}')">
-                            🗑️
+                            Delete
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="showCurlModal('{{ nb.id }}', '{{ nb.parameter_schema|escapejs }}')">
+                            Get API cURL
                         </button>
                     </div>
                 </div>
@@ -69,6 +72,7 @@
                             <button class="btn btn-sm btn-outline-danger" onclick="deleteItem('job', '{{ job.id }}')">
                                 Delete
                             </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="showParamsModal('{{ job.job_parameters|escapejs }}')">Params</button>
                         </div>
                     </td>
                 </tr>
@@ -111,6 +115,43 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="curlModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">API Trigger Command</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">Copy this template to trigger this notebook programmatically. Replace <code>YOUR_API_TOKEN</code> with your actual user token.</p>
+                
+                <div class="bg-dark rounded">
+                    <div class="d-flex justify-content-end p-2 border-bottom border-secondary">
+                        <button class="btn btn-sm btn-outline-light" onclick="copyCurl(this)">Copy</button>
+                    </div>
+                    <div class="p-3">
+                        <pre id="curlOutput" class="text-light m-0" style="white-space: pre-wrap; word-break: break-all; font-family: monospace; font-size: 0.85rem;"></pre>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="paramsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Job Parameters</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="paramsOutput" class="table-responsive"></div>
             </div>
         </div>
     </div>
@@ -307,6 +348,112 @@ async function viewLogs(jobId) {
     }
 }
 
+function showCurlModal(notebookId, schemaRaw) {
+    const baseUrl = window.location.origin; 
+    let curlCmd = `curl.exe -X POST "${baseUrl}/api/notebooks/${notebookId}/run/" \`\n`;
+    curlCmd += `     -H "Authorization: Token YOUR_API_TOKEN"`;
+
+    try {
+        let schema = [];
+        if (schemaRaw) {
+            let safeJsonString = schemaRaw
+                .replace(/'/g, '"')
+                .replace(/True/g, 'true')
+                .replace(/False/g, 'false')
+                .replace(/None/g, 'null');
+                
+            schema = JSON.parse(safeJsonString);
+        }
+        
+        let paramList = [];
+        
+        if (Array.isArray(schema)) {
+            paramList = schema;
+        } else if (typeof schema === 'object') {
+            for (let key in schema) {
+                let details = schema[key];
+                if (typeof details === 'object') {
+                    details.name = details.name || key;
+                    paramList.push(details);
+                }
+            }
+        }
+
+        paramList.forEach(param => {
+            if (param.name) {
+                let defaultVal = param.default !== undefined ? param.default : '';
+                
+                if (typeof defaultVal === 'string' && defaultVal.startsWith('"') && defaultVal.endsWith('"')) {
+                    defaultVal = defaultVal.slice(1, -1);
+                }
+                
+                if (param.name.toLowerCase().includes('filename') || param.name.toLowerCase().includes('file')) {
+                     curlCmd += ` \`\n     -F "${param.name}=@./${defaultVal || 'your_dataset.xlsx'}"`;
+                } else {
+                     curlCmd += ` \`\n     -F "${param.name}=${defaultVal}"`;
+                }
+            }
+        });
+        
+    } catch (e) {
+        console.error("Error parsing schema for cURL:", e);
+    }
+
+    document.getElementById('curlOutput').textContent = curlCmd;
+    const modal = new bootstrap.Modal(document.getElementById('curlModal'));
+    modal.show();
+}
+
+function copyCurl(button) {
+    const curlText = document.getElementById('curlOutput').textContent;
+    navigator.clipboard.writeText(curlText).then(() => {
+        const originalText = button.innerHTML;
+        button.innerHTML = "Copied!";
+        setTimeout(() => { button.innerHTML = originalText; }, 2000);
+    }).catch(err => {
+        console.error("Failed to copy text: ", err);
+    });
+}
+
+function showParamsModal(paramsRaw) {
+    const outputContainer = document.getElementById('paramsOutput');
+    outputContainer.innerHTML = ''; 
+
+    if (!paramsRaw || paramsRaw === 'None' || paramsRaw === '{}') {
+        outputContainer.innerHTML = '<p class="text-muted mb-0">No parameters provided for this job.</p>';
+    } else {
+        try {
+            let safeJson = paramsRaw
+                .replace(/'/g, '"')
+                .replace(/True/g, 'true')
+                .replace(/False/g, 'false')
+                .replace(/None/g, 'null');
+                
+            let paramsObj = JSON.parse(safeJson);
+            
+            let tableHtml = '<table class="table table-sm table-bordered table-striped mb-0">';
+            tableHtml += '<thead class="table-light"><tr><th>Parameter</th><th>Value</th></tr></thead><tbody>';
+            
+            for (const [key, value] of Object.entries(paramsObj)) {
+                tableHtml += `
+                    <tr>
+                        <td class="fw-bold text-break" style="width: 40%;">${key}</td>
+                        <td class="text-break">${value !== null ? value : 'null'}</td>
+                    </tr>`;
+            }
+            
+            tableHtml += '</tbody></table>';
+            outputContainer.innerHTML = tableHtml;
+            
+        } catch (e) {
+            console.error("Could not parse parameters JSON", e);
+            outputContainer.innerHTML = `<div class="alert alert-danger mb-0">Error formatting parameters. Raw string:<br><code>${paramsRaw}</code></div>`;
+        }
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('paramsModal'));
+    modal.show();
+}
 // Poll every 3 secs
 setInterval(fetchLiveStatuses, 3000);
 </script>

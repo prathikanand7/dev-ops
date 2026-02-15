@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.conf import settings
+from rest_framework.authtoken.models import Token
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -21,6 +22,18 @@ from .tasks import dispatch_job_task
 from .utils import parse_notebook_parameters, parse_notebook_parameters_from_payload
 
 BASE_URL = WORKER_CALLBACK_URL
+
+@login_required
+def check_token_status(request):
+    has_token = Token.objects.filter(user=request.user).exists()
+    return JsonResponse({'has_token': has_token})
+
+@login_required
+@require_POST
+def generate_new_token(request):
+    Token.objects.filter(user=request.user).delete()
+    new_token = Token.objects.create(user=request.user)
+    return JsonResponse({'token': new_token.key})
 
 @login_required
 def upload_notebook(request):
@@ -210,3 +223,25 @@ class TriggerNotebookAPIView(APIView):
                 {"error": f"Server Error: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+            
+            
+class JobStatusAPIView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, job_id):
+        job = get_object_or_404(Job, id=job_id, user=request.user)
+        
+        response_data = {
+            "job_id": str(job.id),
+            "status": job.status,
+            "logs": job.logs if job.logs else "No logs available yet."
+        }
+
+        if job.status == 'SUCCESS' and job.output_file:
+            response_data['download_url'] = request.build_absolute_uri(job.output_file.url)
+        
+        elif job.status == 'FAILED':
+            response_data['error_message'] = "Execution failed. Please review the logs."
+
+        return Response(response_data, status=status.HTTP_200_OK)
