@@ -5,3 +5,9 @@ django-jazzmin
 djangorestframework
 django-filter
 kubernetes
+boto3
+django-storages
+python-dotenv
+dj_database_url
+psycopg2-binary
+whitenoise

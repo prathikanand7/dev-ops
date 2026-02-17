@@ -15,7 +15,9 @@ os.makedirs(INPUT_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def download_file(url, dest_folder):
-    local_filename = os.path.join(dest_folder, url.split('/')[-1])
+    raw_filename = url.split('/')[-1].split('?')[0]
+    local_filename = os.path.join(dest_folder, raw_filename)
+    
     print(f"Downloading: {url} -> {local_filename}")
     try:
         with requests.get(url, stream=True) as r:
@@ -27,6 +29,21 @@ def download_file(url, dest_folder):
     except Exception as e:
         print(f"FATAL: Download failed: {e}")
         sys.exit(1)
+
+def clean_url(url, base_url):
+    if not url: return url
+    
+    if base_url and url.startswith(base_url):
+        remainder = url[len(base_url):]
+        if remainder.startswith('http'):
+            return remainder  
+            
+    if not url.startswith('http') and base_url:
+        base = base_url.rstrip('/')
+        path = url.lstrip('/')
+        return f"{base}/{path}"
+        
+    return url
 
 # Get env variables
 env_params_str = os.environ.get("JOB_PARAMETERS")
@@ -41,15 +58,17 @@ except json.JSONDecodeError as e:
     print(f"FATAL: Could not decode JOB_PARAMETERS JSON: {e}")
     sys.exit(1)
 
-# Get notebook
-notebook_url = user_parameters.pop("_notebook_url", None)
-notebook_filename = user_parameters.pop("_notebook_filename", None)
+# Extract core variables
 job_id = user_parameters.pop("_job_id", None)     
 base_url = user_parameters.pop("_base_url", None) 
 
+# Clean the notebook URL
+raw_notebook_url = user_parameters.pop("_notebook_url", None)
+notebook_url = clean_url(raw_notebook_url, base_url)
+notebook_filename = user_parameters.pop("_notebook_filename", None)
+
 def report_status_to_django(status, log_message, file_path=None):
-    """Report job status back to Django backend.
-    """
+    """Report job status back to Django backend."""
     if not job_id or not base_url:
         print("Warning: No _job_id or _base_url provided. Cannot report status.")
         return
@@ -84,12 +103,15 @@ output_nb_path = os.path.join(OUTPUT_DIR, "result_" + notebook_filename)
 download_keys = [k for k in user_parameters.keys() if k.startswith("_download_")]
 
 for d_key in download_keys:
-    file_url = user_parameters.pop(d_key)
+    raw_file_url = user_parameters.pop(d_key)
+    clean_file_url = clean_url(raw_file_url, base_url)
     print(f"Found dynamic dataset requirement: {d_key}")
-    download_file(file_url, INPUT_DIR)
+    download_file(clean_file_url, INPUT_DIR)
 
 # Install packages
-env_url = user_parameters.pop("_environment_url", None)
+raw_env_url = user_parameters.pop("_environment_url", None)
+env_url = clean_url(raw_env_url, base_url)
+
 if env_url:
     print(f"Environment file detected. Downloading from {env_url}...")
     env_path = download_file(env_url, INPUT_DIR)

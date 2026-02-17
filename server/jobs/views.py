@@ -21,7 +21,15 @@ from .models import Job, Notebook
 from .tasks import dispatch_job_task
 from .utils import parse_notebook_parameters, parse_notebook_parameters_from_payload
 
-BASE_URL = WORKER_CALLBACK_URL
+BASE_URL = WORKER_CALLBACK_URL.rstrip('/')
+
+def get_safe_url(raw_url):
+    if raw_url.startswith('http'):
+        return raw_url
+    if not raw_url.startswith('/'):
+        raw_url = '/' + raw_url
+    return f"{BASE_URL}{raw_url}"
+
 
 @login_required
 def check_token_status(request):
@@ -92,7 +100,6 @@ class TriggerJobAPI(APIView):
             return Response({"error": "Notebook not found"}, status=404)
 
         params = {}
-        base_url = WORKER_CALLBACK_URL
 
         for key, value in request.POST.items():
             if key not in ['notebook_id', 'csrfmiddlewaretoken']:
@@ -105,10 +112,10 @@ class TriggerJobAPI(APIView):
                         params[key] = value
 
         for key, uploaded_file in request.FILES.items():
-            
-            # Save the file securely to media/inputs/
             saved_path = default_storage.save(f"inputs/{uploaded_file.name}", uploaded_file)
-            file_url = f"{base_url}{default_storage.url(saved_path)}"
+            
+            raw_url = default_storage.url(saved_path)
+            file_url = get_safe_url(raw_url)
             
             local_filename = os.path.basename(saved_path)
             params[key] = local_filename
@@ -157,28 +164,32 @@ def job_complete_callback(request, job_id):
 @login_required
 def poll_job_statuses(request):
     """Returns the live status of all jobs for the current user."""
-    jobs = Job.objects.filter(user=request.user).values('id', 'status', 'output_file')
+    jobs = Job.objects.filter(user=request.user).order_by('-created_at')[:50]
     
     job_data = []
     for job in jobs:
         file_url = None
-        if job['output_file']:
-            from django.conf import settings
-            file_url = f"{settings.MEDIA_URL}{job['output_file']}"
+        if job.output_file:
+            try:
+                file_url = job.output_file.url
+            except Exception:
+                pass
             
         job_data.append({
-            'id': str(job['id']),
-            'status': job['status'],
+            'id': str(job.id),
+            'status': job.status,
             'file_url': file_url
         })
         
     return JsonResponse({'jobs': job_data})
+
 
 @login_required
 def get_job_logs(request, job_id):
     """Returns the text logs for a specific job."""
     job = get_object_or_404(Job, id=job_id, user=request.user)
     return JsonResponse({'logs': job.logs or "No logs available yet..."})
+
 
 class TriggerNotebookAPIView(APIView):
     authentication_classes = [TokenAuthentication]
@@ -196,8 +207,8 @@ class TriggerNotebookAPIView(APIView):
             for key, uploaded_file in request.FILES.items():
                 saved_path = default_storage.save(f"api_uploads/{uploaded_file.name}", uploaded_file)
                 
-                relative_path = settings.MEDIA_URL + saved_path
-                file_url = f"{WORKER_CALLBACK_URL}{relative_path}"
+                raw_url = default_storage.url(saved_path)
+                file_url = get_safe_url(raw_url)
                 
                 final_payload[f"_download_{key}"] = file_url
                 final_payload[key] = os.path.basename(saved_path)
@@ -239,7 +250,14 @@ class JobStatusAPIView(APIView):
         }
 
         if job.status == 'SUCCESS' and job.output_file:
-            response_data['download_url'] = request.build_absolute_uri(job.output_file.url)
+            try:
+                raw_url = job.output_file.url
+                if raw_url.startswith('http'):
+                    response_data['download_url'] = raw_url
+                else:
+                    response_data['download_url'] = request.build_absolute_uri(raw_url)
+            except Exception:
+                pass
         
         elif job.status == 'FAILED':
             response_data['error_message'] = "Execution failed. Please review the logs."

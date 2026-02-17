@@ -7,3 +7,5 @@ server/db.sqlite3
 /server/jobs/migrations/__pycache__
 /server/media/*
 requests/request.py
+server/.env.dev
+server/kubeconfig-docker.yaml

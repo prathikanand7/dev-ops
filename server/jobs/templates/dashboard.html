@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <h4 class="mb-3">Available Notebooks (APIs)</h4>
+    <h4 class="mb-3">Available Notebooks</h4>
     <div class="row mb-5">
         {% for nb in notebooks %}
         
@@ -60,7 +60,7 @@
                     <td>
                         <div class="d-flex gap-2" id="actions-{{ job.id }}">
                             {% if job.status == 'SUCCESS' and job.output_file %}
-                                <a href="{{ job.output_file.url }}" class="btn btn-sm btn-success" download>
+                                <a href="{{ job.output_file.url }}" class="btn btn-sm btn-success" target="_blank" rel="noopener noreferrer">
                                     ⬇️ Download All (.zip)
                                 </a>
                             {% endif %}
@@ -313,8 +313,9 @@ async function fetchLiveStatuses() {
             const actionsDiv = document.getElementById(`actions-${job.id}`);
             if (actionsDiv && job.status === 'SUCCESS' && job.file_url) {
                 if (!actionsDiv.innerHTML.includes('⬇️ Download All')) {
+                    // CHANGED: target="_blank" instead of download
                     const downloadBtn = `
-                        <a href="${job.file_url}" class="btn btn-sm btn-success" download>
+                        <a href="${job.file_url}" class="btn btn-sm btn-success" target="_blank" rel="noopener noreferrer">
                             ⬇️ Download All (.zip)
                         </a>`;
                     actionsDiv.insertAdjacentHTML('afterbegin', downloadBtn);

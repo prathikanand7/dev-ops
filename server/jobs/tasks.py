@@ -1,9 +1,17 @@
+import json
 from celery import shared_task
-
 from notebook_platform.settings import WORKER_CALLBACK_URL
 from .models import Job
-import json
 from kubernetes import client, config
+from kubernetes.config.config_exception import ConfigException
+
+def get_absolute_url(base_url, file_url):
+    if file_url.startswith('http'):
+        return file_url
+    
+    base = base_url.rstrip('/')
+    path = file_url.lstrip('/')
+    return f"{base}/{path}"
 
 @shared_task
 def dispatch_job_task(job_id):
@@ -17,29 +25,34 @@ def dispatch_job_task(job_id):
 
         try:
             config.load_incluster_config()
-        except:
+            print("Successfully loaded in-cluster Kubernetes configuration (AWS/Production).")
+        except ConfigException:
             config.load_kube_config()
+            print("Successfully loaded local kubeconfig file (Minikube/Local).")
 
         k8s_batch_v1 = client.BatchV1Api()
-
         base_url = WORKER_CALLBACK_URL
         
+        notebook_url = get_absolute_url(base_url, job_record.notebook.notebook_file.url)
+        
         payload = {
-            "_notebook_url": f"{base_url}{job_record.notebook.notebook_file.url}",
+            "_notebook_url": notebook_url,
             "_notebook_filename": job_record.notebook.notebook_file.name.split('/')[-1],
             "_job_id": str(job_id),       
             "_base_url": base_url,        
             **job_record.job_parameters
         }
+        
         if job_record.notebook.environment_file:
-            payload["_environment_url"] = f"{base_url}{job_record.notebook.environment_file.url}"
+            env_url = get_absolute_url(base_url, job_record.notebook.environment_file.url)
+            payload["_environment_url"] = env_url
         
         k8s_job_name = f"job-{str(job_id)[:8]}" 
         
         container = client.V1Container(
             name="notebook-worker",
             image="r-notebook-worker",
-            image_pull_policy="Never",
+            image_pull_policy="IfNotPresent", 
             command=["python"],
             args=["worker.py"], 
             working_dir="/app",
