@@ -3,7 +3,10 @@ name: End-to-End Pipeline
 on:
   push:
   pull_request:
-  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
 
 jobs:
   test-platform:
@@ -27,13 +30,15 @@ jobs:
       - name: Setup Kubernetes Permissions
         run: kubectl apply -f ./server/minikube-rbac.yaml
 
-      - name: 4. Build & Load Worker Image
+      - name: Build & Load Worker Image
         run: |
           docker buildx build -t r-notebook-worker:latest \
-            --cache-from=type=gha \
-            --cache-to=type=gha,mode=max \
+            --cache-from=type=gha,scope=worker-cache \
+            --cache-to=type=gha,mode=max,scope=worker-cache \
             --load \
             ./worker
+          
+          minikube image load r-notebook-worker:latest
 
       - name: Start the Application Stack
         working-directory: ./server
@@ -47,7 +52,6 @@ jobs:
       - name: Run Database Migrations & Setup
         working-directory: ./server
         run: |
-          # Give Postgres 5 seconds to fully boot up
           sleep 5 
           docker compose exec -T web python manage.py migrate
           docker compose exec -T web python manage.py createsuperuser --noinput || true

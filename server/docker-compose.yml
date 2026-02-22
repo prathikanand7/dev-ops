@@ -19,7 +19,7 @@ services:
     ports:
       - "6379:6379"
 
-  # Minio (S3 mock )
+  # Minio (S3 mock)
   minio:
     image: minio/minio
     ports:
@@ -53,9 +53,9 @@ services:
     build:
       context: .
       cache_from:
-        - type=gha
+        - type=gha,scope=web-cache
       cache_to:
-        - type=gha,mode=max
+        - type=gha,mode=max,scope=web-cache
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
@@ -83,9 +83,9 @@ services:
     build:
       context: .
       cache_from:
-        - type=gha
+        - type=gha,scope=celery-cache
       cache_to:
-        - type=gha,mode=max
+        - type=gha,mode=max,scope=celery-cache
     command: celery -A notebook_platform worker -l info
     volumes:
       - .:/app
