@@ -21,7 +21,7 @@ jobs:
         uses: medyagh/setup-minikube@latest
         
       - name: 3. Setup Kubernetes Permissions
-        run: kubectl apply -f ./worker/minikube-rbac.yaml
+        run: kubectl apply -f ./server/minikube-rbac.yaml
 
       - name: 4. Build Worker Image (Inside Minikube)
         run: minikube image build -t r-notebook-worker:latest ./worker
