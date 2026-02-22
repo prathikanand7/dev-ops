@@ -4,10 +4,10 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.files.storage import default_storage
 from django.http import JsonResponse
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from django.conf import settings
 from rest_framework.authtoken.models import Token
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
@@ -130,7 +130,7 @@ class TriggerJobAPI(APIView):
         )
 
         # Send to Celery
-        dispatch_job_task.delay(job_id=str(job.id))
+        transaction.on_commit(lambda: dispatch_job_task.delay(job.id))
 
         return Response({
             "job_id": job.id, 
@@ -220,7 +220,7 @@ class TriggerNotebookAPIView(APIView):
                 job_parameters=final_payload
             )
 
-            dispatch_job_task.delay(job.id)
+            transaction.on_commit(lambda: dispatch_job_task.delay(job.id))
 
             return Response({
                 "message": "Job successfully queued.",

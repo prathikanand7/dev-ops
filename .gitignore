@@ -9,3 +9,4 @@ server/db.sqlite3
 requests/request.py
 server/.env.dev
 server/kubeconfig-docker.yaml
+/server/k8s-manifests

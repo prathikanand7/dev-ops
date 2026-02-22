@@ -1,0 +1,57 @@
+name: End-to-End Pipeline
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-platform:
+    runs-on: ubuntu-latest
+    
+    env:
+      DJANGO_SUPERUSER_USERNAME: admin
+      DJANGO_SUPERUSER_EMAIL: admin@example.com
+      DJANGO_SUPERUSER_PASSWORD: password123
+
+    steps:
+      - name: 1. Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 2. Start Minikube
+        uses: medyagh/setup-minikube@latest
+        
+      - name: 3. Setup Kubernetes Permissions
+        run: kubectl apply -f minikube-rbac.yaml
+
+      - name: 4. Build Worker Image (Inside Minikube)
+        run: minikube image build -t r-notebook-worker:latest ./worker
+
+      - name: 5. Start the Application Stack
+        run: docker-compose up -d --build
+
+      - name: 6. Start the Kubectl Proxy Bridge in the Background
+        run: |
+          kubectl proxy --address='0.0.0.0' --port=8001 --accept-hosts='^.*' &
+          echo "Kubernetes bridge is open!"
+
+      - name: 7. Run Database Migrations & Setup
+        run: |
+          # Give Postgres 5 seconds to fully boot up
+          sleep 5 
+          docker-compose exec -T web python manage.py migrate
+          docker-compose exec -T web python manage.py createsuperuser --noinput || true
+
+      - name: 8. Check Web Server Health (Login Screen)
+        run: |
+          echo "Testing connection to http://localhost:8000/login/ ..."
+
+          STATUS=$(curl -sL -o /dev/null -w "%{http_code}" http://localhost:8000/login/)
+          
+          if [ "$STATUS" -eq 200 ]; then
+            echo "Login screen is up."
+            exit 0
+          else
+            echo "Web server failed with $STATUS."
+            docker-compose logs web
+            exit 1
+          fi

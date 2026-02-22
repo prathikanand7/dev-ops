@@ -8,10 +8,7 @@ load_dotenv(dotenv_path=env_path)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-=ti)wu!un4bncw)1hz))-as1ljm94&=fh1s(!bx2@ovut)kpta')
-
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
 # Routing & Security
@@ -102,19 +99,27 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # ------------------------------------------- Storage Configuration -------------------------------------------
-USE_S3 = str(os.environ.get('USE_S3', 'False')).lower() == 'true'
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME')
+AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL')
+ENVIRONMENT = os.getenv('ENVIRONMENT', 'local').lower()
 
-if USE_S3:
-    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-    AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
-    AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME')
+AWS_DEFAULT_ACL = None
+AWS_S3_FILE_OVERWRITE = False
+AWS_QUERYSTRING_AUTH = True
+
+if AWS_S3_ENDPOINT_URL:
+    AWS_S3_ADDRESSING_STYLE = "path"
     
-    AWS_DEFAULT_ACL = None
-    AWS_S3_FILE_OVERWRITE = False
-    AWS_QUERYSTRING_AUTH = True
+    if ENVIRONMENT == "local":
+        AWS_S3_CUSTOM_DOMAIN = f"localhost:9000/{AWS_STORAGE_BUCKET_NAME}"
+        AWS_S3_URL_PROTOCOL = 'http:'
+        AWS_QUERYSTRING_AUTH = False 
+
+if AWS_STORAGE_BUCKET_NAME:
     default_storage_backend = 'storages.backends.s3boto3.S3Boto3Storage'
-    
 else:
     default_storage_backend = 'django.core.files.storage.FileSystemStorage'
 

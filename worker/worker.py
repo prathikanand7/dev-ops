@@ -5,6 +5,7 @@ import json
 import requests
 import subprocess
 import shutil
+from urllib.parse import urlparse, unquote
 
 # Constants
 BASE_DIR = "/app"
@@ -15,10 +16,11 @@ os.makedirs(INPUT_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def download_file(url, dest_folder):
-    raw_filename = url.split('/')[-1].split('?')[0]
+    parsed_url = urlparse(url)
+    raw_filename = unquote(os.path.basename(parsed_url.path))
     local_filename = os.path.join(dest_folder, raw_filename)
     
-    print(f"Downloading: {url} -> {local_filename}")
+    print(f"Downloading: {url[:50]}... -> {local_filename}")
     try:
         with requests.get(url, stream=True) as r:
             r.raise_for_status()
@@ -68,7 +70,6 @@ notebook_url = clean_url(raw_notebook_url, base_url)
 notebook_filename = user_parameters.pop("_notebook_filename", None)
 
 def report_status_to_django(status, log_message, file_path=None):
-    """Report job status back to Django backend."""
     if not job_id or not base_url:
         print("Warning: No _job_id or _base_url provided. Cannot report status.")
         return
@@ -113,7 +114,7 @@ raw_env_url = user_parameters.pop("_environment_url", None)
 env_url = clean_url(raw_env_url, base_url)
 
 if env_url:
-    print(f"Environment file detected. Downloading from {env_url}...")
+    print(f"Environment file detected. Downloading...")
     env_path = download_file(env_url, INPUT_DIR)
     
     print("Installing dynamic dependencies... (This may take a minute)")
