@@ -41,15 +41,14 @@ jobs:
       - name: Setup Kubernetes Permissions
         run: kubectl apply -f ./server/minikube-rbac.yaml
 
-      - name: Build & Load Worker Image
+      - name: Build Worker Image (Directly into Minikube)
         run: |
+          eval $(minikube -p minikube docker-env)
           docker buildx build -t r-notebook-worker:latest \
             --cache-from=type=gha,scope=worker-cache \
             --cache-to=type=gha,mode=max,scope=worker-cache \
             --load \
             ./worker
-          
-          minikube image load r-notebook-worker:latest
 
       - name: Start the Application Stack
         working-directory: ./server
