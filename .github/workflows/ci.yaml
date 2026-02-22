@@ -14,34 +14,39 @@ jobs:
       DJANGO_SUPERUSER_PASSWORD: password123
 
     steps:
-      - name: 1. Checkout Code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: 2. Start Minikube
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start Minikube
         uses: medyagh/setup-minikube@latest
         
-      - name: 3. Setup Kubernetes Permissions
+      - name: Setup Kubernetes Permissions
         run: kubectl apply -f ./server/minikube-rbac.yaml
 
-      - name: 4. Build Worker Image (Inside Minikube)
+      - name: Build Worker Image (Inside Minikube)
         run: minikube image build -t r-notebook-worker:latest ./worker
 
-      - name: 5. Start the Application Stack
+      - name: Start the Application Stack
+        working-directory: ./server
         run: docker compose up -d --build
 
-      - name: 6. Start the Kubectl Proxy Bridge in the Background
+      - name: Start the Kubectl Proxy Bridge in the Background
         run: |
           kubectl proxy --address='0.0.0.0' --port=8001 --accept-hosts='^.*' &
           echo "Kubernetes bridge is open!"
 
-      - name: 7. Run Database Migrations & Setup
+      - name: Run Database Migrations & Setup
+        working-directory: ./server
         run: |
           # Give Postgres 5 seconds to fully boot up
           sleep 5 
           docker compose exec -T web python manage.py migrate
           docker compose exec -T web python manage.py createsuperuser --noinput || true
 
-      - name: 8. Check Web Server Health (Login Screen)
+      - name: Check Web Server Health (Login Screen)
         run: |
           echo "Testing connection to http://localhost:8000/login/ ..."
 

@@ -50,10 +50,15 @@ services:
 
   # Django
   web:
-    build: .
+    build:
+      context: .
+      cache_from:
+        - type=gha
+      cache_to:
+        - type=gha,mode=max
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      - .:/app  # Hot-reloading for local dev
+      - .:/app
     ports:
       - "8000:8000"
     environment:
@@ -75,8 +80,13 @@ services:
 
   # Celery
   celery:
-    build: .
-    command: celery -A notebook_platform worker -l info 
+    build:
+      context: .
+      cache_from:
+        - type=gha
+      cache_to:
+        - type=gha,mode=max
+    command: celery -A notebook_platform worker -l info
     volumes:
       - .:/app
     environment:
