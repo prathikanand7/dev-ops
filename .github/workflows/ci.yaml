@@ -41,14 +41,19 @@ jobs:
       - name: Setup Kubernetes Permissions
         run: kubectl apply -f ./server/minikube-rbac.yaml
 
-      - name: Build Worker Image (Directly into Minikube)
+      - name: 4. Build Worker Image & Load via Tarball
         run: |
-          eval $(minikube -p minikube docker-env)
           docker buildx build -t r-notebook-worker:latest \
             --cache-from=type=gha,scope=worker-cache \
             --cache-to=type=gha,mode=max,scope=worker-cache \
             --load \
             ./worker
+          
+          echo "Saving image to tarball..."
+          docker save r-notebook-worker:latest -o worker.tar
+          
+          echo "Loading tarball into Minikube..."
+          minikube image load worker.tar
 
       - name: Start the Application Stack
         working-directory: ./server
