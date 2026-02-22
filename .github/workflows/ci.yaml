@@ -27,7 +27,7 @@ jobs:
         run: minikube image build -t r-notebook-worker:latest ./worker
 
       - name: 5. Start the Application Stack
-        run: docker-compose up -d --build
+        run: docker compose up -d --build
 
       - name: 6. Start the Kubectl Proxy Bridge in the Background
         run: |
@@ -38,8 +38,8 @@ jobs:
         run: |
           # Give Postgres 5 seconds to fully boot up
           sleep 5 
-          docker-compose exec -T web python manage.py migrate
-          docker-compose exec -T web python manage.py createsuperuser --noinput || true
+          docker compose exec -T web python manage.py migrate
+          docker compose exec -T web python manage.py createsuperuser --noinput || true
 
       - name: 8. Check Web Server Health (Login Screen)
         run: |
@@ -52,6 +52,6 @@ jobs:
             exit 0
           else
             echo "Web server failed with $STATUS."
-            docker-compose logs web
+            docker compose logs web
             exit 1
           fi
