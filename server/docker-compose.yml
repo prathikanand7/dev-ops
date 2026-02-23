@@ -50,7 +50,7 @@ services:
 
   # Django
   web:
-    image: notebook-web:latest
+    image: localhost:5000/notebook-web:latest
     build:
       context: .
       cache_from:
@@ -81,7 +81,7 @@ services:
 
   # Celery
   celery:
-    image: notebook-celery:latest 
+    image: localhost:5000/notebook-celery:latest
     build:
       context: .
       cache_from:
