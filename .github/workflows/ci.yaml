@@ -45,8 +45,8 @@ jobs:
           addons: registry
           insecure-registry: "10.0.0.0/24,192.168.0.0/16,172.16.0.0/12,localhost:5000"
 
-      - name: Expose Registry to Host
-        run: docker run --rm -it --network=host alpine ash -c "apk add socat && socat TCP-LISTEN:5000,reuseaddr,fork TCP:$(minikube ip):5000" &
+      - name: 4. Expose Registry to Host
+        run: docker run --rm -d --network=host alpine ash -c "apk add socat && socat TCP-LISTEN:5000,reuseaddr,fork TCP:$(minikube ip):5000"
 
       - name: Setup Kubernetes Permissions
         run: kubectl apply -f ./server/minikube-rbac.yaml
