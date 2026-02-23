@@ -41,23 +41,39 @@ jobs:
       - name: Setup Kubernetes Permissions
         run: kubectl apply -f ./server/minikube-rbac.yaml
 
-      - name: 4. Build Worker Image & Load via Tarball
-        run: |
-          docker buildx build -t r-notebook-worker:latest \
-            --cache-from=type=gha,scope=worker-cache \
-            --cache-to=type=gha,mode=max,scope=worker-cache \
-            --load \
-            ./worker
-          
-          echo "Saving image to tarball..."
-          docker save r-notebook-worker:latest -o worker.tar
-          
-          echo "Loading tarball into Minikube..."
-          minikube image load worker.tar
+      - name: Point Docker directly to Minikube (Bypasses Tarball)
+        run: minikube -p minikube docker-env | grep -v '^#' >> $GITHUB_ENV
+
+      - name: Build Worker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./worker
+          tags: r-notebook-worker:latest
+          load: true
+          cache-from: type=gha,scope=worker-cache
+          cache-to: type=gha,mode=max,scope=worker-cache
+
+      - name: Build Web Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          tags: notebook-web:latest
+          load: true
+          cache-from: type=gha,scope=web-cache
+          cache-to: type=gha,mode=max,scope=web-cache
+
+      - name: Build Celery Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          tags: notebook-celery:latest
+          load: true
+          cache-from: type=gha,scope=celery-cache
+          cache-to: type=gha,mode=max,scope=celery-cache
 
       - name: Start the Application Stack
         working-directory: ./server
-        run: docker compose up -d --build
+        run: docker compose up -d
 
       - name: Start the Kubectl Proxy Bridge in the Background
         run: |

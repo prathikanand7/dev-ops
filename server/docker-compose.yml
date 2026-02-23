@@ -50,6 +50,7 @@ services:
 
   # Django
   web:
+    image: notebook-web:latest
     build:
       context: .
       cache_from:
@@ -80,6 +81,7 @@ services:
 
   # Celery
   celery:
+    image: notebook-celery:latest 
     build:
       context: .
       cache_from:
