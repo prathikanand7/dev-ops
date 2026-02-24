@@ -37,12 +37,3 @@ run "public_subnet_cidr" {
     error_message = "Public subnet CIDRs are incorrect"
   }
 }
-
-// NAT Gateway
-# run "nat_gateway_enabled" {
-#   command = plan
-#   assert {
-#     condition     = module.vpc.enable_nat_gateway == true
-#     error_message = "NAT Gateway must be enabled"
-#   }
-# }
