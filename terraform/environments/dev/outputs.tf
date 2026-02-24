@@ -7,10 +7,6 @@ output "rds_name" {
   value = module.rds.db_instance_name
 }
 
-output "bucket_name" {
-  value = aws_s3_bucket.data_bucket.bucket
-}
-
 output "vpc_azs" {
   value = module.vpc.azs
 }
