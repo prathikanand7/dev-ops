@@ -15,6 +15,21 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 os.makedirs(INPUT_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# Get env variables
+env_params_str = os.environ.get("JOB_PARAMETERS")
+if not env_params_str:
+    print("FATAL: No 'JOB_PARAMETERS' environment variable found.")
+    sys.exit(1)
+
+try:
+    user_parameters = json.loads(env_params_str)
+    print("Loaded parameters from environment.")
+except json.JSONDecodeError as e:
+    print(f"FATAL: Could not decode JOB_PARAMETERS JSON: {e}")
+    sys.exit(1)
+    
+#------------------------------------------------------------------
+
 def download_file(url, dest_folder):
     parsed_url = urlparse(url)
     raw_filename = unquote(os.path.basename(parsed_url.path))
@@ -22,7 +37,7 @@ def download_file(url, dest_folder):
     
     print(f"Downloading: {url[:50]}... -> {local_filename}")
     try:
-        with requests.get(url, stream=True) as r:
+        with requests.get(url, stream=True, timeout=600) as r:  #TODO: Think about timeout strategy
             r.raise_for_status()
             with open(local_filename, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
@@ -47,18 +62,25 @@ def clean_url(url, base_url):
         
     return url
 
-# Get env variables
-env_params_str = os.environ.get("JOB_PARAMETERS")
-if not env_params_str:
-    print("FATAL: No 'JOB_PARAMETERS' environment variable found.")
-    sys.exit(1)
-
-try:
-    user_parameters = json.loads(env_params_str)
-    print("Loaded parameters from environment.")
-except json.JSONDecodeError as e:
-    print(f"FATAL: Could not decode JOB_PARAMETERS JSON: {e}")
-    sys.exit(1)
+def report_status_to_django(status, log_message, file_path=None):
+    if not job_id or not base_url:
+        print("Warning: No job_id or base_url provided. Cannot report status.")
+        return
+        
+    webhook_url = f"{base_url}/api/jobs/{job_id}/complete/"
+    data = {"status": status, "logs": log_message}
+    files = {}
+    
+    try:
+        if file_path and os.path.exists(file_path):
+            files = {'output_file': open(file_path, 'rb')}
+            
+        print(f"Sending status '{status}' to {webhook_url}...")
+        response = requests.post(webhook_url, data=data, files=files)
+        response.raise_for_status()
+        print("Status reported successfully.")
+    except Exception as e:
+        print(f"Failed to report status to Django: {e}")
 
 # Extract core variables
 job_id = user_parameters.pop("_job_id", None)     
@@ -68,26 +90,6 @@ base_url = user_parameters.pop("_base_url", None)
 raw_notebook_url = user_parameters.pop("_notebook_url", None)
 notebook_url = clean_url(raw_notebook_url, base_url)
 notebook_filename = user_parameters.pop("_notebook_filename", None)
-
-def report_status_to_django(status, log_message, file_path=None):
-    if not job_id or not base_url:
-        print("Warning: No _job_id or _base_url provided. Cannot report status.")
-        return
-        
-    webhook_url = f"{base_url}/api/jobs/{job_id}/complete/"
-    data = {"status": status, "logs": log_message}
-    files = {}
-    
-    if file_path and os.path.exists(file_path):
-        files = {'output_file': open(file_path, 'rb')}
-        
-    try:
-        print(f"Sending status '{status}' to {webhook_url}...")
-        response = requests.post(webhook_url, data=data, files=files)
-        response.raise_for_status()
-        print("Status reported successfully.")
-    except Exception as e:
-        print(f"Failed to report status to Django: {e}")
 
 if notebook_url:
     input_nb_path = download_file(notebook_url, INPUT_DIR)

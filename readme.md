@@ -43,7 +43,7 @@ This will spin up the following server components
     - Django Server
 
 ### 2. Run Database Migrations (First Time ONLY)
-When changing the 
+This is usually needed when running for the first time, or when making changes to the models
 In a separate terminal:
 ```bash
 docker compose exec web python manage.py migrate

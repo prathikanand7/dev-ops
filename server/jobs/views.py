@@ -30,7 +30,6 @@ def get_safe_url(raw_url):
         raw_url = '/' + raw_url
     return f"{BASE_URL}{raw_url}"
 
-
 @login_required
 def check_token_status(request):
     has_token = Token.objects.filter(user=request.user).exists()
@@ -95,9 +94,9 @@ class TriggerJobAPI(APIView):
             return Response({"error": "notebook_id is required."}, status=400)
             
         try:
-            notebook = Notebook.objects.get(id=notebook_id)
+            notebook = Notebook.objects.get(id=notebook_id, owner=request.user)
         except Notebook.DoesNotExist:
-            return Response({"error": "Notebook not found"}, status=404)
+            return Response({"error": "Notebook not found or you do not have permission to access it."}, status=404)
 
         params = {}
 
@@ -138,7 +137,8 @@ class TriggerJobAPI(APIView):
             "message": "Job queued successfully."
         }, status=201)
     
-    
+
+# TODO: This must be protected somehow. Have to think of the best way to do it
 @csrf_exempt
 @require_POST
 def job_complete_callback(request, job_id):
@@ -197,7 +197,8 @@ class TriggerNotebookAPIView(APIView):
 
     def post(self, request, notebook_id):
         try:
-            notebook = Notebook.objects.get(id=notebook_id)
+            notebook = Notebook.objects.get(id=notebook_id, owner=request.user)
+            
             final_payload = {}
             schema_data = notebook.parameter_schema
             param_list = [item for item in schema_data if isinstance(item, dict)]
@@ -229,6 +230,11 @@ class TriggerNotebookAPIView(APIView):
                 "resolved_payload": final_payload 
             }, status=status.HTTP_202_ACCEPTED)
 
+        except Notebook.DoesNotExist:
+            return Response(
+                {"error": "Notebook not found or you do not have permission to access it."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
             return Response(
                 {"error": f"Server Error: {str(e)}"}, 

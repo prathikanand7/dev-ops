@@ -1,6 +1,8 @@
 import json
 import re
 
+# TODO: he regex pattern only matches simple R assignment.
+# Should be expanded to cover more complex assignments
 def parse_notebook_parameters(notebook_file):
     """
     Retrieve parameters from the first cell of a given notebook

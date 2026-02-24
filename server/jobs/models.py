@@ -10,7 +10,7 @@ class Notebook(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     notebook_file = models.FileField(upload_to='notebooks/')
-    environment_file = models.FileField(upload_to='environments/', help_text="The environment.yaml or renv.lock file")
+    environment_file = models.FileField(upload_to='environments/',null=True, blank=True, help_text="The environment.yaml or renv.lock file")
     
     parameter_schema = models.JSONField(default=list, blank=True)
 
