@@ -12,13 +12,13 @@ output "bucket_name" {
 }
 
 output "vpc_azs" {
-    value = module.vpc.azs
+  value = module.vpc.azs
 }
 
 output "vpc_private_subnets" {
-    value = module.vpc.private_subnets_cidr_blocks
+  value = module.vpc.private_subnets_cidr_blocks
 }
 
 output "vpc_public_subnets" {
-    value = module.vpc.public_subnets_cidr_blocks
+  value = module.vpc.public_subnets_cidr_blocks
 }
