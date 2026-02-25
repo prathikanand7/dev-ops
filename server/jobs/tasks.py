@@ -5,6 +5,7 @@ from notebook_platform.settings import WORKER_CALLBACK_URL
 from .models import Job
 from kubernetes import client, config
 from kubernetes.config.config_exception import ConfigException
+# TODO: Centralize hardcoded URLs to settings
 
 def get_absolute_url(base_url, file_url):
     if file_url.startswith('http'):
@@ -14,6 +15,7 @@ def get_absolute_url(base_url, file_url):
     path = file_url.lstrip('/')
     return f"{base}/{path}"
 
+# TODO: Refactor to decrease cognitive complexity
 @shared_task
 def dispatch_job_task(job_id):
     """

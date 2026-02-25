@@ -17,11 +17,11 @@ def parse_notebook_parameters(notebook_file):
 
         parameters = []
         
-        r_pattern = re.compile(r'^(param_\w+)\s*<-\s*(.*)$')
+        r_parameter_name_pattern = re.compile(r'^(param_\w+)\s*<-\s*(.*)$')
 
         for line in first_cell['source']:
             line = line.strip()
-            match = r_pattern.match(line)
+            match = r_parameter_name_pattern.match(line)
             if match:
                 name = match.group(1)
                 value = match.group(2).strip('"\'')
