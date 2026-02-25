@@ -1,7 +1,21 @@
+# Server and Worker ignores
+/server/.env
+/server/.vscode
+server/db.sqlite3
+/server/jobs/__pycache__
+/worker/outputs
+/server/notebook_platform/__pycache__
+/server/jobs/migrations/__pycache__
+/server/media/*
+requests/request.py
+server/.env.dev
+server/kubeconfig-docker.yaml
+/server/k8s-manifests
+
 # Local .terraform directories
 **/.terraform/*
 
-# .tfstate files (CRITICAL SECURITY RISK)
+# .tfstate files
 *.tfstate
 *.tfstate.*
 
@@ -9,7 +23,7 @@
 crash.log
 crash.*.log
 
-# Exclude all .tfvars files, which are likely to contain sensitive data
+# Exclude all .tfvars files
 *.tfvars
 *.tfvars.json
 
@@ -27,3 +41,4 @@ terraform.rc
 .terraform.tfstate.lock.info
 
 .idea/
+.vscode/settings.json

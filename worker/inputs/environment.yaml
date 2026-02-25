@@ -1,4 +1,4 @@
-name: ecvs
+name: biotisan-euromarec
 channels:
   - conda-forge
 dependencies:
@@ -10,6 +10,7 @@ dependencies:
   - r-irkernel=1.3.2
   # user packages for all flavors
   - git=2.49.0
+  - jq>=1.8
   - minio=7.2.15
   - pip=25.0.1
   - python>=3.8
@@ -20,30 +21,9 @@ dependencies:
   - pip:
     - SecretsProvider
   # user packages for this flavor
-  # -----
-  - pytz
-  - idna
-  - cycler
-  - fonttools
-  - contourpy
-  - packaging
-  - pure_eval
-  - executing
-  - sniffio
-  - pycparser 
-  - pyparsing
-  - requests
-  - urllib3
-  - matplotlib
-  - numpy
-  - pandas
-  - shapely
-  - pillow
-  - kiwisolver
-  # - geopandas=0.10.2
-  # - rdflib=6.1.1
-  # # - r-devtools=2.4.5
-  # - r-tidyverse
-  # # - r-dplyr
-  # # - r-tidyr
-  # - r-vegan
+  - r-readxl
+  - r-dplyr
+  - r-vegan
+  - r-ggplot2
+  - r-nlme
+  - r-tidyr
