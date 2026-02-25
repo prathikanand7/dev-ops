@@ -1,8 +1,10 @@
 import json
 import re
 
-# TODO: he regex pattern only matches simple R assignment.
+# TODO: The regex pattern only matches simple R assignment.
 # Should be expanded to cover more complex assignments
+
+# TODO: Refactor exception handling to be descriptive
 def parse_notebook_parameters(notebook_file):
     """
     Retrieve parameters from the first cell of a given notebook
@@ -27,6 +29,7 @@ def parse_notebook_parameters(notebook_file):
                 value = match.group(2).strip('"\'')
                 
                 param_type = "string"
+                # TODO: This fails for scientific notation
                 if value.lower() in ['true', 'false', 't', 'f']:
                     param_type = "boolean"
                 elif value.replace('.', '', 1).isdigit():
