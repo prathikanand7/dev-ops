@@ -1,7 +1,5 @@
-import json
 import os
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.db import transaction
