@@ -14,13 +14,12 @@ data_payload = {
     "param_09_years": 5
 }
 
-files_payload = {
-    "param_01_input_data_filename": open('./Template_MBO_Example_raw_v3.xlsx', 'rb')
-}
-
-print(f"Submitting job to {BASE_URL}...")
-
-response = requests.post(BASE_URL, data=data_payload, files=files_payload, headers=headers)
+with open('./Template_MBO_Example_raw_v3.xlsx', 'rb') as upload_file:
+    files_payload = {
+        "param_01_input_data_filename": upload_file
+    }
+    print(f"Submitting job to {BASE_URL}...")
+    response = requests.post(BASE_URL, data=data_payload, files=files_payload, headers=headers)
 
 print(f"Status Code: {response.status_code}")
 if response.status_code == 202:
