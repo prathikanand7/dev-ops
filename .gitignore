@@ -41,3 +41,4 @@ terraform.rc
 .terraform.tfstate.lock.info
 
 .idea/
+.vscode/settings.json

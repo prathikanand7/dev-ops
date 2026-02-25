@@ -4,8 +4,7 @@ import requests
 # REPLACE THESE WITH YOUR VALUES
 NOTEBOOK_ID = <NOTEBOOK_ID>
 TOKEN = <TOKEN>
-
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = <BASE_URL>
 
 headers = {
     "Authorization": f"Token {TOKEN}"
