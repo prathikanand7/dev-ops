@@ -34,10 +34,33 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',      
     'rest_framework.authtoken', 
-    'django_filters',      
+    'django_filters',
+    'drf_spectacular',      
     'jobs',
     'storages',
 ]
+
+#------------------------ DRF & API Documentation Settings ------------------------
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Notebook Platform API',
+    'DESCRIPTION': 'API for automating and managing Jupyter/R Notebook executions via Kubernetes.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    # This automatically documents your Token auth requirement in Swagger UI
+    'SECURITY': [{'Token': []}], 
+}
+# #------------------------------------------------------------------------------
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -135,7 +158,7 @@ STORAGES = {
     },
 }
 
-# ------------------------------------------- Celery Configuration -------------------------------------------
+# ----------------------------------- Celery Configuration -----------------------------------
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
 CELERY_ACCEPT_CONTENT = ['json']
@@ -144,3 +167,7 @@ CELERY_TASK_SERIALIZER = 'json'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
+
+
+# ---------------------------Secret for Worker to Hit Job Complete ---------------------------
+WORKER_WEBHOOK_SECRET = os.environ.get('WORKER_WEBHOOK_SECRET', 'local-dev-secret-do-not-use-in-prod-12345')

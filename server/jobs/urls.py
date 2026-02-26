@@ -1,7 +1,10 @@
 from django.urls import path, include
+from django.conf import settings # <-- Import settings
 from rest_framework.routers import DefaultRouter
 from django.contrib.auth import views as auth_views
-from jobs.views import ui_views, api_views
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+
+from .views import ui_views, api_views 
 
 router = DefaultRouter()
 router.register(r'notebooks', api_views.NotebookViewSet, basename='notebook')
@@ -23,3 +26,11 @@ urlpatterns = [
     # ---- API Resource Paths ----
     path('api/', include(router.urls)),
 ]
+
+# ---- DEBUG ONLY: OpenAPI Schema & Docs ----
+if settings.DEBUG:
+    urlpatterns += [
+        path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+        path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+        path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    ]

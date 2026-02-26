@@ -2,13 +2,15 @@ import os
 from django.core.files.storage import default_storage
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.authtoken.models import Token
+from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.types import OpenApiTypes
 
 from notebook_platform.settings import WORKER_CALLBACK_URL
 from jobs.models import Job, Notebook
@@ -27,20 +29,38 @@ def get_safe_url(raw_url):
 
 
 class TokenStatusAPIView(APIView):
-    """GET /api/token/status/"""
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Check API Token Status",
+        description="Returns a boolean indicating if the current user has an active API token.",
+        responses={
+            200: inline_serializer(
+                name='TokenStatusResponse',
+                fields={'has_token': serializers.BooleanField()}
+            )
+        }
+    )
     def get(self, request):
         has_token = Token.objects.filter(user=request.user).exists()
         return Response({'has_token': has_token})
 
 
 class GenerateTokenAPIView(APIView):
-    """POST /api/token/generate/"""
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Generate API Token",
+        description="Invalidates any existing token and generates a new one for the current user.",
+        responses={
+            201: inline_serializer(
+                name='TokenGenerateResponse',
+                fields={'token': serializers.CharField()}
+            )
+        }
+    )
     def post(self, request):
         Token.objects.filter(user=request.user).delete()
         new_token = Token.objects.create(user=request.user)
@@ -60,14 +80,32 @@ class NotebookViewSet(viewsets.ModelViewSet):
         return Notebook.objects.filter(owner=self.request.user).order_by('-created_at')
 
     def perform_create(self, serializer):
-        # Automatically assign the logged-in user and parse parameters on API upload
         notebook_file = self.request.FILES.get('notebook_file')
         extracted_params = parse_notebook_parameters(notebook_file) if notebook_file else []
         serializer.save(owner=self.request.user, parameter_schema=extracted_params)
 
+    @extend_schema(
+        summary="Trigger Notebook Job",
+        description="Executes a notebook by queuing it to Kubernetes. Accepts dynamic multipart/form-data for parameters and files based on the notebook's extracted schema.",
+        request={'multipart/form-data': OpenApiTypes.OBJECT},
+        responses={
+            202: inline_serializer(
+                name='JobTriggerResponse',
+                fields={
+                    'message': serializers.CharField(),
+                    'job_id': serializers.UUIDField(),
+                    'status': serializers.CharField(),
+                    'resolved_payload': serializers.DictField()
+                }
+            ),
+            500: inline_serializer(
+                name='JobTriggerError',
+                fields={'error': serializers.CharField()}
+            )
+        }
+    )
     @action(detail=True, methods=['post'])
     def run(self, request, pk=None):
-        """POST /api/notebooks/<id>/run/"""
         notebook = self.get_object()
         
         try:
@@ -114,13 +152,32 @@ class JobViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Job.objects.filter(user=self.request.user).order_by('-created_at')
 
-    # Disable creation of jobs directly via POST /api/jobs/ (must use notebook run action)
+    @extend_schema(exclude=True) # Hides this overridden method from Swagger UI
     def create(self, request, *args, **kwargs):
         return Response({"error": "Jobs must be created by triggering a notebook."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
+    @extend_schema(
+        summary="Poll Recent Jobs Status",
+        description="Returns a lightweight list of the user's 50 most recent jobs and their current status.",
+        responses={
+            200: inline_serializer(
+                name='JobPollResponse',
+                fields={
+                    'jobs': inline_serializer(
+                        name='JobPollItem',
+                        fields={
+                            'id': serializers.UUIDField(),
+                            'status': serializers.CharField(),
+                            'file_url': serializers.CharField(allow_null=True, required=False)
+                        },
+                        many=True
+                    )
+                }
+            )
+        }
+    )
     @action(detail=False, methods=['get'])
     def poll_status(self, request):
-        """GET /api/jobs/poll_status/ - Matches exact JSON format from previous poll_job_statuses"""
         jobs = self.get_queryset()[:50]
         job_data = []
         for job in jobs:
@@ -137,18 +194,43 @@ class JobViewSet(viewsets.ModelViewSet):
             })
         return Response({'jobs': job_data})
 
+    @extend_schema(
+        summary="Get Job Logs",
+        description="Returns the raw execution text logs for a specific job.",
+        responses={
+            200: inline_serializer(
+                name='JobLogsResponse',
+                fields={'logs': serializers.CharField()}
+            )
+        }
+    )
     @action(detail=True, methods=['get'])
     def logs(self, request, pk=None):
-        """GET /api/jobs/<id>/logs/"""
         job = self.get_object()
         return Response({'logs': job.logs or "No logs available yet..."})
 
+    @extend_schema(
+        summary="Job Complete Webhook",
+        description="Unauthenticated webhook intended for the Kubernetes worker to post execution results.",
+        request={
+            'multipart/form-data': inline_serializer(
+                name='JobCompleteWebhookPayload',
+                fields={
+                    'status': serializers.CharField(required=False, help_text="Defaults to SUCCESS"),
+                    'logs': serializers.CharField(required=False),
+                    'output_file': serializers.FileField(required=False)
+                }
+            )
+        },
+        responses={
+            200: inline_serializer(
+                name='JobCompleteResponse',
+                fields={'message': serializers.CharField()}
+            )
+        }
+    )
     @action(detail=True, methods=['post'], permission_classes=[AllowAny], authentication_classes=[])
     def complete(self, request, pk=None):
-        """
-        POST /api/jobs/<id>/complete/ 
-        Webhook for K8s worker. Bypasses auth so the worker can hit it.
-        """
         job = get_object_or_404(Job, id=pk)
         
         job.status = request.data.get('status', 'SUCCESS')
