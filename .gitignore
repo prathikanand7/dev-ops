@@ -42,3 +42,8 @@ terraform.rc
 
 .idea/
 .vscode/settings.json
+/server/staticfiles
+/server/jobs/tests/__pycache__
+/server/jobs/tests/__pycache__
+*.pyc
+*.pyc

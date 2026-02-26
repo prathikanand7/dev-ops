@@ -88,17 +88,7 @@ jobs:
           docker compose exec -T web python manage.py migrate
           docker compose exec -T web python manage.py createsuperuser --noinput || true
 
-      - name: Check Web Server Health (Login Screen)
+      - name: Run Django Tests
+        working-directory: ./server
         run: |
-          echo "Testing connection to http://localhost:8000/login/ ..."
-
-          STATUS=$(curl -sL -o /dev/null -w "%{http_code}" http://localhost:8000/login/)
-          
-          if [ "$STATUS" -eq 200 ]; then
-            echo "Login screen is up."
-            exit 0
-          else
-            echo "Web server failed with $STATUS."
-            docker compose logs web
-            exit 1
-          fi
+          docker compose exec -T web python manage.py test
