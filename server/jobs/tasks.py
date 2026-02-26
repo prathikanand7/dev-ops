@@ -5,6 +5,8 @@ from notebook_platform.settings import WORKER_CALLBACK_URL
 from .models import Job
 from kubernetes import client, config
 from kubernetes.config.config_exception import ConfigException
+from django.conf import settings
+
 # TODO: Centralize hardcoded URLs to settings
 
 def get_absolute_url(base_url, file_url):
@@ -112,6 +114,10 @@ def dispatch_job_task(job_id):
                 client.V1EnvVar(
                     name="JOB_PARAMETERS",
                     value=json.dumps(payload)
+                ),
+                client.V1EnvVar(
+                    name="WORKER_TOKEN",
+                    value=settings.WORKER_WEBHOOK_SECRET
                 )
             ],
         )

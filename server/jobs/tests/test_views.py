@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from rest_framework.test import APIClient
+from django.conf import settings
 from rest_framework.authtoken.models import Token
 
 from jobs.models import Notebook, Job
@@ -126,18 +127,44 @@ class APIViewsTestCase(TestCase):
         self.assertEqual(response.json().get('logs'), 'Initial logs')
 
     def test_job_complete_callback(self):
-        """Test the unauthenticated webhook updates job status."""
+        """Test the webhook updates job status only with the correct shared secret."""
         output_file = SimpleUploadedFile("output.csv", b"data")
-        
-        # We must use an unauthenticated client to test webhook bypass
         unauth_client = APIClient()
-        response = unauth_client.post(reverse('job-complete', args=[self.job.id]), {
+        
+        # Test rejection (No token provided)
+        fail_response_no_token = unauth_client.post(reverse('job-complete', args=[self.job.id]), {
             'status': 'SUCCESS',
             'logs': 'Executed perfectly',
             'output_file': output_file
         }, format='multipart')
         
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(fail_response_no_token.status_code, 403)
+        
+        # Test rejection (Wrong token provided)
+        fail_response_wrong_token = unauth_client.post(
+            reverse('job-complete', args=[self.job.id]), 
+            {'status': 'SUCCESS'}, 
+            format='multipart',
+            HTTP_X_WORKER_TOKEN='some-invalid-hacker-token'
+        )
+        
+        self.assertEqual(fail_response_wrong_token.status_code, 403)
+
+        # Test success (Correct token provided)
+        success_response = unauth_client.post(
+            reverse('job-complete', args=[self.job.id]), 
+            {
+                'status': 'SUCCESS',
+                'logs': 'Executed perfectly',
+                'output_file': output_file
+            }, 
+            format='multipart',
+            HTTP_X_WORKER_TOKEN=settings.WORKER_WEBHOOK_SECRET
+        )
+        
+        self.assertEqual(success_response.status_code, 200)
+        
+        # Verify database updates
         self.job.refresh_from_db()
         self.assertEqual(self.job.status, 'SUCCESS')
         self.assertEqual(self.job.logs, 'Executed perfectly')

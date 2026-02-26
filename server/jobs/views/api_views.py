@@ -2,6 +2,8 @@ import os
 from django.core.files.storage import default_storage
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.conf import settings
+from rest_framework.permissions import BasePermission
 from rest_framework import viewsets, status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -19,6 +21,19 @@ from jobs.tasks import dispatch_job_task
 from jobs.utils import parse_notebook_parameters, parse_notebook_parameters_from_payload
 
 BASE_URL = WORKER_CALLBACK_URL.rstrip('/')
+
+class IsKubernetesWorker(BasePermission):
+    """
+    Custom permission to only allow Kubernetes workers with the shared secret 
+    to hit the webhook endpoints.
+    """
+    def has_permission(self, request, view):
+        provided_token = request.headers.get('X-Worker-Token')
+        
+        if not provided_token or provided_token != settings.WORKER_WEBHOOK_SECRET:
+            return False
+            
+        return True
 
 def get_safe_url(raw_url):
     if raw_url.startswith('http'):
@@ -211,7 +226,7 @@ class JobViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         summary="Job Complete Webhook",
-        description="Unauthenticated webhook intended for the Kubernetes worker to post execution results.",
+        description="Webhook intended for the Kubernetes worker to post execution results. Secured via shared secret header.",
         request={
             'multipart/form-data': inline_serializer(
                 name='JobCompleteWebhookPayload',
@@ -229,7 +244,7 @@ class JobViewSet(viewsets.ModelViewSet):
             )
         }
     )
-    @action(detail=True, methods=['post'], permission_classes=[AllowAny], authentication_classes=[])
+    @action(detail=True, methods=['post'], permission_classes=[IsKubernetesWorker], authentication_classes=[])
     def complete(self, request, pk=None):
         job = get_object_or_404(Job, id=pk)
         
