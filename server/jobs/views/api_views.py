@@ -11,10 +11,10 @@ from rest_framework.authentication import TokenAuthentication, SessionAuthentica
 from rest_framework.authtoken.models import Token
 
 from notebook_platform.settings import WORKER_CALLBACK_URL
-from .models import Job, Notebook
-from .serializers import NotebookSerializer, JobSerializer
-from .tasks import dispatch_job_task
-from .utils import parse_notebook_parameters, parse_notebook_parameters_from_payload
+from jobs.models import Job, Notebook
+from jobs.serializers import NotebookSerializer, JobSerializer
+from jobs.tasks import dispatch_job_task
+from jobs.utils import parse_notebook_parameters, parse_notebook_parameters_from_payload
 
 BASE_URL = WORKER_CALLBACK_URL.rstrip('/')
 

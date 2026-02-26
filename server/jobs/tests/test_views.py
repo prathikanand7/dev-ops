@@ -41,7 +41,7 @@ class WebViewsTestCase(TestCase):
         self.assertEqual(len(response.context['notebooks']), 1)
         self.assertEqual(len(response.context['jobs']), 1)
 
-    @patch('jobs.ui_views.parse_notebook_parameters')
+    @patch('jobs.views.ui_views.parse_notebook_parameters')
     def test_upload_notebook(self, mock_parse_params):
         """Test notebook upload UI and parameter extraction."""
         mock_parse_params.return_value = [{"name": "param1", "type": "int"}]
@@ -144,8 +144,8 @@ class APIViewsTestCase(TestCase):
         self.assertTrue(self.job.output_file.name.startswith('job_outputs/output'))
 
     @patch('django.db.transaction.on_commit', side_effect=lambda f: f())
-    @patch('jobs.api_views.dispatch_job_task.delay')
-    @patch('jobs.api_views.parse_notebook_parameters_from_payload')
+    @patch('jobs.views.api_views.dispatch_job_task.delay')
+    @patch('jobs.views.api_views.parse_notebook_parameters_from_payload')
     def test_trigger_notebook_api(self, mock_parse_payload, mock_dispatch, mock_on_commit):
         """Test triggering a notebook run and job creation."""
         mock_parse_payload.return_value = {"x": 5}

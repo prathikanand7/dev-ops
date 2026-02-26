@@ -2,9 +2,9 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView, CreateView
 from django.urls import reverse_lazy
 
-from .models import Job, Notebook
-from .forms import NotebookUploadForm
-from .utils import parse_notebook_parameters
+from jobs.models import Job, Notebook
+from jobs.forms import NotebookUploadForm
+from jobs.utils import parse_notebook_parameters
 
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard.html'

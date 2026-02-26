@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from django.contrib.auth import views as auth_views
-from . import ui_views, api_views
+from jobs.views import ui_views, api_views
 
 router = DefaultRouter()
 router.register(r'notebooks', api_views.NotebookViewSet, basename='notebook')
