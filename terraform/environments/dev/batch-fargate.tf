@@ -185,7 +185,7 @@ resource "aws_vpc_endpoint" "logs" {
 
 # AWS Batch Compute Environment - lifewatch-fargate-environment
 resource "aws_batch_compute_environment" "lifewatch_fargate_environment" {
-  name                           = "lifewatch-fargate-environment"
+  compute_environment_name       = "lifewatch-fargate-environment"
   type                           = "MANAGED"
   state                          = "ENABLED"
   
