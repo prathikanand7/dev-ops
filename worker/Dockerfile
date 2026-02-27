@@ -16,5 +16,3 @@ COPY . /app
 RUN chown -R ${NB_UID} /app
 
 USER ${NB_UID}
-
-# TODO: We must check if we can use another env that is common for ERIC?

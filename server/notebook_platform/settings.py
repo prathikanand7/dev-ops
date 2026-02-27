@@ -7,13 +7,13 @@ env_path = Path('.') / '.env.dev'
 load_dotenv(dotenv_path=env_path)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = os.environ.get('SECRET_KEY')
-DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
 # Routing & Security
 WORKER_CALLBACK_URL = os.environ.get('WORKER_CALLBACK_URL')
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS').split(',')
-CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS').split(',')
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS','').split(',')]
+CSRF_TRUSTED_ORIGINS = [host.strip() for host in os.environ.get('CSRF_TRUSTED_ORIGINS','').split(',')]
 LOCAL_KUBECTL_PROXY_URL = os.environ.get('LOCAL_KUBECTL_PROXY_URL')
 
 LANGUAGE_CODE = 'en-us'

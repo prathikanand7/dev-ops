@@ -1,5 +1,9 @@
 import json
 import re
+from kubernetes import client, config
+from kubernetes.config.config_exception import ConfigException
+from django.conf import settings
+from notebook_platform.settings import ENVIRONMENT, LOCAL_KUBECTL_PROXY_URL, WORKER_IMAGE
 
 # TODO: The regex pattern only matches simple R assignment.
 # Should be expanded to cover more complex assignments
@@ -82,3 +86,100 @@ def parse_notebook_parameters_from_payload(param_list, request_data_items, reque
                 except ValueError:
                     final_payload[key] = val
     return final_payload
+
+
+def get_absolute_url(base_url, file_url):
+    if file_url.startswith('http'):
+        return file_url
+    base = base_url.rstrip('/')
+    path = file_url.lstrip('/')
+    return f"{base}/{path}"
+
+def get_k8s_batch_client():
+    """Handles Kubernetes authentication based on the environment."""
+    if ENVIRONMENT == "local":
+        configuration = client.Configuration()
+        configuration.host = LOCAL_KUBECTL_PROXY_URL
+        api_client = client.ApiClient(configuration)
+        return client.BatchV1Api(api_client)
+    
+    try:
+        config.load_incluster_config()
+    except ConfigException:
+        config.load_kube_config()
+    return client.BatchV1Api()
+
+def build_worker_payload(job_record, base_url):
+    """Constructs the payload required by papermill."""
+    notebook_url = get_absolute_url(base_url, job_record.notebook.notebook_file.url)
+    
+    payload = {
+        "_notebook_url": notebook_url,
+        "_notebook_filename": job_record.notebook.notebook_file.name.split('/')[-1],
+        "_job_id": str(job_record.id),      
+        "_base_url": base_url,        
+        **job_record.job_parameters
+    }
+    
+    if job_record.notebook.environment_file:
+        payload["_environment_url"] = get_absolute_url(base_url, job_record.notebook.environment_file.url)
+        
+    if ENVIRONMENT == "local":
+        for key, val in payload.items():
+            if isinstance(val, str) and "localhost:9000" in val:
+                unsigned_url = val.split('?')[0]
+                payload[key] = unsigned_url.replace("localhost:9000", "host.minikube.internal:9000")
+                
+    return payload
+
+def build_k8s_job_spec(job_id, payload):
+    """Constructs the Kubernetes Job manifest."""
+    is_prod = (ENVIRONMENT == "production")
+    k8s_job_name = f"job-{str(job_id)[:8]}"
+    
+    # Ternary operators clean up the resource allocation logic
+    resources = client.V1ResourceRequirements(
+        requests={"cpu": "1" if is_prod else "250m", "memory": "2Gi" if is_prod else "512Mi"}, 
+        limits={"cpu": "4" if is_prod else "2", "memory": "16Gi" if is_prod else "4Gi"}   
+    )
+    
+    container = client.V1Container(
+        name="notebook-worker",
+        image=WORKER_IMAGE,
+        image_pull_policy="Always" if is_prod else "IfNotPresent", 
+        command=["python"],
+        args=["worker.py"], 
+        working_dir="/app",
+        resources=resources, 
+        env=[
+            client.V1EnvVar(name="JOB_PARAMETERS", value=json.dumps(payload)),
+            client.V1EnvVar(name="WORKER_TOKEN", value=settings.WORKER_WEBHOOK_SECRET)
+        ],
+    )
+
+    pod_spec_kwargs = {
+        "containers": [container],
+        "restart_policy": "Never",
+        "service_account_name": "notebook-worker-sa"
+    }
+
+    # Apply Karpenter config only for prod
+    if is_prod:
+        pod_spec_kwargs["node_selector"] = {"workload-type": "light-notebook"}
+        pod_spec_kwargs["tolerations"] = [
+            client.V1Toleration(
+                key="workload-type", operator="Equal", value="light-notebook", effect="NoSchedule"
+            )
+        ]
+
+    template = client.V1PodTemplateSpec(
+        metadata=client.V1ObjectMeta(labels={"app": "notebook-runner"}),
+        spec=client.V1PodSpec(**pod_spec_kwargs)
+    )
+
+    return client.V1Job(
+        api_version="batch/v1",
+        kind="Job",
+        metadata=client.V1ObjectMeta(name=k8s_job_name),
+        spec=client.V1JobSpec(template=template, backoff_limit=0, ttl_seconds_after_finished=3600)
+    )
