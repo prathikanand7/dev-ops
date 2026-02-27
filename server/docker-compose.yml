@@ -75,7 +75,7 @@ services:
       - AWS_S3_ENDPOINT_URL=http://minio:9000
       - WORKER_CALLBACK_URL=http://host.minikube.internal:8000 
       - CSRF_TRUSTED_ORIGINS=http://host.minikube.internal:8000
-      - ALLOWED_HOSTS="*"
+      - ALLOWED_HOSTS=*
       - LOCAL_KUBECTL_PROXY_URL=http://host.docker.internal:8001
       - DEBUG=True
     extra_hosts:
