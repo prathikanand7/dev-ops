@@ -17,7 +17,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Get env variables
 env_params_str = os.environ.get("JOB_PARAMETERS")
-worker_token = os.environ.get("WORKER_TOKEN", "")
+worker_token = os.environ.get("WORKER_TOKEN")
 
 if not env_params_str:
     print("FATAL: No 'JOB_PARAMETERS' environment variable found.")
@@ -39,7 +39,7 @@ def download_file(url, dest_folder):
     
     print(f"Downloading: {url[:50]}... -> {local_filename}")
     try:
-        with requests.get(url, stream=True, timeout=600) as r:  #TODO: Think about timeout strategy
+        with requests.get(url, stream=True, timeout=600) as r:
             r.raise_for_status()
             with open(local_filename, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):

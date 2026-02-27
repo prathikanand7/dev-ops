@@ -7,14 +7,14 @@ env_path = Path('.') / '.env.dev'
 load_dotenv(dotenv_path=env_path)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-=ti)wu!un4bncw)1hz))-as1ljm94&=fh1s(!bx2@ovut)kpta')
+SECRET_KEY = os.environ.get('SECRET_KEY')
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
 # Routing & Security
-WORKER_CALLBACK_URL = os.environ.get('WORKER_CALLBACK_URL', 'http://host.docker.internal:8000')
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
-CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:8000').split(',')
+WORKER_CALLBACK_URL = os.environ.get('WORKER_CALLBACK_URL')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS').split(',')
+CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS').split(',')
+LOCAL_KUBECTL_PROXY_URL = os.environ.get('LOCAL_KUBECTL_PROXY_URL')
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
@@ -57,7 +57,6 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'API for automating and managing Jupyter/R Notebook executions via Kubernetes.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
-    # This automatically documents your Token auth requirement in Swagger UI
     'SECURITY': [{'Token': []}], 
 }
 # #------------------------------------------------------------------------------
@@ -159,8 +158,8 @@ STORAGES = {
 }
 
 # ----------------------------------- Celery Configuration -----------------------------------
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
@@ -168,6 +167,8 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 
+# ---------------------------Secret for Worker to Hit Job Complete Endpoint---------------------------
+WORKER_WEBHOOK_SECRET = os.environ.get('WORKER_WEBHOOK_SECRET')
 
-# ---------------------------Secret for Worker to Hit Job Complete ---------------------------
-WORKER_WEBHOOK_SECRET = os.environ.get('WORKER_WEBHOOK_SECRET', 'local-dev-secret-do-not-use-in-prod-12345')
+# --------------------------- Worker Image and Tag---------------------------
+WORKER_IMAGE = os.environ.get("WORKER_IMAGE")

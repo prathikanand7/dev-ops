@@ -1,13 +1,11 @@
 import json
 import os
 from celery import shared_task
-from notebook_platform.settings import WORKER_CALLBACK_URL
+from notebook_platform.settings import ENVIRONMENT, LOCAL_KUBECTL_PROXY_URL, WORKER_CALLBACK_URL, WORKER_IMAGE
 from .models import Job
 from kubernetes import client, config
 from kubernetes.config.config_exception import ConfigException
 from django.conf import settings
-
-# TODO: Centralize hardcoded URLs to settings
 
 def get_absolute_url(base_url, file_url):
     if file_url.startswith('http'):
@@ -22,7 +20,7 @@ def get_absolute_url(base_url, file_url):
 def dispatch_job_task(job_id):
     """
     Submits a Kubernetes Job to execute the notebook.
-    Different behavior based on environment.
+    Different behavior based on ENVIRONMENT.
     """
     try:
         job_record = Job.objects.get(id=job_id)
@@ -34,16 +32,12 @@ def dispatch_job_task(job_id):
         job_record.status = 'PROVISIONING'
         job_record.save()
 
-        # Determine Environment
-        environment = os.environ.get("ENVIRONMENT", "local").lower()
-
         # Kubernetes Authentication
-        if environment == "local":
+        if ENVIRONMENT == "local":
             # Bypass authentication for local Minikube with kubectl proxy
             configuration = client.Configuration()
-            configuration.host = "http://host.docker.internal:8001"
+            configuration.host = LOCAL_KUBECTL_PROXY_URL
             api_client = client.ApiClient(configuration)
-            
             k8s_batch_v1 = client.BatchV1Api(api_client) 
             print("Successfully connected to local kubectl proxy.")
         else:
@@ -77,7 +71,7 @@ def dispatch_job_task(job_id):
             payload["_environment_url"] = env_url
             
         # Translation of Minio URL for local dev
-        if environment == "local":
+        if ENVIRONMENT == "local":
             for key, val in payload.items():
                 if isinstance(val, str) and "localhost:9000" in val:
                     unsigned_url = val.split('?')[0]
@@ -87,19 +81,19 @@ def dispatch_job_task(job_id):
         k8s_job_name = f"job-{str(job_id)[:8]}"
         
         # Resource allocation based on environment
-        if environment == "production":
+        if ENVIRONMENT == "production":
             resources = client.V1ResourceRequirements(
                 requests={"cpu": "1", "memory": "2Gi"}, 
                 limits={"cpu": "4", "memory": "16Gi"}   
             )
-            worker_image = os.environ.get("WORKER_IMAGE", "020858641931.dkr.ecr.eu-west-1.amazonaws.com/r-notebook-worker:latest")
+            worker_image = WORKER_IMAGE
             pull_policy = "Always"
         else:
             resources = client.V1ResourceRequirements(
                 requests={"cpu": "250m", "memory": "512Mi"}, 
                 limits={"cpu": "2", "memory": "4Gi"}   
             )
-            worker_image = os.environ.get("WORKER_IMAGE", "r-notebook-worker:latest")
+            worker_image = WORKER_IMAGE
             pull_policy = "IfNotPresent"
 
         container = client.V1Container(
@@ -129,7 +123,7 @@ def dispatch_job_task(job_id):
         }
 
         # Karpenter configuration ---- PROD ONLY
-        if environment == "production":
+        if ENVIRONMENT == "production":
             toleration = client.V1Toleration(
                 key="workload-type",
                 operator="Equal",
@@ -162,7 +156,7 @@ def dispatch_job_task(job_id):
             body=job_obj
         )
         
-        print(f"Kubernetes Job {k8s_job_name} created for Job {job_id}. Environment: {environment.upper()}")
+        print(f"Kubernetes Job {k8s_job_name} created for Job {job_id}. Environment: {ENVIRONMENT.upper()}")
 
     except Exception as e:
         print(f"Failed to dispatch job: {e}")
