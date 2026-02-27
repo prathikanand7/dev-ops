@@ -38,7 +38,7 @@ resource "aws_subnet" "my_app_vpc_public_eu_west_1a" {
   vpc_id            = aws_vpc.my_app_vpc.id
   cidr_block        = "10.0.103.0/24"
   availability_zone = "eu-west-1a"
-  
+
   tags = {
     Name = "my-app-vpc-public-eu-west-1a"
   }
@@ -48,7 +48,7 @@ resource "aws_subnet" "my_app_vpc_public_eu_west_1b" {
   vpc_id            = aws_vpc.my_app_vpc.id
   cidr_block        = "10.0.102.0/24"
   availability_zone = "eu-west-1b"
-  
+
   tags = {
     Name = "my-app-vpc-public-eu-west-1b"
   }
@@ -104,7 +104,7 @@ resource "aws_security_group" "batch_security_group" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]  # Only within VPC
+    cidr_blocks = ["10.0.0.0/16"] # Only within VPC
   }
 
   egress {
@@ -132,52 +132,52 @@ resource "aws_security_group" "batch_security_group" {
 resource "aws_vpc_endpoint" "s3" {
   vpc_id       = aws_vpc.my_app_vpc.id
   service_name = "com.amazonaws.eu-west-1.s3"
-  
+
   tags = {
     Name = "lifewatch-s3-endpoint"
   }
 }
 
 resource "aws_vpc_endpoint" "ecr_dkr" {
-  vpc_id              = aws_vpc.my_app_vpc.id
-  service_name        = "com.amazonaws.eu-west-1.ecr.dkr"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = [
+  vpc_id            = aws_vpc.my_app_vpc.id
+  service_name      = "com.amazonaws.eu-west-1.ecr.dkr"
+  vpc_endpoint_type = "Interface"
+  subnet_ids = [
     aws_subnet.my_app_vpc_public_eu_west_1a.id,
     aws_subnet.my_app_vpc_public_eu_west_1b.id
   ]
-  security_group_ids  = [aws_security_group.vpc_endpoint_sg.id]
-  
+  security_group_ids = [aws_security_group.vpc_endpoint_sg.id]
+
   tags = {
     Name = "lifewatch-ecr-dkr-endpoint"
   }
 }
 
 resource "aws_vpc_endpoint" "ecr_api" {
-  vpc_id              = aws_vpc.my_app_vpc.id
-  service_name        = "com.amazonaws.eu-west-1.ecr.api"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = [
+  vpc_id            = aws_vpc.my_app_vpc.id
+  service_name      = "com.amazonaws.eu-west-1.ecr.api"
+  vpc_endpoint_type = "Interface"
+  subnet_ids = [
     aws_subnet.my_app_vpc_public_eu_west_1a.id,
     aws_subnet.my_app_vpc_public_eu_west_1b.id
   ]
-  security_group_ids  = [aws_security_group.vpc_endpoint_sg.id]
-  
+  security_group_ids = [aws_security_group.vpc_endpoint_sg.id]
+
   tags = {
     Name = "lifewatch-ecr-api-endpoint"
   }
 }
 
 resource "aws_vpc_endpoint" "logs" {
-  vpc_id              = aws_vpc.my_app_vpc.id
-  service_name        = "com.amazonaws.eu-west-1.logs"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = [
+  vpc_id            = aws_vpc.my_app_vpc.id
+  service_name      = "com.amazonaws.eu-west-1.logs"
+  vpc_endpoint_type = "Interface"
+  subnet_ids = [
     aws_subnet.my_app_vpc_public_eu_west_1a.id,
     aws_subnet.my_app_vpc_public_eu_west_1b.id
   ]
-  security_group_ids  = [aws_security_group.vpc_endpoint_sg.id]
-  
+  security_group_ids = [aws_security_group.vpc_endpoint_sg.id]
+
   tags = {
     Name = "lifewatch-logs-endpoint"
   }
@@ -185,25 +185,25 @@ resource "aws_vpc_endpoint" "logs" {
 
 # AWS Batch Compute Environment - lifewatch-fargate-environment
 resource "aws_batch_compute_environment" "lifewatch_fargate_environment" {
-  compute_environment_name       = "lifewatch-fargate-environment"
-  type                           = "MANAGED"
-  state                          = "ENABLED"
-  
+  compute_environment_name = "lifewatch-fargate-environment"
+  type                     = "MANAGED"
+  state                    = "ENABLED"
+
   compute_resources {
-    type               = "FARGATE"
-    
+    type = "FARGATE"
+
     subnets = [
       aws_subnet.my_app_vpc_public_eu_west_1a.id,
       aws_subnet.my_app_vpc_public_eu_west_1b.id
     ]
-    
+
     security_group_ids = [
       aws_security_group.batch_security_group.id
     ]
-    
+
     max_vcpus = 256
   }
-  
+
   depends_on = [
     aws_subnet.my_app_vpc_public_eu_west_1a,
     aws_subnet.my_app_vpc_public_eu_west_1b,
@@ -213,7 +213,7 @@ resource "aws_batch_compute_environment" "lifewatch_fargate_environment" {
     aws_vpc_endpoint.ecr_api,
     aws_vpc_endpoint.logs
   ]
-  
+
   tags = {
     Name = "lifewatch-fargate-environment"
   }
@@ -224,19 +224,19 @@ resource "aws_batch_job_queue" "lifewatch_fargate_job_queue" {
   name     = "lifewatch-fargate-job-queue"
   state    = "ENABLED"
   priority = 1
-  
+
   compute_environment_order {
     order               = 1
     compute_environment = aws_batch_compute_environment.lifewatch_fargate_environment.arn
   }
-  
+
   job_state_time_limit_action {
     state            = "RUNNABLE"
     action           = "CANCEL"
     max_time_seconds = 600
     reason           = "MISCONFIGURATION:COMPUTE_ENVIRONMENT_MAX_RESOURCE"
   }
-  
+
   tags = {
     Name = "lifewatch-fargate-job-queue"
   }
@@ -246,22 +246,22 @@ resource "aws_batch_job_queue" "lifewatch_fargate_job_queue" {
 resource "aws_batch_job_definition" "lifewatch_fargate_job_definition" {
   name = "lifewatch-fargate-job-definition"
   type = "container"
-  
+
   platform_capabilities = ["FARGATE"]
-  
+
   container_properties = jsonencode({
     image = "020858641931.dkr.ecr.eu-west-1.amazonaws.com/r-notebook-worker:latest"
-    
+
     command = ["echo", "Hello world. I am running the job"]
-    
+
     fargatePlatformConfiguration = {
       platformVersion = "LATEST"
     }
-    
+
     networkConfiguration = {
       assignPublicIp = "ENABLED"
     }
-    
+
     resourceRequirements = [
       {
         type  = "VCPU"
@@ -272,19 +272,19 @@ resource "aws_batch_job_definition" "lifewatch_fargate_job_definition" {
         value = "2048"
       }
     ]
-    
+
     ephemeralStorage = {
       sizeInGiB = 21
     }
-    
+
     runtimePlatform = {
       cpuArchitecture       = "X86_64"
       operatingSystemFamily = "LINUX"
     }
-    
+
     executionRoleArn = "arn:aws:iam::020858641931:role/BatchEcsTaskExecutionRole"
   })
-  
+
   tags = {
     Name = "lifewatch-fargate-job-definition"
   }
