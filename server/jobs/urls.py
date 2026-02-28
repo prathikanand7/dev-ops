@@ -1,5 +1,5 @@
 from django.urls import path, include
-from django.conf import settings # <-- Import settings
+from django.conf import settings
 from rest_framework.routers import DefaultRouter
 from django.contrib.auth import views as auth_views
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
