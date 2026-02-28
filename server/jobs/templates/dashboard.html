@@ -229,7 +229,6 @@ async function submitRunJob() {
         submitBtn.disabled = true;
         submitBtn.innerText = "Submitting...";
 
-        // UPDATED: Now posts to the DRF ViewSet action
         const response = await fetch(`/api/notebooks/${notebookId}/run/`, {
             method: 'POST',
             headers: {
@@ -279,7 +278,6 @@ async function deleteItem(type, id) {
 
 async function fetchLiveStatuses() {
     try {
-        // UPDATED: DRF generated endpoints use underscores
         const response = await fetch('/api/jobs/poll_status/');
         if (!response.ok) return;
         
@@ -325,7 +323,6 @@ async function viewLogs(jobId) {
     modal.show();
 
     try {
-        // DRF generates /api/jobs/<id>/logs/ automatically!
         const response = await fetch(`/api/jobs/${jobId}/logs/`);
         if (response.ok) {
             const data = await response.json();
