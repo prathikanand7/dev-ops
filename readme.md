@@ -68,6 +68,11 @@ minikube image build -t r-notebook-worker:latest .
 kubectl proxy --address='0.0.0.0' --port=8001 --accept-hosts='^.*'
 ```
 
+### 8. Access the Application
+```
+http://localhost:8000
+```
+
 ## Useful Commands
 ```
 # View Jobs (-w to keep in running)
