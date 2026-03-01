@@ -2,18 +2,34 @@ import os
 from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 env_path = Path('.') / '.env.dev'
 load_dotenv(dotenv_path=env_path)
 
+# ----------------------------------- Helper Functions -----------------------------------
+def get_env_variable(var_name):
+    """Get the environment variable or return an ImproperlyConfigured exception."""
+    try:
+        return os.environ[var_name]
+    except KeyError:
+        raise ImproperlyConfigured(f"CRITICAL: The {var_name} environment variable is missing.")
+
+# ----------------------------------------------------------------------------------------
+
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-# Routing & Security
-WORKER_CALLBACK_URL = os.environ.get('WORKER_CALLBACK_URL')
-ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS','').split(',')]
-CSRF_TRUSTED_ORIGINS = [host.strip() for host in os.environ.get('CSRF_TRUSTED_ORIGINS','').split(',')]
+# --- Strictly Required Settings ---
+SECRET_KEY = get_env_variable('DJANGO_SECRET_KEY')
+WORKER_CALLBACK_URL = get_env_variable('WORKER_CALLBACK_URL')
+CELERY_BROKER_URL = get_env_variable('CELERY_BROKER_URL')
+WORKER_WEBHOOK_SECRET = get_env_variable('WORKER_WEBHOOK_SECRET')
+WORKER_IMAGE = get_env_variable('WORKER_IMAGE')
+
+# --- Routing & Security ---
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip()]
+CSRF_TRUSTED_ORIGINS = [host.strip() for host in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if host.strip()]
 LOCAL_KUBECTL_PROXY_URL = os.environ.get('LOCAL_KUBECTL_PROXY_URL')
 
 LANGUAGE_CODE = 'en-us'
@@ -59,7 +75,7 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
     'SECURITY': [{'Token': []}], 
 }
-# #------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -158,7 +174,6 @@ STORAGES = {
 }
 
 # ----------------------------------- Celery Configuration -----------------------------------
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL')
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
@@ -166,9 +181,3 @@ CELERY_TASK_SERIALIZER = 'json'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
-
-# ---------------------------Secret for Worker to Hit Job Complete Endpoint---------------------------
-WORKER_WEBHOOK_SECRET = os.environ.get('WORKER_WEBHOOK_SECRET')
-
-# --------------------------- Worker Image and Tag---------------------------
-WORKER_IMAGE = os.environ.get("WORKER_IMAGE")

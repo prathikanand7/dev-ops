@@ -1,4 +1,5 @@
 import os
+import secrets
 from django.core.files.storage import default_storage
 from django.db import transaction
 from django.shortcuts import get_object_or_404
@@ -8,18 +9,18 @@ from rest_framework import viewsets, status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.authtoken.models import Token
 from drf_spectacular.utils import extend_schema, inline_serializer
 from drf_spectacular.types import OpenApiTypes
+from django.core.exceptions import ImproperlyConfigured
 
 from jobs.models import Job, Notebook
 from jobs.serializers import NotebookSerializer, JobSerializer
 from jobs.tasks import dispatch_job_task
 from jobs.utils import parse_notebook_parameters, parse_notebook_parameters_from_payload
 
-BASE_URL = settings.WORKER_CALLBACK_URL.rstrip('/')
 
 class IsKubernetesWorker(BasePermission):
     """
@@ -28,18 +29,32 @@ class IsKubernetesWorker(BasePermission):
     """
     def has_permission(self, request, view):
         provided_token = request.headers.get('X-Worker-Token')
+        expected_token = getattr(settings, 'WORKER_WEBHOOK_SECRET', None)
         
-        if not provided_token or provided_token != settings.WORKER_WEBHOOK_SECRET:
+        # Fail securely if the server itself is secret is missing
+        if not expected_token:
             return False
             
-        return True
-
+        # Reject if the worker didn't provide a token
+        if not provided_token:
+            return False
+            
+        # Compare the tokens in constant time
+        return secrets.compare_digest(provided_token, expected_token)
+    
 def get_safe_url(raw_url):
+    callback_url = getattr(settings, 'WORKER_CALLBACK_URL', None)
+    
+    if not callback_url:
+        raise ImproperlyConfigured("WORKER_CALLBACK_URL setting is missing or empty.")
+        
+    base_url = callback_url.rstrip('/')
+
     if raw_url.startswith('http'):
         return raw_url
     if not raw_url.startswith('/'):
         raw_url = '/' + raw_url
-    return f"{BASE_URL}{raw_url}"
+    return f"{base_url}{raw_url}"
 
 
 class TokenStatusAPIView(APIView):
