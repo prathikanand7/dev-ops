@@ -256,7 +256,7 @@ async function deleteItem(type, id) {
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     
-    // UPDATED: Standard RESTful DELETE endpoints
+    // Standard RESTful DELETE endpoints
     const url = type === 'notebook' ? `/api/notebooks/${id}/` : `/api/jobs/${id}/`;
     try {
         const response = await fetch(url, { 
