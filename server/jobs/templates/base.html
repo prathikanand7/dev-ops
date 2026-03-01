@@ -82,13 +82,15 @@
 <script>
     let warningModal;
     let revealModal;
+    
     document.addEventListener("DOMContentLoaded", function() {
         warningModal = new bootstrap.Modal(document.getElementById('tokenWarningModal'));
         revealModal = new bootstrap.Modal(document.getElementById('tokenRevealModal'));
     });
 
     function initiateTokenFlow() {
-        fetch('/token/status/')
+        // Points to the DRF API View endpoint
+        fetch('/api/token/status/')
             .then(response => response.json())
             .then(data => {
                 if (data.has_token) {
@@ -103,7 +105,8 @@
     function executeTokenGeneration() {
         const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-        fetch('/token/generate/', {
+        // Points to the DRF API View endpoint
+        fetch('/api/token/generate/', {
             method: 'POST',
             headers: {
                 'X-CSRFToken': csrf,

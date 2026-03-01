@@ -17,6 +17,8 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Get env variables
 env_params_str = os.environ.get("JOB_PARAMETERS")
+worker_token = os.environ.get("WORKER_TOKEN")
+
 if not env_params_str:
     print("FATAL: No 'JOB_PARAMETERS' environment variable found.")
     sys.exit(1)
@@ -37,7 +39,7 @@ def download_file(url, dest_folder):
     
     print(f"Downloading: {url[:50]}... -> {local_filename}")
     try:
-        with requests.get(url, stream=True, timeout=600) as r:  #TODO: Think about timeout strategy
+        with requests.get(url, stream=True, timeout=600) as r:
             r.raise_for_status()
             with open(local_filename, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
@@ -71,19 +73,32 @@ def report_status_to_django(status, log_message, file_path=None):
     data = {"status": status, "logs": log_message}
     files = {}
     
+    headers = {}
+    if worker_token:
+        headers['X-Worker-Token'] = worker_token
+    
     try:
-        if file_path and os.path.exists(file_path):
-            files = {'output_file': open(file_path, 'rb')}
-            
         print(f"Sending status '{status}' to {webhook_url}...")
-        response = requests.post(webhook_url, data=data, files=files)
+        
+        if file_path and os.path.exists(file_path):
+            with open(file_path, 'rb') as f:
+                files = {'output_file': f}
+                response = requests.post(webhook_url, data=data, files=files, headers=headers)
+        else:
+            response = requests.post(webhook_url, data=data, headers=headers)
         response.raise_for_status()
         print("Status reported successfully.")
+        
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 403:
+            print(f"FATAL: Webhook rejected by Django (403 Forbidden). Check your WORKER_TOKEN.")
+        else:
+            print(f"Failed to report status to Django: {e}")
     except Exception as e:
         print(f"Failed to report status to Django: {e}")
 
 # Extract core variables
-job_id = user_parameters.pop("_job_id", None)     
+job_id = user_parameters.pop("_job_id", None)    
 base_url = user_parameters.pop("_base_url", None) 
 
 # Clean the notebook URL
