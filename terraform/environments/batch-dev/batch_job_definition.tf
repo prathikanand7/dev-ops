@@ -5,9 +5,9 @@ resource "aws_batch_job_definition" "lifewatch_fargate_job_definition" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "020858641931.dkr.ecr.eu-west-1.amazonaws.com/r-notebook-worker:latest"
+    image = "020858641931.dkr.ecr.eu-west-1.amazonaws.com/batch-hello-world:latest"
 
-    command = ["echo", "Hello world. I am running the job"]
+    command = ["python", "app.py"]
 
     fargatePlatformConfiguration = {
       platformVersion = "LATEST"
@@ -16,6 +16,12 @@ resource "aws_batch_job_definition" "lifewatch_fargate_job_definition" {
     networkConfiguration = {
       assignPublicIp = "ENABLED"
     }
+
+    # tells the job to use this s3 bucket as an environment variable, the lambda will override the KEY variable at submission time
+    environment = [
+      { name = "BUCKET", value = aws_s3_bucket.batch_payloads.bucket }
+      # KEY will be overridden at submission time
+    ]
 
     resourceRequirements = [
       { type = "VCPU", value = "1.0" },
@@ -32,6 +38,7 @@ resource "aws_batch_job_definition" "lifewatch_fargate_job_definition" {
     }
 
     executionRoleArn = "arn:aws:iam::020858641931:role/BatchEcsTaskExecutionRole"
+    jobRoleArn       = aws_iam_role.batch_job_role.arn
   })
 
   tags = {
