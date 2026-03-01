@@ -3,6 +3,7 @@ import re
 from kubernetes import client, config
 from kubernetes.config.config_exception import ConfigException
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 
 # TODO: The regex pattern only matches simple R assignment.
 # Should be expanded to cover more complex assignments
@@ -183,3 +184,21 @@ def build_k8s_job_spec(job_id, payload):
         metadata=client.V1ObjectMeta(name=k8s_job_name),
         spec=client.V1JobSpec(template=template, backoff_limit=0, ttl_seconds_after_finished=3600)
     )
+    
+def get_safe_url(raw_url):
+    """
+    Constructs a safe absolute URL for a given raw URL, ensuring it is properly prefixed with the worker callback URL if it's a relative path.
+    Raises ImproperlyConfigured if the WORKER_CALLBACK_URL setting is missing or empty.
+    """
+    callback_url = getattr(settings, 'WORKER_CALLBACK_URL', None)
+    
+    if not callback_url:
+        raise ImproperlyConfigured("WORKER_CALLBACK_URL setting is missing or empty.")
+        
+    base_url = callback_url.rstrip('/')
+
+    if raw_url.startswith('http'):
+        return raw_url
+    if not raw_url.startswith('/'):
+        raw_url = '/' + raw_url
+    return f"{base_url}{raw_url}"
