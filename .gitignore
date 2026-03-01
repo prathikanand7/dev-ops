@@ -46,5 +46,4 @@ terraform.rc
 /server/jobs/tests/__pycache__
 /server/jobs/tests/__pycache__
 *.pyc
-*.pyc
 server/zappa_settings.json
