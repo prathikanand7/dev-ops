@@ -81,6 +81,9 @@ docker compose exec web python <SOME COMMAND>
 
 # Open a shell inside the web container
 docker compose exec web bash
+
+# Run tests inside docker
+docker compose exec web python manage.py test
 ```
 
 ## CI/CD
