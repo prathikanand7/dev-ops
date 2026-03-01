@@ -14,13 +14,12 @@ from rest_framework.authtoken.models import Token
 from drf_spectacular.utils import extend_schema, inline_serializer
 from drf_spectacular.types import OpenApiTypes
 
-from notebook_platform.settings import WORKER_CALLBACK_URL
 from jobs.models import Job, Notebook
 from jobs.serializers import NotebookSerializer, JobSerializer
 from jobs.tasks import dispatch_job_task
 from jobs.utils import parse_notebook_parameters, parse_notebook_parameters_from_payload
 
-BASE_URL = WORKER_CALLBACK_URL.rstrip('/')
+BASE_URL = settings.WORKER_CALLBACK_URL.rstrip('/')
 
 class IsKubernetesWorker(BasePermission):
     """

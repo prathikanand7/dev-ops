@@ -3,12 +3,11 @@ import re
 from kubernetes import client, config
 from kubernetes.config.config_exception import ConfigException
 from django.conf import settings
-from notebook_platform.settings import ENVIRONMENT, LOCAL_KUBECTL_PROXY_URL, WORKER_IMAGE
 
 # TODO: The regex pattern only matches simple R assignment.
 # Should be expanded to cover more complex assignments
-
 # TODO: Refactor exception handling to be descriptive
+
 def parse_notebook_parameters(notebook_file):
     """
     Retrieve parameters from the first cell of a given notebook
@@ -97,9 +96,10 @@ def get_absolute_url(base_url, file_url):
 
 def get_k8s_batch_client():
     """Handles Kubernetes authentication based on the environment."""
-    if ENVIRONMENT == "local":
+
+    if settings.ENVIRONMENT == "local":
         configuration = client.Configuration()
-        configuration.host = LOCAL_KUBECTL_PROXY_URL
+        configuration.host = settings.LOCAL_KUBECTL_PROXY_URL
         api_client = client.ApiClient(configuration)
         return client.BatchV1Api(api_client)
     
@@ -124,7 +124,7 @@ def build_worker_payload(job_record, base_url):
     if job_record.notebook.environment_file:
         payload["_environment_url"] = get_absolute_url(base_url, job_record.notebook.environment_file.url)
         
-    if ENVIRONMENT == "local":
+    if settings.ENVIRONMENT == "local":
         for key, val in payload.items():
             if isinstance(val, str) and "localhost:9000" in val:
                 unsigned_url = val.split('?')[0]
@@ -134,7 +134,7 @@ def build_worker_payload(job_record, base_url):
 
 def build_k8s_job_spec(job_id, payload):
     """Constructs the Kubernetes Job manifest."""
-    is_prod = (ENVIRONMENT == "production")
+    is_prod = (settings.ENVIRONMENT == "production")
     k8s_job_name = f"job-{str(job_id)[:8]}"
     
     # Ternary operators clean up the resource allocation logic
@@ -145,7 +145,7 @@ def build_k8s_job_spec(job_id, payload):
     
     container = client.V1Container(
         name="notebook-worker",
-        image=WORKER_IMAGE,
+        image=settings.WORKER_IMAGE,
         image_pull_policy="Always" if is_prod else "IfNotPresent", 
         command=["python"],
         args=["worker.py"], 

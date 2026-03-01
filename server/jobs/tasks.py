@@ -1,5 +1,5 @@
 from celery import shared_task
-from notebook_platform.settings import WORKER_CALLBACK_URL, ENVIRONMENT
+from django.conf import settings
 from .models import Job
 from .utils import get_k8s_batch_client, build_worker_payload, build_k8s_job_spec
 
@@ -22,13 +22,13 @@ def dispatch_job_task(job_id):
         k8s_batch_v1 = get_k8s_batch_client()
 
         # Build the payload and Job manifest
-        payload = build_worker_payload(job_record, WORKER_CALLBACK_URL)
+        payload = build_worker_payload(job_record, settings.WORKER_CALLBACK_URL)
         job_manifest = build_k8s_job_spec(job_id, payload)
 
         # Submit to the cluster
         k8s_batch_v1.create_namespaced_job(namespace="default", body=job_manifest)
         
-        print(f"Kubernetes Job '{job_manifest.metadata.name}' created. Environment: {ENVIRONMENT.upper()}")
+        print(f"Kubernetes Job '{job_manifest.metadata.name}' created. Environment: {settings.ENVIRONMENT.upper()}")
 
     except Exception as e:
         print(f"Failed to dispatch job: {e}")
