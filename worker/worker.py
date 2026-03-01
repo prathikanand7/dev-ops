@@ -78,15 +78,17 @@ def report_status_to_django(status, log_message, file_path=None):
         headers['X-Worker-Token'] = worker_token
     
     try:
-        if file_path and os.path.exists(file_path):
-            files = {'output_file': open(file_path, 'rb')}
-            
         print(f"Sending status '{status}' to {webhook_url}...")
         
-        response = requests.post(webhook_url, data=data, files=files, headers=headers)
+        if file_path and os.path.exists(file_path):
+            with open(file_path, 'rb') as f:
+                files = {'output_file': f}
+                response = requests.post(webhook_url, data=data, files=files, headers=headers)
+        else:
+            response = requests.post(webhook_url, data=data, headers=headers)
         response.raise_for_status()
-        
         print("Status reported successfully.")
+        
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 403:
             print(f"FATAL: Webhook rejected by Django (403 Forbidden). Check your WORKER_TOKEN.")
