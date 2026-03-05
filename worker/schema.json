@@ -1,0 +1,23 @@
+{
+  "excel_inputs": [
+    {
+      "name": "financial_report_Q1.xlsx",
+      "data": "UEsDBBQABgAIAAAAIQ..." 
+    },
+    {
+      "name": "employee_data.xlsx",
+      "data": "UEsDBBQABgAIAAAAIQ..."
+    }
+  ],
+  "s3_compatible_storage_objects": [
+    {
+      "bucket": "my-bucket",
+      "key": "inputs/file1.xlsx"
+    },
+    {
+      "bucket": "my-bucket",
+      "key": "inputs/notebook.ipynb"
+    }],
+    "environment_yaml": "UEsDBBQABgAIAAAAIQ...",
+    "parameters": {...}
+}
