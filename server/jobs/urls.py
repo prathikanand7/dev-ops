@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .views import TriggerJobAPI
+from .views import TriggerJobAPI, ListNotebooksAPIView
 
 urlpatterns = [
     # UI Paths
@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/jobs/<uuid:job_id>/complete/', views.job_complete_callback, name='job_complete_callback'),
     path('api/jobs/poll-status/', views.poll_job_statuses, name='poll_job_statuses'),
     path('api/jobs/<uuid:job_id>/logs/', views.get_job_logs, name='get_job_logs'),
+    path('api/notebooks/', ListNotebooksAPIView.as_view(), name='api_list_notebooks'),
     path('api/notebooks/<uuid:notebook_id>/run/', views.TriggerNotebookAPIView.as_view(), name='api_trigger_notebook'),
     path('api/jobs/<uuid:job_id>/status/', views.JobStatusAPIView.as_view(), name='api_job_status'),
 ]

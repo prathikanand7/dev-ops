@@ -267,3 +267,24 @@ class JobStatusAPIView(APIView):
             response_data['error_message'] = "Execution failed. Please review the logs."
 
         return Response(response_data, status=status.HTTP_200_OK)
+
+
+class ListNotebooksAPIView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Returns a list of all notebooks owned by the authenticated user."""
+        notebooks = Notebook.objects.filter(owner=request.user).order_by('-created_at')
+        
+        notebook_data = [
+            {
+                "id": str(notebook.id),
+                "name": notebook.name,
+                "created_at": notebook.created_at.isoformat() if hasattr(notebook, 'created_at') else None,
+                "description": notebook.description if hasattr(notebook, 'description') else ""
+            }
+            for notebook in notebooks
+        ]
+        
+        return Response({"notebooks": notebook_data}, status=status.HTTP_200_OK)
