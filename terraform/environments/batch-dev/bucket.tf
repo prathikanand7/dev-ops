@@ -33,12 +33,25 @@ resource "aws_iam_role_policy" "batch_job_s3_policy" {
     Version = "2012-10-17"
     Statement = [
       {
+        # Allows the worker to see what files are in the folder
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.batch_payloads.arn
+        ]
+      },
+      {
+        # Allows the worker to actually download/upload the files
         Effect = "Allow"
         Action = [
           "s3:GetObject",
           "s3:PutObject"
         ]
-        Resource = "${aws_s3_bucket.batch_payloads.arn}/*"
+        Resource = [
+          "${aws_s3_bucket.batch_payloads.arn}/*"
+        ]
       }
     ]
   })

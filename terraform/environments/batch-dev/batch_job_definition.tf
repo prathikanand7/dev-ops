@@ -5,9 +5,9 @@ resource "aws_batch_job_definition" "lifewatch_fargate_job_definition" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "020858641931.dkr.ecr.eu-west-1.amazonaws.com/batch-hello-world:latest"
+    image = "020858641931.dkr.ecr.eu-west-1.amazonaws.com/r-notebook-worker:latest"
 
-    command = ["python", "app.py"]
+    command = ["python", "worker.py"]
 
     fargatePlatformConfiguration = {
       platformVersion = "LATEST"
@@ -17,11 +17,8 @@ resource "aws_batch_job_definition" "lifewatch_fargate_job_definition" {
       assignPublicIp = "ENABLED"
     }
 
-    # tells the job to use this s3 bucket as an environment variable, the lambda will override the KEY variable at submission time
-    environment = [
-      { name = "BUCKET", value = aws_s3_bucket.batch_payloads.bucket }
-      # KEY will be overridden at submission time
-    ]
+    # Left empty because Lambda dynamically injects JOB_ID and S3_JOB_PREFIX
+    environment = []
 
     resourceRequirements = [
       { type = "VCPU", value = "1.0" },
@@ -37,7 +34,10 @@ resource "aws_batch_job_definition" "lifewatch_fargate_job_definition" {
       operatingSystemFamily = "LINUX"
     }
 
+    # Pull the image from ECR and send logs to CloudWatch
     executionRoleArn = "arn:aws:iam::020858641931:role/BatchEcsTaskExecutionRole"
+    
+    # Gives the Python script permission to talk to S3
     jobRoleArn       = aws_iam_role.batch_job_role.arn
   })
 

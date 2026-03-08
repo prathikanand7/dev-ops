@@ -42,3 +42,5 @@ terraform.rc
 
 .idea/
 .vscode/settings.json
+/terraform/environments/batch-dev/__pycache__
+terraform/environments/batch-dev/test_output_injected_notebook.ipynb

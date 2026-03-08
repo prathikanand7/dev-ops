@@ -1,101 +1,87 @@
-import yaml
-import nbformat
-import papermill as pm
 import os
 import sys
-import json
 import subprocess
 import boto3
-import base64
+import botocore
+import papermill as pm
 
-def fetch_bucket(s3_objects):
-    for obj in s3_objects:
-        obj_bucket = obj["bucket"]
-        obj_key = obj["key"]
+def download_s3_folder(s3_client, bucket, prefix, local_dir="."):
+    """Downloads all files from a specific S3 prefix to a local directory."""
+    paginator = s3_client.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get('Contents', []):
+            s3_key = obj['Key']
+            filename = os.path.basename(s3_key)
+            
+            # Skip empty directory markers
+            if not filename:
+                continue
+                
+            local_path = os.path.join(local_dir, filename)
+            print(f"Downloading s3://{bucket}/{s3_key} to {local_path}...")
+            s3_client.download_file(bucket, s3_key, local_path)
 
-        filename = os.path.basename(obj_key)
-        local_path = os.path.join(".", filename)
+def upload_s3_folder(s3_client, bucket, prefix, local_dir):
+    """Uploads all files from a local directory to a specific S3 prefix."""
+    if not os.path.exists(local_dir):
+        print(f"Directory {local_dir} does not exist. Skipping upload.")
+        return
 
-        print(f"Downloading s3://{obj_bucket}/{obj_key}")
+    for root, dirs, files in os.walk(local_dir):
+        for file in files:
+            local_path = os.path.join(root, file)
+            # Calculate the relative path from the target directory to maintain folder structure
+            relative_path = os.path.relpath(local_path, local_dir)
+            s3_key = f"{prefix}outputs/{relative_path}"
+            
+            print(f"Uploading {local_path} to s3://{bucket}/{s3_key}...")
+            s3_client.upload_file(local_path, bucket, s3_key)
 
-        s3.download_file(
-            obj_bucket,
-            obj_key,
-            local_path
-        )
-
-def extract_excel_files(input_files):
-    for input_file in input_files:
-        file_name = input_file.get("name")
-        b64_data = input_file.get("data")
-
-        if not file_name or not b64_data:
-            print(f"Warning: Missing 'name' or 'data' for an Excel file. Skipping...")
-            continue
-
-        print(f"Decoding and writing {file_name} to local storage...")
-        
-        file_bytes = base64.b64decode(b64_data)
-        with open(file_name, "wb") as f:
-            f.write(file_bytes)
-
-
-# Initialize S3 client
+# Initialization and Environment Variable Checks
 s3 = boto3.client("s3")
 
-# Passed via ECS Container Overrides
-bucket = os.environ.get("BUCKET")
-key = os.environ.get("KEY")
+job_id = os.environ.get("JOB_ID")
+s3_job_prefix_uri = os.environ.get("S3_JOB_PREFIX")
 
-if not bucket or not key:
-    print("FATAL: BUCKET and KEY environment variables must be set.")
+if not job_id or not s3_job_prefix_uri:
+    print("FATAL: JOB_ID and S3_JOB_PREFIX environment variables must be set.")
     sys.exit(1)
 
-# 1. Download the main payload file
-print(f"Downloading payload from s3://{bucket}/{key}...")
+# Parse the S3 URI
+# s3_job_prefix_uri.split("/") -> ['s3:', '', 'my-bucket', 'jobs', 'uuid', '']
+bucket = s3_job_prefix_uri.split("/")[2]
+prefix = "/".join(s3_job_prefix_uri.split("/")[3:])
+
+print(f"Starting Job: {job_id}")
+print(f"Target Bucket: {bucket} | Prefix: {prefix}")
+
+# Download the Notebook
+input_nb_path = "notebook.ipynb"
 try:
-    response = s3.get_object(Bucket=bucket, Key=key)
-    content = response["Body"].read().decode("utf-8")
+    print("Downloading notebook...")
+    s3.download_file(bucket, f"{prefix}notebook.ipynb", input_nb_path)
 except Exception as e:
-    print(f"FATAL: Failed to download payload from S3: {e}")
+    print(f"FATAL: Failed to download notebook from S3: {e}")
     sys.exit(1)
 
-# 2. Parse JSON safely
+# Download the Inputs (Excel files, CSVs, etc.)
 try:
-    data = json.loads(content)
-except json.JSONDecodeError:
-    print("FATAL: Input is not valid JSON. Cannot proceed.")
-    sys.exit(1)
-
-s3_objects = data.get("s3_compatible_storage_objects", [])
-excel_files = data.get("excel_inputs", [])
-outputs = data.get("outputs", [])
-parameters = data.get("parameters", {})
-notebook = data.get("notebook", {})
-environment = data.get("environment", {})
-
-fetch_bucket(s3_objects)
-extract_excel_files(excel_files)
-
-# 4. Parse and write notebook to a physical file for Papermill
-input_nb_path = "input.ipynb"
-try:
-    nb = nbformat.from_dict(notebook)
-    with open(input_nb_path, "w", encoding="utf-8") as f:
-        nbformat.write(nb, f)
+    print("Downloading input files...")
+    download_s3_folder(s3, bucket, f"{prefix}inputs/")
 except Exception as e:
-    print(f"FATAL: Failed to parse or write notebook JSON: {e}")
+    print(f"FATAL: Failed to download input files: {e}")
     sys.exit(1)
 
-# 5. Handle dynamic environment (Mamba)
-if environment:
-    env_yaml_string = yaml.dump(environment, default_flow_style=False)
-    print("Environment dict detected. Installing dynamic dependencies...")
+# Handle Dynamic Environment (Mamba)
+env_file_path = "environment.txt"
+try:
+    # Attempt to download the environment file. If it doesn't exist, just skip.
+    s3.download_file(bucket, f"{prefix}environment.txt", env_file_path)
+    
+    print("Environment file detected. Installing dynamic dependencies via mamba...")
     try:
         subprocess.run(
-            ["mamba", "env", "update", "--name", "base", "--file", "-"],
-            input=env_yaml_string,  
-            text=True,
+            ["mamba", "env", "update", "--name", "base", "--file", env_file_path],
             check=True,
             stdout=sys.stdout, 
             stderr=sys.stderr
@@ -104,37 +90,51 @@ if environment:
     except subprocess.CalledProcessError as e:
         print(f"FATAL: Failed to install dependencies. Error code: {e.returncode}")
         sys.exit(1)
-    except Exception as e:
-        print(f"FATAL: An unexpected error occurred during dependency installation: {e}")
+
+except botocore.exceptions.ClientError as e:
+    if e.response['Error']['Code'] == "404":
+        print("No environment file provided. Using default container environment.")
+    else:
+        print(f"FATAL: Error checking for environment file: {e}")
         sys.exit(1)
 
-# 6. Execute Notebook
+# Execute Notebook via Papermill
 output_nb_path = "output.ipynb"
 try:
     print("Executing notebook via Papermill...")
     pm.execute_notebook(
         input_nb_path,
         output_nb_path,
-        parameters=parameters,
         kernel_name='ir',
         log_output=True
     )
     print("Execution Successful!")
 except pm.PapermillExecutionError as e:
     print(f"FATAL: Notebook Logic Error in cell {e.exec_count}: {e}")
+    
+    # Upload the partially executed notebook anyway for debugging
+    s3.upload_file(output_nb_path, bucket, f"{prefix}failed_output.ipynb")
+    # Also attempt to upload any outputs generated before the crash
+    upload_s3_folder(s3, bucket, prefix, "./outputs")
     sys.exit(1)
 except Exception as e:
     print(f"FATAL: An unexpected error occurred during notebook execution: {e}")
     sys.exit(1)
 
-# 7. Upload the results back to S3
-output_key = f"completed/{key}"
+# Upload the successful results back to S3
 try:
+    # Upload the modified notebook itself
+    output_key = f"{prefix}output.ipynb"
     print(f"Uploading executed notebook to s3://{bucket}/{output_key}...")
     s3.upload_file(output_nb_path, bucket, output_key)
+    
+    # Upload everything in the local ./outputs directory generated by the R script
+    print("Sweeping and uploading generated data files...")
+    upload_s3_folder(s3, bucket, prefix, "./outputs")
+    
     print("Upload complete. Container exiting cleanly.")
 except Exception as e:
-    print(f"FATAL: Failed to upload output notebook: {e}")
+    print(f"FATAL: Failed to upload outputs: {e}")
     sys.exit(1)
 
 sys.exit(0)
