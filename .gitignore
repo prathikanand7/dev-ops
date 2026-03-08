@@ -44,3 +44,6 @@ terraform.rc
 .vscode/settings.json
 /terraform/environments/batch-dev/__pycache__
 terraform/environments/batch-dev/test_output_injected_notebook.ipynb
+
+# Ignore Frontend Node Modules
+/frontend/node_modules

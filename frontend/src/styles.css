@@ -1,0 +1,98 @@
+/* Minimal custom styles; rely on Bootstrap for layout & colors. */
+
+.logs {
+  background: #020617;
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.8rem;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.dz-root {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.dz-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.dz-message {
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.dz-lists {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dz-list h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.85rem;
+}
+
+.dz-list ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.dz-file-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.5rem;
+  background: #f8f9fa;
+}
+
+.dz-file-name {
+  font-size: 0.85rem;
+}
+
+.dz-file-size {
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+.dz-errors {
+  margin: 0.2rem 0 0;
+  padding-left: 1rem;
+  font-size: 0.75rem;
+  color: #dc3545;
+}
+
+.dz-remove-btn,
+.dz-remove-all-btn {
+  border-radius: 999px;
+  border: 1px solid #ced4da;
+  background: #ffffff;
+  color: #495057;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+
+.dz-remove-all-btn {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+}
+
+.dz-remove-btn:hover,
+.dz-remove-all-btn:hover {
+  background: #e9ecef;
+}
+
+.dz-preview-note {
+  font-size: 0.75rem;
+  color: #0d6efd;
+  margin-top: 0.2rem;
+}
+
