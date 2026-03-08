@@ -4,6 +4,7 @@ API_URL = "https://ag62kuf3oo32ugachx42cfquia0irlki.lambda-url.eu-west-1.on.aws/
 
 NOTEBOOK_PATH = "../../../demo_input/Data_cleaning.ipynb"
 DATA_FILE_PATH = "../../../demo_input/Template_MBO_Example_raw_v3.xlsx"
+ENV_FILE_PATH = "../../../demo_input/environment.yaml"
 
 print(f"Sending {NOTEBOOK_PATH} and {DATA_FILE_PATH} to AWS...")
 

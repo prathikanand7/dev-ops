@@ -105,7 +105,7 @@ def lambda_handler(event, context):
         s3.put_object(Bucket=BUCKET, Key=f"{s3_prefix}notebook.ipynb", Body=updated_notebook_bytes)
         
         if environment_content:
-            s3.put_object(Bucket=BUCKET, Key=f"{s3_prefix}environment.txt", Body=environment_content)
+            s3.put_object(Bucket=BUCKET, Key=f"{s3_prefix}environment.yaml", Body=environment_content)
             
         for f in files_to_upload:
             s3.put_object(Bucket=BUCKET, Key=f"{s3_prefix}inputs/{f['filename']}", Body=f["content"])

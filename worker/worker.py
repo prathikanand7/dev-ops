@@ -73,10 +73,10 @@ except Exception as e:
     sys.exit(1)
 
 # Handle Dynamic Environment (Mamba)
-env_file_path = "environment.txt"
+env_file_path = "environment.yaml"
 try:
     # Attempt to download the environment file. If it doesn't exist, just skip.
-    s3.download_file(bucket, f"{prefix}environment.txt", env_file_path)
+    s3.download_file(bucket, f"{prefix}environment.yaml", env_file_path)
     
     print("Environment file detected. Installing dynamic dependencies via mamba...")
     try:
