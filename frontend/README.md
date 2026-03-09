@@ -26,7 +26,7 @@ Then open the URL printed by Vite (by default `http://localhost:5174`).
 
 ### Quick start workflow
 
-1. **Open the app**: Navigate to `http://localhost:5174`
+1. **Open the app**: Navigate to `http://localhost:5173`
 2. **Enter Base URL**: Set to `http://localhost:8000` (or your backend URL)
 3. **Click "Generate Token"**: Creates and auto-fills API token (requires login to Dashboard)
 4. **Select Notebook**: Choose from dropdown of your notebooks
