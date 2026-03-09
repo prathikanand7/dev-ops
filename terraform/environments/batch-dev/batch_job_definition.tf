@@ -36,9 +36,9 @@ resource "aws_batch_job_definition" "lifewatch_fargate_job_definition" {
 
     # Pull the image from ECR and send logs to CloudWatch
     executionRoleArn = "arn:aws:iam::020858641931:role/BatchEcsTaskExecutionRole"
-    
+
     # Gives the Python script permission to talk to S3
-    jobRoleArn       = aws_iam_role.batch_job_role.arn
+    jobRoleArn = aws_iam_role.batch_job_role.arn
   })
 
   tags = {
