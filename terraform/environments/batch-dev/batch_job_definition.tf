@@ -22,7 +22,7 @@ resource "aws_batch_job_definition" "lifewatch_fargate_job_definition" {
 
     resourceRequirements = [
       { type = "VCPU", value = "1.0" },
-      { type = "MEMORY", value = "2048" }
+      { type = "MEMORY", value = "8192" }
     ]
 
     ephemeralStorage = {

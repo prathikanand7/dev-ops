@@ -8,10 +8,11 @@ ENV_FILE_PATH = "../../../demo_input/environment.yaml"
 
 print(f"Sending {NOTEBOOK_PATH} and {DATA_FILE_PATH} to AWS...")
 
-with open(NOTEBOOK_PATH, 'rb') as nb_file, open(DATA_FILE_PATH, 'rb') as data_file:
+with open(NOTEBOOK_PATH, 'rb') as nb_file, open(DATA_FILE_PATH, 'rb') as data_file, open(ENV_FILE_PATH, 'rb') as env_file:
     files = {
         'notebook': (NOTEBOOK_PATH, nb_file.read(), 'application/x-ipynb+json'),
         'upload_01': (DATA_FILE_PATH, data_file.read(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+        'environment': (ENV_FILE_PATH, env_file.read(), 'application/x-yaml'),
         
         # R parameters
         'param_01_input_data_filename': (None, 'Template_MBO_Example_raw_v3.xlsx'),
