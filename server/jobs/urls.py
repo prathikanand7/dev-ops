@@ -9,6 +9,7 @@ from .views.api_views.token_status_api_view import TokenStatusAPIView
 from .views.api_views.generate_token_api_view import GenerateTokenAPIView
 from .views.api_views.notebook_viewset import NotebookViewSet
 from .views.api_views.job_viewset import JobViewSet
+from .views.api_views import batch_views
 
 router = DefaultRouter()
 router.register(r'notebooks', NotebookViewSet, basename='notebook')
@@ -26,6 +27,11 @@ urlpatterns = [
     # ---- API Token Paths ----
     path('api/token/status/', TokenStatusAPIView.as_view(), name='token_status'),
     path('api/token/generate/', GenerateTokenAPIView.as_view(), name='generate_token'),
+
+    # ---- AWS Batch API Paths ----
+    path('api/batch/notebooks/<uuid:notebook_id>/submit/', batch_views.submit_notebook_to_batch, name='batch_submit'),
+    path('api/batch/jobs/<uuid:job_id>/status/', batch_views.get_job_status, name='batch_job_status'),
+    path('api/batch/jobs/<uuid:job_id>/logs/', batch_views.get_job_logs, name='batch_job_logs'),
 
     # ---- API Resource Paths ----
     path('api/', include(router.urls)),

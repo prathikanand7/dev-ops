@@ -133,3 +133,52 @@ zappa deploy dev
 # OR, update an existing deployment
 zappa update dev
 ```
+
+## AWS Batch Integration
+
+The platform now supports executing notebook jobs using AWS Batch as an alternative to Kubernetes. This provides a managed, serverless compute environment for running notebook jobs at scale.
+
+### AWS Batch Features
+- Submit notebook jobs directly to AWS Batch from the frontend
+- Monitor job status with AWS-specific statuses (SUBMITTED, PENDING, RUNNABLE, STARTING, RUNNING, SUCCEEDED, FAILED)
+- View CloudWatch logs directly from the UI
+- Toggle between Kubernetes and AWS Batch execution in the frontend
+
+### AWS Batch Configuration
+
+Add these environment variables to enable AWS Batch:
+
+```bash
+# AWS Batch Configuration
+AWS_BATCH_JOB_QUEUE=your-job-queue-name
+AWS_BATCH_JOB_DEFINITION=your-job-definition-name
+AWS_BATCH_REGION=us-east-1  # Optional, defaults to AWS_S3_REGION_NAME
+
+# AWS Credentials (if not already set for S3)
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+```
+
+### Using AWS Batch
+
+1. **From the Frontend:**
+   - Navigate to the web interface
+   - Enable the "Use AWS Batch for job execution" checkbox
+   - Submit your notebook job
+   - Monitor status and view logs using the dedicated buttons
+
+2. **From the API:**
+   ```bash
+   # Submit job to AWS Batch
+   POST /api/batch/notebooks/{notebook_id}/submit/
+   
+   # Get job status
+   GET /api/batch/jobs/{job_id}/status/
+   
+   # Get CloudWatch logs
+   GET /api/batch/jobs/{job_id}/logs/
+   ```
+
+### Testing AWS Batch
+
+See `frontend/test.http` for complete API testing examples including AWS Batch endpoints.

@@ -5,15 +5,20 @@ type RunResponse = {
   message: string;
   job_id: string;
   status: string;
+  aws_batch_job_id?: string;
   resolved_payload?: unknown;
 };
 
 type JobStatusResponse = {
   job_id: string;
   status: string;
+  aws_batch_job_id?: string;
+  status_reason?: string;
   logs?: string;
   download_url?: string;
   error_message?: string;
+  started_at?: number;
+  stopped_at?: number;
 };
 
 type NotebookOption = {
@@ -37,6 +42,7 @@ export const App: React.FC = () => {
   const [paramsJson, setParamsJson] = useState('{\n  "param_09_years": 5\n}');
   const [fileParamName, setFileParamName] = useState('param_01_input_data_filename');
   const [dataFiles, setDataFiles] = useState<File[]>([]);
+  const [useAwsBatch, setUseAwsBatch] = useState(false);
 
   const [runResult, setRunResult] = useState<RunResponse | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -46,6 +52,16 @@ export const App: React.FC = () => {
   const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+
+  const isSubmitDisabled = isRunning || !token || !notebookId;
+  const isCheckStatusDisabled = isChecking || !token || !jobId;
+
+  function getCookie(name: string): string {
+    const cookie = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${name}=`));
+    return cookie ? decodeURIComponent(cookie.split('=')[1]) : '';
+  }
 
   // Load notebooks when token changes
   useEffect(() => {
@@ -59,9 +75,9 @@ export const App: React.FC = () => {
     setIsGeneratingToken(true);
 
     try {
-      // Check if user is authenticated by checking /token/status/
+      // Check if user is authenticated by checking /api/token/status/
       const statusRes = await fetch(
-        `${baseUrl.replace(/\/$/, '')}/token/status/`,
+        `${baseUrl.replace(/\/$/, '')}/api/token/status/`,
         {
           credentials: 'include',
         },
@@ -76,10 +92,13 @@ export const App: React.FC = () => {
 
       // Generate new token
       const generateRes = await fetch(
-        `${baseUrl.replace(/\/$/, '')}/token/generate/`,
+        `${baseUrl.replace(/\/$/, '')}/api/token/generate/`,
         {
           method: 'POST',
           credentials: 'include',
+          headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+          },
         },
       );
 
@@ -117,8 +136,19 @@ export const App: React.FC = () => {
         return;
       }
 
-      const data = (await res.json()) as { notebooks: NotebookOption[] };
-      setNotebooks(data.notebooks);
+      const data = (await res.json()) as
+        | NotebookOption[]
+        | { notebooks?: NotebookOption[]; results?: NotebookOption[] };
+
+      const notebookItems = Array.isArray(data)
+        ? data
+        : Array.isArray(data.notebooks)
+          ? data.notebooks
+          : Array.isArray(data.results)
+            ? data.results
+            : [];
+
+      setNotebooks(notebookItems);
     } catch (err) {
       setNotebooksError((err as Error).message);
     } finally {
@@ -144,7 +174,9 @@ export const App: React.FC = () => {
     }
 
     try {
-      const url = `${baseUrl.replace(/\/$/, '')}/api/notebooks/${notebookId}/run/`;
+      const endpoint = useAwsBatch
+        ? `${baseUrl.replace(/\/$/, '')}/api/batch/notebooks/${notebookId}/submit/`
+        : `${baseUrl.replace(/\/$/, '')}/api/notebooks/${notebookId}/run/`;
 
       const formData = new FormData();
       Object.entries(parsedParams).forEach(([key, value]) => {
@@ -159,7 +191,7 @@ export const App: React.FC = () => {
         });
       }
 
-      const res = await fetch(url, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Token ${token}`,
@@ -190,8 +222,11 @@ export const App: React.FC = () => {
     setIsChecking(true);
 
     try {
-      const url = `${baseUrl.replace(/\/$/, '')}/api/jobs/${jobId}/status/`;
-      const res = await fetch(url, {
+      const endpoint = useAwsBatch
+        ? `${baseUrl.replace(/\/$/, '')}/api/batch/jobs/${jobId}/status/`
+        : `${baseUrl.replace(/\/$/, '')}/api/jobs/${jobId}/status/`;
+      
+      const res = await fetch(endpoint, {
         headers: {
           Authorization: `Token ${token}`,
         },
@@ -205,6 +240,35 @@ export const App: React.FC = () => {
 
       const data = (await res.json()) as JobStatusResponse;
       setJobStatus(data);
+    } catch (err) {
+      setJobError((err as Error).message);
+    } finally {
+      setIsChecking(false);
+    }
+  }
+
+  async function handleFetchLogs() {
+    if (!jobId || !useAwsBatch) return;
+    
+    setJobError(null);
+    setIsChecking(true);
+
+    try {
+      const endpoint = `${baseUrl.replace(/\/$/, '')}/api/batch/jobs/${jobId}/logs/`;
+      const res = await fetch(endpoint, {
+        headers: {
+          Authorization: `Token ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        setJobError(`Request failed (${res.status}): ${text}`);
+        return;
+      }
+
+      const data = (await res.json()) as { logs: string };
+      setJobStatus(prev => prev ? { ...prev, logs: data.logs } : null);
     } catch (err) {
       setJobError((err as Error).message);
     } finally {
@@ -352,13 +416,39 @@ export const App: React.FC = () => {
                     onFilesChange={setDataFiles}
                   />
 
+                  <div className="form-check mb-3 mt-3">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="use-aws-batch"
+                      checked={useAwsBatch}
+                      onChange={(e) => setUseAwsBatch(e.target.checked)}
+                    />
+                    <label className="form-check-label" htmlFor="use-aws-batch">
+                      Use AWS Batch for job execution
+                    </label>
+                    <div className="form-text">
+                      When enabled, jobs will be submitted to AWS Batch instead of Kubernetes.
+                      Supports statuses: SUBMITTED, PENDING, RUNNABLE, STARTING, RUNNING, SUCCEEDED, FAILED.
+                    </div>
+                  </div>
+
                   <button
                     type="submit"
-                    className="btn btn-success mt-2"
-                    disabled={isRunning || !token || !notebookId}
+                    className="btn btn-success"
+                    disabled={isSubmitDisabled}
                   >
-                    {isRunning ? 'Submitting…' : 'Submit Job'}
+                    {isRunning ? 'Submitting…' : `Submit Job ${useAwsBatch ? '(AWS Batch)' : '(Kubernetes)'}`}
                   </button>
+                  {isSubmitDisabled && (
+                    <div className="form-text">
+                      {!token
+                        ? 'Generate or paste API token to enable submit.'
+                        : !notebookId
+                          ? 'Select a notebook to enable submit.'
+                          : 'Submitting job...'}
+                    </div>
+                  )}
 
                   {runError && <div className="alert alert-danger mt-3 mb-0">{runError}</div>}
 
@@ -368,6 +458,11 @@ export const App: React.FC = () => {
                       <p className="mb-1">
                         <strong>Job ID:</strong> {runResult.job_id}
                       </p>
+                      {runResult.aws_batch_job_id && (
+                        <p className="mb-1">
+                          <strong>AWS Batch Job ID:</strong> {runResult.aws_batch_job_id}
+                        </p>
+                      )}
                       <p className="mb-1">
                         <strong>Status:</strong> {runResult.status}
                       </p>
@@ -413,30 +508,72 @@ export const App: React.FC = () => {
                   <button
                     type="submit"
                     className="btn btn-outline-primary"
-                    disabled={isChecking || !token || !jobId}
+                    disabled={isCheckStatusDisabled}
                   >
                     {isChecking ? 'Checking…' : 'Check Status'}
                   </button>
+                  {isCheckStatusDisabled && (
+                    <div className="form-text mt-1">
+                      {!token
+                        ? 'Generate or paste API token to check status.'
+                        : !jobId
+                          ? 'Enter a Job ID to check status.'
+                          : 'Checking status...'}
+                    </div>
+                  )}
+
+                  {useAwsBatch && jobId && (
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary ms-2"
+                      disabled={isCheckStatusDisabled}
+                      onClick={handleFetchLogs}
+                    >
+                      {isChecking ? 'Fetching…' : 'Fetch Logs'}
+                    </button>
+                  )}
 
                   {jobError && <div className="alert alert-danger mt-3 mb-0">{jobError}</div>}
 
                   {jobStatus && (
                     <div className="mt-3">
                       <h6>Current Status</h6>
+                      {jobStatus.aws_batch_job_id && (
+                        <p className="mb-1">
+                          <strong>AWS Batch Job ID:</strong> <code>{jobStatus.aws_batch_job_id}</code>
+                        </p>
+                      )}
                       <p className="mb-1">
                         <strong>Status:</strong>{' '}
                         <span
                           className={`badge ${
-                            jobStatus.status === 'SUCCESS'
+                            jobStatus.status === 'SUCCESS' || jobStatus.status === 'SUCCEEDED'
                               ? 'bg-success'
                               : jobStatus.status === 'FAILED'
                                 ? 'bg-danger'
-                                : 'bg-info'
+                                : jobStatus.status === 'RUNNING'
+                                  ? 'bg-primary'
+                                  : 'bg-info'
                           }`}
                         >
                           {jobStatus.status}
                         </span>
                       </p>
+                      {jobStatus.status_reason && (
+                        <p className="mb-1 text-muted">
+                          <strong>Reason:</strong> {jobStatus.status_reason}
+                        </p>
+                      )}
+                      {jobStatus.started_at && (
+                        <p className="mb-1">
+                          <strong>Started:</strong> {new Date(jobStatus.started_at).toLocaleString()}
+                        </p>
+                      )}
+                      {jobStatus.stopped_at && (
+                        <p className="mb-1">
+                          <strong>Stopped:</strong> {new Date(jobStatus.stopped_at).toLocaleString()}
+                        </p>
+                      )}
                       {jobStatus.download_url && (
                         <p className="mb-1">
                           <strong>Download:</strong>{' '}

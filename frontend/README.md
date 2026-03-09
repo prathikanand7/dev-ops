@@ -71,8 +71,8 @@ All endpoints require token authentication via `Authorization: Token <your_token
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/token/status/` | Check if user has active token |
-| `POST` | `/token/generate/` | Generate new authentication token |
+| `GET` | `/api/token/status/` | Check if user has active token |
+| `POST` | `/api/token/generate/` | Generate new authentication token |
 
 #### Notebooks
 
@@ -94,7 +94,7 @@ All endpoints require token authentication via `Authorization: Token <your_token
 
 #### 1. Generate Token
 ```bash
-POST /token/generate/
+POST /api/token/generate/
 Authorization: <session_cookie>
 ```
 **Response (201)**:

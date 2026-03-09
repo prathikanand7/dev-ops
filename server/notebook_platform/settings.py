@@ -27,9 +27,15 @@ CELERY_BROKER_URL = get_env_variable('CELERY_BROKER_URL')
 WORKER_WEBHOOK_SECRET = get_env_variable('WORKER_WEBHOOK_SECRET')
 WORKER_IMAGE = get_env_variable('WORKER_IMAGE')
 
+# --- AWS Batch Configuration ---
+AWS_BATCH_JOB_QUEUE = os.getenv('AWS_BATCH_JOB_QUEUE', '')
+AWS_BATCH_JOB_DEFINITION = os.getenv('AWS_BATCH_JOB_DEFINITION', '')
+AWS_BATCH_REGION = os.getenv('AWS_BATCH_REGION', os.getenv('AWS_S3_REGION_NAME', 'us-east-1'))
+
 # --- Routing & Security ---
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip()]
 CSRF_TRUSTED_ORIGINS = [host.strip() for host in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if host.strip()]
+CORS_ALLOWED_ORIGINS = [host.strip() for host in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',') if host.strip()]
 LOCAL_KUBECTL_PROXY_URL = os.environ.get('LOCAL_KUBECTL_PROXY_URL')
 
 LANGUAGE_CODE = 'en-us'
@@ -81,6 +87,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'notebook_platform.cors_middleware.DevCorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',

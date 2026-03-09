@@ -23,14 +23,14 @@
 
 ### Generate a new API token (requires session auth)
 ### First, you need to login to the dashboard and use session cookie
-POST {{baseUrl}}/token/generate/
+POST {{baseUrl}}/api/token/generate/
 Content-Type: application/json
 
 # Response: {"token": "abc123..."}
 
 
 ### Check if user has active token
-GET {{baseUrl}}/token/status/
+GET {{baseUrl}}/api/token/status/
 Content-Type: application/json
 
 ###
@@ -172,7 +172,7 @@ Content-Type: application/json
 ### ============================================================
 
 ### Step 1: Generate token
-POST {{baseUrl}}/token/generate/
+POST {{baseUrl}}/api/token/generate/
 Content-Type: application/json
 
 ###
@@ -237,3 +237,161 @@ Content-Type: application/json
 ###    - Click the link or paste in browser to download results
 ###
 ### ============================================================
+
+
+### ============================================================
+### 6. AWS BATCH ENDPOINTS
+### ============================================================
+
+### Submit notebook to AWS Batch
+###
+### Requires:
+### - Valid API token
+### - Notebook ID
+### - AWS Batch configured (AWS_BATCH_JOB_QUEUE and AWS_BATCH_JOB_DEFINITION)
+###
+### Returns: Job ID, AWS Batch Job ID, and SUBMITTED status
+POST {{baseUrl}}/api/batch/notebooks/{{notebookId}}/submit/
+Authorization: Token {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="param_09_years"
+
+5
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+# Response example:
+# {
+#   "message": "Job successfully submitted to AWS Batch.",
+#   "job_id": "660e8400-e29b-41d4-a716-446655440001",
+#   "aws_batch_job_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+#   "status": "SUBMITTED",
+#   "resolved_payload": {"param_09_years": "5"}
+# }
+
+###
+
+### Get AWS Batch job status
+###
+### Retrieves current status from AWS Batch.
+### Possible statuses: SUBMITTED, PENDING, RUNNABLE, STARTING, RUNNING, SUCCEEDED, FAILED
+GET {{baseUrl}}/api/batch/jobs/{{jobId}}/status/
+Authorization: Token {{token}}
+Content-Type: application/json
+
+# Response example (RUNNING):
+# {
+#   "job_id": "660e8400-e29b-41d4-a716-446655440001",
+#   "aws_batch_job_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+#   "status": "RUNNING",
+#   "status_reason": "",
+#   "created_at": "2026-03-09T10:30:00Z",
+#   "started_at": 1678362600000,
+#   "stopped_at": null
+# }
+
+# Response example (SUCCEEDED):
+# {
+#   "job_id": "660e8400-e29b-41d4-a716-446655440001",
+#   "aws_batch_job_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+#   "status": "SUCCEEDED",
+#   "status_reason": "",
+#   "created_at": "2026-03-09T10:30:00Z",
+#   "started_at": 1678362600000,
+#   "stopped_at": 1678362900000
+# }
+
+# Response example (FAILED):
+# {
+#   "job_id": "660e8400-e29b-41d4-a716-446655440001",
+#   "aws_batch_job_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+#   "status": "FAILED",
+#   "status_reason": "Essential container in task exited",
+#   "created_at": "2026-03-09T10:30:00Z",
+#   "started_at": 1678362600000,
+#   "stopped_at": 1678362700000
+# }
+
+###
+
+### Get AWS Batch job logs from CloudWatch
+###
+### Retrieves CloudWatch logs for the AWS Batch job
+GET {{baseUrl}}/api/batch/jobs/{{jobId}}/logs/
+Authorization: Token {{token}}
+Content-Type: application/json
+
+# Response:
+# {
+#   "job_id": "660e8400-e29b-41d4-a716-446655440001",
+#   "aws_batch_job_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+#   "logs": "Starting job execution...\nLoading environment...\nRunning notebook...\nCompleted successfully."
+# }
+
+###
+
+### ============================================================
+### 7. AWS BATCH WORKFLOW EXAMPLE: Complete End-to-End Test
+### ============================================================
+
+### Step 1: Generate token (same as before)
+POST {{baseUrl}}/api/token/generate/
+Content-Type: application/json
+
+###
+
+### Step 2: List notebooks (same as before)
+GET {{baseUrl}}/api/notebooks/
+Authorization: Token {{token}}
+Content-Type: application/json
+
+###
+
+### Step 3: Submit job to AWS Batch
+### (Copy notebook ID into @notebookId variable)
+POST {{baseUrl}}/api/batch/notebooks/{{notebookId}}/submit/
+Authorization: Token {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="param_09_years"
+
+5
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+
+### Step 4: Check AWS Batch job status repeatedly
+### (Copy job ID from Step 3 response into @jobId variable)
+GET {{baseUrl}}/api/batch/jobs/{{jobId}}/status/
+Authorization: Token {{token}}
+Content-Type: application/json
+
+###
+
+### Step 5: Get AWS Batch job logs
+GET {{baseUrl}}/api/batch/jobs/{{jobId}}/logs/
+Authorization: Token {{token}}
+Content-Type: application/json
+
+###
+
+### ============================================================
+### AWS BATCH STATUS TRANSITIONS
+### ============================================================
+###
+### Expected status flow for AWS Batch jobs:
+### SUBMITTED → PENDING → RUNNABLE → STARTING → RUNNING → SUCCEEDED/FAILED
+###
+### Status Descriptions:
+### - SUBMITTED: Job has been submitted to AWS Batch
+### - PENDING: Job is waiting for resources to be available
+### - RUNNABLE: Job is ready to run but waiting for compute resources
+### - STARTING: Job is being started on compute resources
+### - RUNNING: Job is actively executing
+### - SUCCEEDED: Job completed successfully
+### - FAILED: Job failed during execution
+###
+### ============================================================
+
