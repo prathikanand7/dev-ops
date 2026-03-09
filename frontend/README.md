@@ -22,7 +22,7 @@ npm install          # or pnpm/yarn (for the 1st time)
 npm run dev
 ```
 
-Then open the URL printed by Vite (by default `http://localhost:5174`).
+Then open the URL printed by Vite (by default `http://localhost:5173`).
 
 ### Quick start workflow
 
