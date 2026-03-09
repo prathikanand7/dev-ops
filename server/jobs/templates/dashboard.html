@@ -218,8 +218,8 @@ function openRunModal(notebookId, notebookName) {
 async function submitRunJob() {
     const formElement = document.getElementById('runJobForm');
     const formData = new FormData(formElement);
-
-    const token = '{{ csrf_token }}';
+    const notebookId = document.getElementById('modalNotebookId').value;
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
     try {
         console.log("Submitting job payload...");
@@ -229,7 +229,7 @@ async function submitRunJob() {
         submitBtn.disabled = true;
         submitBtn.innerText = "Submitting...";
 
-        const response = await fetch('/api/run/', {
+        const response = await fetch(`/api/notebooks/${notebookId}/run/`, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': token
@@ -254,13 +254,22 @@ async function submitRunJob() {
 async function deleteItem(type, id) {
     if (!confirm(`Are you sure you want to delete this ${type}?`)) { return; }
     
-    const token = '{{ csrf_token }}';
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     
-    const url = type === 'notebook' ? `/api/delete-notebook/${id}/` : `/api/delete-job/${id}/`;
+    // Standard RESTful DELETE endpoints
+    const url = type === 'notebook' ? `/api/notebooks/${id}/` : `/api/jobs/${id}/`;
     try {
-        const response = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': token } });
-        if (response.ok) { window.location.reload(); } 
-        else { alert(`Failed to delete ${type}.`); }
+        const response = await fetch(url, { 
+            method: 'DELETE', 
+            headers: { 'X-CSRFToken': token } 
+        });
+        
+        // DRF ModelViewSet DELETE returns 204 No Content on success
+        if (response.ok || response.status === 204) { 
+            window.location.reload(); 
+        } else { 
+            alert(`Failed to delete ${type}.`); 
+        }
     } catch (error) {
         console.error(error);
         alert("System Error during deletion.");
@@ -269,7 +278,7 @@ async function deleteItem(type, id) {
 
 async function fetchLiveStatuses() {
     try {
-        const response = await fetch('/api/jobs/poll-status/');
+        const response = await fetch('/api/jobs/poll_status/');
         if (!response.ok) return;
         
         const data = await response.json();
@@ -293,7 +302,6 @@ async function fetchLiveStatuses() {
             const actionsDiv = document.getElementById(`actions-${job.id}`);
             if (actionsDiv && job.status === 'SUCCESS' && job.file_url) {
                 if (!actionsDiv.innerHTML.includes('⬇️ Download All')) {
-                    // CHANGED: target="_blank" instead of download
                     const downloadBtn = `
                         <a href="${job.file_url}" class="btn btn-sm btn-success" target="_blank" rel="noopener noreferrer">
                             ⬇️ Download All (.zip)
@@ -331,7 +339,7 @@ async function viewLogs(jobId) {
 
 function showCurlModal(notebookId, schemaRaw) {
     const baseUrl = window.location.origin; 
-    let curlCmd = `curl.exe -X POST "${baseUrl}/api/notebooks/${notebookId}/run/" \`\n`;
+    let curlCmd = `curl -X POST "${baseUrl}/api/notebooks/${notebookId}/run/" \\\n`;
     curlCmd += `     -H "Authorization: Token YOUR_API_TOKEN"`;
 
     try {
@@ -369,9 +377,9 @@ function showCurlModal(notebookId, schemaRaw) {
                 }
                 
                 if (param.name.toLowerCase().includes('filename') || param.name.toLowerCase().includes('file')) {
-                     curlCmd += ` \`\n     -F "${param.name}=@./${defaultVal || 'your_dataset.xlsx'}"`;
+                     curlCmd += ` \\\n     -F "${param.name}=@./${defaultVal || 'your_dataset.xlsx'}"`;
                 } else {
-                     curlCmd += ` \`\n     -F "${param.name}=${defaultVal}"`;
+                     curlCmd += ` \\\n     -F "${param.name}=${defaultVal}"`;
                 }
             }
         });
@@ -435,6 +443,7 @@ function showParamsModal(paramsRaw) {
     const modal = new bootstrap.Modal(document.getElementById('paramsModal'));
     modal.show();
 }
+
 // Poll every 3 secs
 setInterval(fetchLiveStatuses, 3000);
 </script>

@@ -47,3 +47,7 @@ terraform/environments/batch-dev/test_output_injected_notebook.ipynb
 
 # Ignore Frontend Node Modules
 /frontend/node_modules
+/server/staticfiles
+/server/jobs/tests/__pycache__
+*.pyc
+server/zappa_settings.json

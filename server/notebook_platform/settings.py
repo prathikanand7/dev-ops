@@ -2,19 +2,35 @@ import os
 from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 env_path = Path('.') / '.env.dev'
 load_dotenv(dotenv_path=env_path)
 
+# ----------------------------------- Helper Functions -----------------------------------
+def get_env_variable(var_name):
+    """Get the environment variable or return an ImproperlyConfigured exception."""
+    try:
+        return os.environ[var_name]
+    except KeyError:
+        raise ImproperlyConfigured(f"CRITICAL: The {var_name} environment variable is missing.")
+
+# ----------------------------------------------------------------------------------------
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-=ti)wu!un4bncw)1hz))-as1ljm94&=fh1s(!bx2@ovut)kpta')
-DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
+# --- Strictly Required Settings ---
+SECRET_KEY = get_env_variable('DJANGO_SECRET_KEY')
+WORKER_CALLBACK_URL = get_env_variable('WORKER_CALLBACK_URL')
+CELERY_BROKER_URL = get_env_variable('CELERY_BROKER_URL')
+WORKER_WEBHOOK_SECRET = get_env_variable('WORKER_WEBHOOK_SECRET')
+WORKER_IMAGE = get_env_variable('WORKER_IMAGE')
 
-# Routing & Security
-WORKER_CALLBACK_URL = os.environ.get('WORKER_CALLBACK_URL', 'http://host.docker.internal:8000')
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
-CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:8000').split(',')
+# --- Routing & Security ---
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip()]
+CSRF_TRUSTED_ORIGINS = [host.strip() for host in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if host.strip()]
+LOCAL_KUBECTL_PROXY_URL = os.environ.get('LOCAL_KUBECTL_PROXY_URL')
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
@@ -34,10 +50,32 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',      
     'rest_framework.authtoken', 
-    'django_filters',      
+    'django_filters',
+    'drf_spectacular',      
     'jobs',
     'storages',
 ]
+
+#------------------------ DRF & API Documentation Settings ------------------------
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Notebook Platform API',
+    'DESCRIPTION': 'API for automating and managing Jupyter/R Notebook executions via Kubernetes.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SECURITY': [{'Token': []}], 
+}
+#------------------------------------------------------------------------------
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -135,9 +173,8 @@ STORAGES = {
     },
 }
 
-# ------------------------------------------- Celery Configuration -------------------------------------------
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
+# ----------------------------------- Celery Configuration -----------------------------------
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 

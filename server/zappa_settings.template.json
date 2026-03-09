@@ -1,0 +1,33 @@
+{
+    "dev": {
+        "aws_region": "${AWS_REGION}",
+        "django_settings": "notebook_platform.settings",
+        "profile_name": "default",
+        "project_name": "server",
+        "runtime": "python3.12",
+        "s3_bucket": "${S3_ZAPPA_BUCKET_NAME}",
+        "slim_handler": true,
+        "exclude": [
+            "boto3",
+            "dateutil",
+            "botocore",
+            "s3transfer",
+            "concurrent",
+            ".env.dev",
+            "docker-compose.yml",
+            "Dockerfile"
+        ],
+        "environment_variables": {
+            "ENVIRONMENT": "${ENVIRONMENT}",
+            "DEBUG": "${DEBUG}",
+            "DJANGO_SECRET_KEY": "${DJANGO_SECRET_KEY}",
+            "DATABASE_URL": "postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:5432/${DB_NAME}",
+            "AWS_STORAGE_BUCKET_NAME": "${AWS_STORAGE_BUCKET_NAME}",
+            "AWS_S3_REGION_NAME": "${AWS_S3_REGION}",
+            "ALLOWED_HOSTS": "${ALLOWED_HOSTS}",
+            "WORKER_CALLBACK_URL": "${WORKER_CALLBACK_URL}",
+            "WORKER_IMAGE": "r-notebook-worker:latest",
+            "WORKER_WEBHOOK_SECRET": "${WORKER_WEBHOOK_SECRET}"
+        }
+    }
+}
