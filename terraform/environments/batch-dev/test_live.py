@@ -6,8 +6,10 @@ API_URL = "https://aat4uiw5clcvbmuxr7rgtnigom0nuhdh.lambda-url.eu-west-1.on.aws/
 NOTEBOOK_PATH = "../../../demo_input/Data_cleaning.ipynb"
 DATA_FILE_PATH = "../../../demo_input/Template_MBO_Example_raw_v3.xlsx"
 ENV_FILE_PATH = "../../../demo_input/environment.yaml"
+EXECUTION_PROFILE = "ec2_200gb"  # Allowed: "standard", "ec2_200gb"
 
 print(f"Sending {NOTEBOOK_PATH} and {DATA_FILE_PATH} to AWS...")
+print(f"Execution profile: {EXECUTION_PROFILE}")
 
 with open(NOTEBOOK_PATH, 'rb') as nb_file, open(DATA_FILE_PATH, 'rb') as data_file, open(ENV_FILE_PATH, 'rb') as env_file:
     files = {
@@ -22,7 +24,8 @@ with open(NOTEBOOK_PATH, 'rb') as nb_file, open(DATA_FILE_PATH, 'rb') as data_fi
         'param_04_output_samples_ecological_parameters': (None, 'false'),
         'param_05_output_make_plots': (None, 'true'),
         'param_07_first_month': (None, '1'),
-        'param_10_upper_limit_max_depth': (None, '0')
+        'param_10_upper_limit_max_depth': (None, '0'),
+        'execution_profile': (None, EXECUTION_PROFILE)
     }
 
     try:
