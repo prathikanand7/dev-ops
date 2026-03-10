@@ -59,7 +59,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - "8000:8000"
+      - "8010:8000"
     environment:
       - ENVIRONMENT=local
       - DJANGO_SECRET_KEY=local-dev-secret-key-do-not-use-in-prod-12345
@@ -71,6 +71,11 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password123
+      - AWS_BATCH_TRIGGER_ACCESS_KEY_ID=${AWS_BATCH_TRIGGER_ACCESS_KEY_ID:-}
+      - AWS_BATCH_TRIGGER_SECRET_ACCESS_KEY=${AWS_BATCH_TRIGGER_SECRET_ACCESS_KEY:-}
+      - AWS_BATCH_TRIGGER_SESSION_TOKEN=${AWS_BATCH_TRIGGER_SESSION_TOKEN:-}
+      - AWS_BATCH_TRIGGER_FUNCTION=${AWS_BATCH_TRIGGER_FUNCTION:-lifewatch-batch-trigger}
+      - AWS_BATCH_TRIGGER_REGION=${AWS_BATCH_TRIGGER_REGION:-eu-west-1}
       - AWS_STORAGE_BUCKET_NAME=notebooks-bucket
       - AWS_S3_ENDPOINT_URL=http://minio:9000
       - WORKER_CALLBACK_URL=http://host.minikube.internal:8000 

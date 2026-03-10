@@ -25,7 +25,7 @@ type NotebookOption = {
 };
 
 export const App: React.FC = () => {
-  const [baseUrl, setBaseUrl] = useState('http://localhost:8000');
+  const [baseUrl, setBaseUrl] = useState('http://localhost:8010');
   const [token, setToken] = useState('');
   const [isGeneratingToken, setIsGeneratingToken] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
@@ -61,9 +61,9 @@ export const App: React.FC = () => {
     setIsGeneratingToken(true);
 
     try {
-      // Check if user is authenticated by checking /token/status/
+      // Check if user is authenticated by checking /api/token/status/
       const statusRes = await fetch(
-        `${baseUrl.replace(/\/$/, '')}/token/status/`,
+        `${baseUrl.replace(/\/$/, '')}/api/token/status/`,
         {
           credentials: 'include',
         },
@@ -78,7 +78,7 @@ export const App: React.FC = () => {
 
       // Generate new token
       const generateRes = await fetch(
-        `${baseUrl.replace(/\/$/, '')}/token/generate/`,
+        `${baseUrl.replace(/\/$/, '')}/api/token/generate/`,
         {
           method: 'POST',
           credentials: 'include',
@@ -119,8 +119,19 @@ export const App: React.FC = () => {
         return;
       }
 
-      const data = (await res.json()) as { notebooks: NotebookOption[] };
-      setNotebooks(data.notebooks);
+      const data = (await res.json()) as
+        | NotebookOption[]
+        | { notebooks?: NotebookOption[]; results?: NotebookOption[] };
+
+      const notebookItems = Array.isArray(data)
+        ? data
+        : Array.isArray(data.notebooks)
+          ? data.notebooks
+          : Array.isArray(data.results)
+            ? data.results
+            : [];
+
+      setNotebooks(notebookItems);
     } catch (err) {
       setNotebooksError((err as Error).message);
     } finally {
