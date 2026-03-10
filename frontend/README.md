@@ -131,13 +131,15 @@ Content-Type: multipart/form-data
 
 param_09_years=5
 param_01_input_data_filename=<file.xlsx>
+execution_profile=standard
 ```
 **Response (202)**:
 ```json
 {
   "message": "Job successfully queued.",
   "job_id": "660e8400-e29b-41d4-a716-446655440001",
-  "status": "PENDING"
+  "status": "PENDING",
+  "execution_profile": "standard"
 }
 ```
 
@@ -233,4 +235,3 @@ frontend/
 | Job submission fails with 404 | Verify notebook ID is correct and you own that notebook |
 | Status check times out | Backend may be down; check `http://localhost:8000` |
 | CORS errors | Backend CORS settings need to allow frontend origin |
-

@@ -14,6 +14,22 @@ from jobs.serializers import NotebookSerializer
 from jobs.tasks import dispatch_job_task
 from jobs.utils import parse_notebook_parameters, parse_notebook_parameters_from_payload
 
+EXECUTION_PROFILE_ALIASES = {
+    "standard": "standard",
+    "default": "standard",
+    "fargate": "standard",
+    "ec2_200gb": "ec2_200gb",
+    "ec2-200gb": "ec2_200gb",
+    "ec2_200": "ec2_200gb",
+    "high-storage": "ec2_200gb",
+}
+
+
+def normalize_execution_profile(raw_profile):
+    normalized_key = (raw_profile or "standard").strip().lower()
+    return EXECUTION_PROFILE_ALIASES.get(normalized_key)
+
+
 class NotebookViewSet(viewsets.ModelViewSet):
     """
     Provides GET /api/notebooks/, POST /api/notebooks/ (Upload), 
@@ -42,6 +58,7 @@ class NotebookViewSet(viewsets.ModelViewSet):
                     'message': serializers.CharField(),
                     'job_id': serializers.UUIDField(),
                     'status': serializers.CharField(),
+                    'execution_profile': serializers.CharField(),
                     'resolved_payload': serializers.DictField()
                 }
             ),
@@ -56,9 +73,18 @@ class NotebookViewSet(viewsets.ModelViewSet):
         notebook = self.get_object()
         
         try:
+            raw_execution_profile = request.data.get("execution_profile") or request.data.get("compute_profile")
+            execution_profile = normalize_execution_profile(raw_execution_profile)
+            if not execution_profile:
+                return Response(
+                    {"error": "Invalid execution_profile. Allowed values: standard, ec2_200gb"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             schema_data = notebook.parameter_schema
             param_list = [item for item in schema_data if isinstance(item, dict)]
             final_payload = parse_notebook_parameters_from_payload(param_list, request.data.items(), request.FILES)
+            final_payload["execution_profile"] = execution_profile
 
             for key, uploaded_file in request.FILES.items():
                 saved_path = default_storage.save(f"api_uploads/{uploaded_file.name}", uploaded_file)
@@ -81,6 +107,7 @@ class NotebookViewSet(viewsets.ModelViewSet):
                 "message": "Job successfully queued.",
                 "job_id": str(job.id),
                 "status": "PENDING",
+                "execution_profile": execution_profile,
                 "resolved_payload": final_payload 
             }, status=status.HTTP_202_ACCEPTED)
 

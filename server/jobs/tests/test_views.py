@@ -182,10 +182,28 @@ class APIViewsTestCase(TestCase):
         
         self.assertEqual(response.status_code, 202)
         self.assertEqual(response.data['status'], 'PENDING')
+        self.assertEqual(response.data['execution_profile'], 'standard')
         
         job = Job.objects.get(id=response.data['job_id'])
-        self.assertEqual(job.job_parameters, {"x": 5})
+        self.assertEqual(job.job_parameters, {"x": 5, "execution_profile": "standard"})
         mock_dispatch.assert_called_once_with(job.id)
+
+    @patch('jobs.views.api_views.notebook_viewset.dispatch_job_task.delay')
+    @patch('jobs.utils.parse_notebook_parameters_from_payload')
+    def test_trigger_notebook_api_invalid_execution_profile(self, mock_parse_payload, mock_dispatch):
+        """Test invalid execution profile is rejected with HTTP 400."""
+        mock_parse_payload.return_value = {"x": 5}
+
+        url = reverse('notebook-run', args=[self.notebook.id])
+        response = self.client.post(
+            url,
+            {'x': 5, 'execution_profile': 'invalid-profile'},
+            format='multipart'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Invalid execution_profile', response.data['error'])
+        mock_dispatch.assert_not_called()
 
     def test_job_status_api_view(self):
         """Test retrieving job detail via ModelViewSet GET."""

@@ -5,6 +5,7 @@ type RunResponse = {
   message: string;
   job_id: string;
   status: string;
+  execution_profile?: string;
   resolved_payload?: unknown;
 };
 
@@ -36,6 +37,7 @@ export const App: React.FC = () => {
   const [notebookId, setNotebookId] = useState('');
   const [paramsJson, setParamsJson] = useState('{\n  "param_09_years": 5\n}');
   const [fileParamName, setFileParamName] = useState('param_01_input_data_filename');
+  const [executionProfile, setExecutionProfile] = useState<'standard' | 'ec2_200gb'>('standard');
   const [dataFiles, setDataFiles] = useState<File[]>([]);
 
   const [runResult, setRunResult] = useState<RunResponse | null>(null);
@@ -150,6 +152,7 @@ export const App: React.FC = () => {
       Object.entries(parsedParams).forEach(([key, value]) => {
         formData.append(key, String(value));
       });
+      formData.append('execution_profile', executionProfile);
 
       if (dataFiles.length > 0) {
         const baseName = fileParamName.trim() || 'file';
@@ -347,6 +350,26 @@ export const App: React.FC = () => {
                     </div>
                   </div>
 
+                  <div className="mb-3">
+                    <label htmlFor="execution-profile" className="form-label">
+                      Execution profile
+                    </label>
+                    <select
+                      id="execution-profile"
+                      className="form-select"
+                      value={executionProfile}
+                      onChange={(e) =>
+                        setExecutionProfile(e.target.value as 'standard' | 'ec2_200gb')
+                      }
+                    >
+                      <option value="standard">Standard</option>
+                      <option value="ec2_200gb">Large EC2 (200GB)</option>
+                    </select>
+                    <div className="form-text">
+                      Use <code>ec2_200gb</code> for high storage workloads.
+                    </div>
+                  </div>
+
                   <DropZone
                     label="Input files (.xlsx / .ipynb). These will be attached under the parameter name above."
                     onFilesChange={setDataFiles}
@@ -370,6 +393,10 @@ export const App: React.FC = () => {
                       </p>
                       <p className="mb-1">
                         <strong>Status:</strong> {runResult.status}
+                      </p>
+                      <p className="mb-1">
+                        <strong>Execution profile:</strong>{' '}
+                        {runResult.execution_profile || executionProfile}
                       </p>
                       {runResult.message && (
                         <p className="mb-0">
@@ -469,4 +496,3 @@ export const App: React.FC = () => {
     </>
   );
 };
-
