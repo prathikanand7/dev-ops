@@ -1,5 +1,6 @@
 resource "aws_api_gateway_rest_api" "lifewatch_api" {
   name = "lifewatch-api"
+  binary_media_types = ["multipart/form-data", "*/*"]
 }
 
 # /batch resource

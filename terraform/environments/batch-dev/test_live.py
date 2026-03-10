@@ -1,8 +1,7 @@
 import requests
 
-# For quickly testing a lambda function you need to add a Function URL without IAM permissions using the AWS console to the lambda function.
-API_URL = "https://aat4uiw5clcvbmuxr7rgtnigom0nuhdh.lambda-url.eu-west-1.on.aws/"
-API_KEY = "<copy the api key from AWS>"
+API_URL = "https://wd2iz3j4nl.execute-api.eu-west-1.amazonaws.com/dev/batch/jobs"
+API_KEY = ""
 
 NOTEBOOK_PATH = "../../../demo_input/Data_cleaning.ipynb"
 DATA_FILE_PATH = "../../../demo_input/Template_MBO_Example_raw_v3.xlsx"
@@ -10,9 +9,9 @@ ENV_FILE_PATH = "../../../demo_input/environment.yaml"
 
 print(f"Sending {NOTEBOOK_PATH} and {DATA_FILE_PATH} to AWS...")
 
-
 headers = {
-    "x-api-key": API_KEY
+    "x-api-key": API_KEY,
+    "Accept": "multipart/form-data" 
 }
 
 with open(NOTEBOOK_PATH, 'rb') as nb_file, open(DATA_FILE_PATH, 'rb') as data_file, open(ENV_FILE_PATH, 'rb') as env_file:
