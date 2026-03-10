@@ -27,3 +27,4 @@ dependencies:
   - r-ggplot2
   - r-nlme
   - r-tidyr
+  - r-stringr

@@ -1,143 +1,87 @@
-import papermill as pm
 import os
 import sys
-import json
-import requests
 import subprocess
-import shutil
-from urllib.parse import urlparse, unquote
+import boto3
+import botocore
+import papermill as pm
 
-# Constants
-BASE_DIR = "/app"
-INPUT_DIR = os.path.join(BASE_DIR, "inputs")
-OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
-
-os.makedirs(INPUT_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-# Get env variables
-env_params_str = os.environ.get("JOB_PARAMETERS")
-worker_token = os.environ.get("WORKER_TOKEN")
-
-if not env_params_str:
-    print("FATAL: No 'JOB_PARAMETERS' environment variable found.")
-    sys.exit(1)
-
-try:
-    user_parameters = json.loads(env_params_str)
-    print("Loaded parameters from environment.")
-except json.JSONDecodeError as e:
-    print(f"FATAL: Could not decode JOB_PARAMETERS JSON: {e}")
-    sys.exit(1)
-    
-#------------------------------------------------------------------
-
-def download_file(url, dest_folder):
-    parsed_url = urlparse(url)
-    raw_filename = unquote(os.path.basename(parsed_url.path))
-    local_filename = os.path.join(dest_folder, raw_filename)
-    
-    print(f"Downloading: {url[:50]}... -> {local_filename}")
-    try:
-        with requests.get(url, stream=True, timeout=600) as r:
-            r.raise_for_status()
-            with open(local_filename, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-        return local_filename
-    except Exception as e:
-        print(f"FATAL: Download failed: {e}")
-        sys.exit(1)
-
-def clean_url(url, base_url):
-    if not url: return url
-    
-    if base_url and url.startswith(base_url):
-        remainder = url[len(base_url):]
-        if remainder.startswith('http'):
-            return remainder  
+def download_s3_folder(s3_client, bucket, prefix, local_dir="."):
+    """Downloads all files from a specific S3 prefix to a local directory."""
+    paginator = s3_client.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get('Contents', []):
+            s3_key = obj['Key']
+            filename = os.path.basename(s3_key)
             
-    if not url.startswith('http') and base_url:
-        base = base_url.rstrip('/')
-        path = url.lstrip('/')
-        return f"{base}/{path}"
-        
-    return url
+            # Skip empty directory markers
+            if not filename:
+                continue
+                
+            local_path = os.path.join(local_dir, filename)
+            print(f"Downloading s3://{bucket}/{s3_key} to {local_path}...")
+            s3_client.download_file(bucket, s3_key, local_path)
 
-def report_status_to_django(status, log_message, file_path=None):
-    if not job_id or not base_url:
-        print("Warning: No job_id or base_url provided. Cannot report status.")
+def upload_s3_folder(s3_client, bucket, prefix, local_dir):
+    """Uploads all files from a local directory to a specific S3 prefix."""
+    if not os.path.exists(local_dir):
+        print(f"Directory {local_dir} does not exist. Skipping upload.")
         return
-        
-    webhook_url = f"{base_url}/api/jobs/{job_id}/complete/"
-    data = {"status": status, "logs": log_message}
-    files = {}
-    
-    headers = {}
-    if worker_token:
-        headers['X-Worker-Token'] = worker_token
-    
-    try:
-        print(f"Sending status '{status}' to {webhook_url}...")
-        
-        if file_path and os.path.exists(file_path):
-            with open(file_path, 'rb') as f:
-                files = {'output_file': f}
-                response = requests.post(webhook_url, data=data, files=files, headers=headers)
-        else:
-            response = requests.post(webhook_url, data=data, headers=headers)
-        response.raise_for_status()
-        print("Status reported successfully.")
-        
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 403:
-            print(f"FATAL: Webhook rejected by Django (403 Forbidden). Check your WORKER_TOKEN.")
-        else:
-            print(f"Failed to report status to Django: {e}")
-    except Exception as e:
-        print(f"Failed to report status to Django: {e}")
 
-# Extract core variables
-job_id = user_parameters.pop("_job_id", None)    
-base_url = user_parameters.pop("_base_url", None) 
+    for root, dirs, files in os.walk(local_dir):
+        for file in files:
+            local_path = os.path.join(root, file)
+            # Calculate the relative path from the target directory to maintain folder structure
+            relative_path = os.path.relpath(local_path, local_dir)
+            s3_key = f"{prefix}outputs/{relative_path}"
+            
+            print(f"Uploading {local_path} to s3://{bucket}/{s3_key}...")
+            s3_client.upload_file(local_path, bucket, s3_key)
 
-# Clean the notebook URL
-raw_notebook_url = user_parameters.pop("_notebook_url", None)
-notebook_url = clean_url(raw_notebook_url, base_url)
-notebook_filename = user_parameters.pop("_notebook_filename", None)
+# Initialization and Environment Variable Checks
+s3 = boto3.client("s3")
 
-if notebook_url:
-    input_nb_path = download_file(notebook_url, INPUT_DIR)
-    notebook_filename = os.path.basename(input_nb_path)
-elif notebook_filename:
-    input_nb_path = os.path.join(INPUT_DIR, notebook_filename)
-else:
-    print("FATAL: No '_notebook_url' or '_notebook_filename' provided.")
+job_id = os.environ.get("JOB_ID")
+s3_job_prefix_uri = os.environ.get("S3_JOB_PREFIX")
+
+if not job_id or not s3_job_prefix_uri:
+    print("FATAL: JOB_ID and S3_JOB_PREFIX environment variables must be set.")
     sys.exit(1)
 
-output_nb_path = os.path.join(OUTPUT_DIR, "result_" + notebook_filename)
+# Parse the S3 URI
+# s3_job_prefix_uri.split("/") -> ['s3:', '', 'my-bucket', 'jobs', 'uuid', '']
+bucket = s3_job_prefix_uri.split("/")[2]
+prefix = "/".join(s3_job_prefix_uri.split("/")[3:])
 
-# Download possible input files
-download_keys = [k for k in user_parameters.keys() if k.startswith("_download_")]
+print(f"Starting Job: {job_id}")
+print(f"Target Bucket: {bucket} | Prefix: {prefix}")
 
-for d_key in download_keys:
-    raw_file_url = user_parameters.pop(d_key)
-    clean_file_url = clean_url(raw_file_url, base_url)
-    print(f"Found dynamic dataset requirement: {d_key}")
-    download_file(clean_file_url, INPUT_DIR)
+# Download the Notebook
+input_nb_path = "notebook.ipynb"
+try:
+    print("Downloading notebook...")
+    s3.download_file(bucket, f"{prefix}notebook.ipynb", input_nb_path)
+except Exception as e:
+    print(f"FATAL: Failed to download notebook from S3: {e}")
+    sys.exit(1)
 
-# Install packages
-raw_env_url = user_parameters.pop("_environment_url", None)
-env_url = clean_url(raw_env_url, base_url)
+# Download the Inputs (Excel files, CSVs, etc.)
+try:
+    print("Downloading input files...")
+    download_s3_folder(s3, bucket, f"{prefix}inputs/")
+except Exception as e:
+    print(f"FATAL: Failed to download input files: {e}")
+    sys.exit(1)
 
-if env_url:
-    print(f"Environment file detected. Downloading...")
-    env_path = download_file(env_url, INPUT_DIR)
+# Handle Dynamic Environment (Mamba)
+env_file_path = "environment.yaml"
+try:
+    # Attempt to download the environment file. If it doesn't exist, just skip.
+    s3.download_file(bucket, f"{prefix}environment.yaml", env_file_path)
     
-    print("Installing dynamic dependencies... (This may take a minute)")
+    print("Environment file detected. Installing dynamic dependencies via mamba...")
     try:
         subprocess.run(
-            ["mamba", "env", "update", "--name", "base", "--file", env_path],
+            ["mamba", "env", "update", "--name", "base", "--file", env_file_path],
             check=True,
             stdout=sys.stdout, 
             stderr=sys.stderr
@@ -145,44 +89,52 @@ if env_url:
         print("Dynamic dependencies installed successfully.")
     except subprocess.CalledProcessError as e:
         print(f"FATAL: Failed to install dependencies. Error code: {e.returncode}")
-        report_status_to_django('FAILED', f"Dependency Installation Failed: {e}")
         sys.exit(1)
 
-# System Config
-system_config = {
-    "conf_cloud_storage_path": INPUT_DIR,
-    "conf_temporary_data_directory": OUTPUT_DIR
-}
-final_parameters = {**user_parameters, **system_config}
+except botocore.exceptions.ClientError as e:
+    if e.response['Error']['Code'] == "404":
+        print("No environment file provided. Using default container environment.")
+    else:
+        print(f"FATAL: Error checking for environment file: {e}")
+        sys.exit(1)
 
-print(f"Starting Execution: {notebook_filename}")
-report_status_to_django('RUNNING', 'Environment built. Starting notebook execution...')
-
-# Execute
+# Execute Notebook via Papermill
+output_nb_path = "output.ipynb"
 try:
+    print("Executing notebook via Papermill...")
     pm.execute_notebook(
         input_nb_path,
         output_nb_path,
-        parameters=final_parameters,
         kernel_name='ir',
-        log_output=True,
-        cwd=INPUT_DIR
+        log_output=True
     )
-    print("Execution Successful")
-    
-    zip_base_name = os.path.join(BASE_DIR, "result_archive")
-    shutil.make_archive(zip_base_name, 'zip', OUTPUT_DIR)
-    final_zip_path = f"{zip_base_name}.zip"
-    
-    report_status_to_django('SUCCESS', 'Execution completed and outputs zipped.', final_zip_path)
-    
+    print("Execution Successful!")
 except pm.PapermillExecutionError as e:
-    error_msg = f"Notebook Logic Error in cell {e.exec_count}: {e}"
-    print(f"{error_msg}")
-    report_status_to_django('FAILED', error_msg)
+    print(f"FATAL: Notebook Logic Error in cell {e.exec_count}: {e}")
+    
+    # Upload the partially executed notebook anyway for debugging
+    s3.upload_file(output_nb_path, bucket, f"{prefix}failed_output.ipynb")
+    # Also attempt to upload any outputs generated before the crash
+    upload_s3_folder(s3, bucket, prefix, "./outputs")
     sys.exit(1)
 except Exception as e:
-    error_msg = f"System Error: {e}"
-    print(f"{error_msg}")
-    report_status_to_django('FAILED', error_msg)
+    print(f"FATAL: An unexpected error occurred during notebook execution: {e}")
     sys.exit(1)
+
+# Upload the successful results back to S3
+try:
+    # Upload the modified notebook itself
+    output_key = f"{prefix}output.ipynb"
+    print(f"Uploading executed notebook to s3://{bucket}/{output_key}...")
+    s3.upload_file(output_nb_path, bucket, output_key)
+    
+    # Upload everything in the local ./outputs directory generated by the R script
+    print("Sweeping and uploading generated data files...")
+    upload_s3_folder(s3, bucket, prefix, "./outputs")
+    
+    print("Upload complete. Container exiting cleanly.")
+except Exception as e:
+    print(f"FATAL: Failed to upload outputs: {e}")
+    sys.exit(1)
+
+sys.exit(0)
