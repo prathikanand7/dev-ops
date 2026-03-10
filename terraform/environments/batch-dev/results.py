@@ -4,7 +4,7 @@ import boto3
 import base64
 
 s3 = boto3.client("s3")
-BUCKET = os.environ["BUCKET"]  # e.g., lifewatch-batch-payloads-020858641931
+BUCKET = os.environ["BUCKET"]
 
 def lambda_handler(event, context):
     """
