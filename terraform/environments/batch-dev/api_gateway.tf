@@ -1,5 +1,5 @@
 resource "aws_api_gateway_rest_api" "lifewatch_api" {
-  name = "lifewatch-api"
+  name               = "lifewatch-api"
   binary_media_types = ["multipart/form-data", "*/*"]
 }
 
@@ -84,3 +84,30 @@ resource "aws_api_gateway_integration" "logs_lambda" {
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.job_logs.invoke_arn
 }
+
+#  batch/jobs/{job_id}/results resource
+resource "aws_api_gateway_resource" "job_results" {
+  rest_api_id = aws_api_gateway_rest_api.lifewatch_api.id
+  parent_id   = aws_api_gateway_resource.job_id.id
+  path_part   = "results"
+}
+
+# GET method
+resource "aws_api_gateway_method" "get_job_results" {
+  rest_api_id      = aws_api_gateway_rest_api.lifewatch_api.id
+  resource_id      = aws_api_gateway_resource.job_results.id
+  http_method      = "GET"
+  authorization    = "NONE"
+  api_key_required = true
+}
+
+# Integration with Lambda
+resource "aws_api_gateway_integration" "job_results_lambda" {
+  rest_api_id             = aws_api_gateway_rest_api.lifewatch_api.id
+  resource_id             = aws_api_gateway_resource.job_results.id
+  http_method             = aws_api_gateway_method.get_job_results.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.job_results.invoke_arn
+}
+

@@ -84,3 +84,18 @@ resource "aws_lambda_function" "job_logs" {
   runtime       = "python3.11"
   filename      = "logs_lambda.zip"
 }
+
+resource "aws_lambda_function" "job_results" {
+  function_name    = "lifewatch-job-results"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "results.lambda_handler"
+  runtime          = "python3.11"
+  filename         = "results_lambda.zip"
+  source_code_hash = filebase64sha256("results_lambda.zip")
+
+  environment {
+    variables = {
+      BUCKET = "lifewatch-batch-payloads-020858641931" # your bucket
+    }
+  }
+}

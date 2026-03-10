@@ -1,8 +1,8 @@
 import requests
 import sys
 
-API_BASE_URL = "https://5xnkmozte8.execute-api.eu-west-1.amazonaws.com/dev"
-API_KEY = "<copy the api key from AWS>"
+API_BASE_URL = "https://wd2iz3j4nl.execute-api.eu-west-1.amazonaws.com/dev"
+API_KEY = ""
 
 if len(sys.argv) != 2:
     print("Usage: python get_job_status.py <job_id>")
