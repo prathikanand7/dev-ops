@@ -51,10 +51,10 @@ resource "aws_lambda_function" "batch_trigger" {
   environment {
     variables = {
       BUCKET                   = aws_s3_bucket.batch_payloads.bucket
-      STANDARD_JOB_QUEUE       = aws_batch_job_queue.lifewatch_fargate_job_queue.name
-      STANDARD_JOB_DEFINITION  = aws_batch_job_definition.lifewatch_fargate_job_definition.name
-      EC2_200GB_JOB_QUEUE      = aws_batch_job_queue.lifewatch_ec2_200gb_job_queue.name
-      EC2_200GB_JOB_DEFINITION = aws_batch_job_definition.lifewatch_ec2_200gb_job_definition.name
+      STANDARD_JOB_QUEUE       = local.batch_execution_profiles.standard.job_queue
+      STANDARD_JOB_DEFINITION  = local.batch_execution_profiles.standard.job_definition
+      EC2_200GB_JOB_QUEUE      = local.batch_execution_profiles.ec2_200gb.job_queue
+      EC2_200GB_JOB_DEFINITION = local.batch_execution_profiles.ec2_200gb.job_definition
     }
   }
 }
