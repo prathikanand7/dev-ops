@@ -95,7 +95,7 @@ resource "aws_lambda_function" "job_results" {
 
   environment {
     variables = {
-      BUCKET = "lifewatch-batch-payloads-020858641931" # your bucket
+      BUCKET = "lifewatch-batch-payloads-020858641931"
     }
   }
 }
