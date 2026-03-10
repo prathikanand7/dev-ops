@@ -1,6 +1,7 @@
 import requests
 
-API_URL = "https://ag62kuf3oo32ugachx42cfquia0irlki.lambda-url.eu-west-1.on.aws/"
+# For quickly testing a lambda function you need to add a Function URL without IAM permissions using the AWS console to the lambda function.
+API_URL = "https://aat4uiw5clcvbmuxr7rgtnigom0nuhdh.lambda-url.eu-west-1.on.aws/"
 
 NOTEBOOK_PATH = "../../../demo_input/Data_cleaning.ipynb"
 DATA_FILE_PATH = "../../../demo_input/Template_MBO_Example_raw_v3.xlsx"

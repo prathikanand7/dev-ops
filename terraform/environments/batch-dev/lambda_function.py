@@ -48,7 +48,9 @@ def lambda_handler(event, context):
             elif field_name == "environment":
                 environment_content = payload
             elif filename:
-                files_to_upload.append({"filename": filename, "content": payload})
+                # Clean relative paths from filename
+                safe_filename = os.path.basename(filename)
+                files_to_upload.append({"filename": safe_filename, "content": payload})
             elif field_name:
                 # If no filename, treat it as a parameter key-value pair
                 params[field_name] = payload.decode("utf-8")
