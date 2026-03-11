@@ -45,4 +45,4 @@ with open(NOTEBOOK_PATH, 'rb') as nb_file, open(DATA_FILE_PATH, 'rb') as data_fi
         if job_id:
             print("Job ID:", job_id)
     except Exception as e:
-        print(f"Failed to connect: {e}")
+        print(f"Failed to post job: {e}")
