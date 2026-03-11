@@ -39,14 +39,16 @@ Then open the URL printed by Vite (by default `http://localhost:5173`).
 The frontend integrates with the Django backend for authentication and notebook management. Here are the key pages you'll need:
 
 #### Login Page
+
 - **URL**: `http://localhost:8000/login/`
 - **Purpose**: Authenticate to access the dashboard and generate API tokens
-- **Default Credentials**: 
+- **Default Credentials**:
   - Username: `admin`
   - Password: `password123`
 - **Navigation**: Click "Log In" link or navigate directly to `/login/`
 
-#### Dashboard Page  
+#### Dashboard Page
+
 - **URL**: `http://localhost:8000/dashboard/`
 - **Purpose**: Upload notebooks, view job history, generate API tokens
 - **Features**:
@@ -57,6 +59,7 @@ The frontend integrates with the Django backend for authentication and notebook 
 - **Navigation**: After login, you'll be redirected to `/dashboard/` automatically
 
 #### Navigation Flow
+
 1. **Start**: Go to `http://localhost:8000/login/` and log in
 2. **Dashboard**: Access `http://localhost:8000/dashboard/` to manage notebooks
 3. **Token Generation**: Use "Generate API Token" button in dashboard
@@ -69,35 +72,38 @@ All endpoints require token authentication via `Authorization: Token <your_token
 
 #### Token Management
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/token/status/` | Check if user has active token |
+| Method | Endpoint           | Description                       |
+| ------ | ------------------ | --------------------------------- |
+| `GET`  | `/token/status/`   | Check if user has active token    |
 | `POST` | `/token/generate/` | Generate new authentication token |
 
 #### Notebooks
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/notebooks/` | List all notebooks owned by authenticated user |
-| `POST` | `/api/notebooks/<notebook_id>/run/` | Submit a job to run a specific notebook |
+| Method | Endpoint                            | Description                                    |
+| ------ | ----------------------------------- | ---------------------------------------------- |
+| `GET`  | `/api/notebooks/`                   | List all notebooks owned by authenticated user |
+| `POST` | `/api/notebooks/<notebook_id>/run/` | Submit a job to run a specific notebook        |
 
 #### Jobs
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/jobs/<job_id>/status/` | Get current status of a job |
-| `GET` | `/api/jobs/<job_id>/logs/` | Get execution logs for a job |
+| Method | Endpoint                       | Description                                             |
+| ------ | ------------------------------ | ------------------------------------------------------- |
+| `GET`  | `/api/jobs/<job_id>/status/`   | Get current status of a job                             |
+| `GET`  | `/api/jobs/<job_id>/logs/`     | Get execution logs for a job                            |
 | `POST` | `/api/jobs/<job_id>/complete/` | Webhook callback (internal - worker reports completion) |
-| `GET` | `/api/jobs/poll-status/` | Get status of multiple recent jobs |
+| `GET`  | `/api/jobs/poll-status/`       | Get status of multiple recent jobs                      |
 
 ### Request/Response Examples
 
 #### 1. Generate Token
+
 ```bash
 POST /token/generate/
 Authorization: <session_cookie>
 ```
+
 **Response (201)**:
+
 ```json
 {
   "token": "abc123def456xyz"
@@ -105,11 +111,14 @@ Authorization: <session_cookie>
 ```
 
 #### 2. List Notebooks
+
 ```bash
 GET /api/notebooks/
 Authorization: Token <your_token>
 ```
+
 **Response (200)**:
+
 ```json
 {
   "notebooks": [
@@ -124,6 +133,7 @@ Authorization: Token <your_token>
 ```
 
 #### 3. Trigger Notebook Run
+
 ```bash
 POST /api/notebooks/<notebook_id>/run/
 Authorization: Token <your_token>
@@ -133,7 +143,9 @@ param_09_years=5
 param_01_input_data_filename=<file.xlsx>
 execution_profile=standard
 ```
+
 **Response (202)**:
+
 ```json
 {
   "message": "Job successfully queued.",
@@ -144,11 +156,14 @@ execution_profile=standard
 ```
 
 #### 4. Get Job Status
+
 ```bash
 GET /api/jobs/<job_id>/status/
 Authorization: Token <your_token>
 ```
+
 **Response (200)**:
+
 ```json
 {
   "job_id": "660e8400-e29b-41d4-a716-446655440001",
@@ -161,6 +176,7 @@ Authorization: Token <your_token>
 ### Features
 
 #### ✨ User Interface
+
 - **Real-time Notebook Loading**: Automatically fetches available notebooks after token generation
 - **Smart Form Validation**: Disables submit buttons until all required fields are filled
 - **Status Badges**: Color-coded job status (green for SUCCESS, red for FAILED, blue for RUNNING)
@@ -168,6 +184,7 @@ Authorization: Token <your_token>
 - **Error Handling**: Clear error messages for debugging API issues
 
 #### 📁 File Handling
+
 - **Drag & Drop**: Drop files directly into the drop zone
 - **File Type Filtering**: Supports `.xlsx`, `.xls`, `.ipynb`, `.json`, `.csv`
 - **Duplicate Prevention**: Prevents uploading files with same name
@@ -175,6 +192,7 @@ Authorization: Token <your_token>
 - **Multiple Files**: Support for uploading multiple files
 
 #### 📊 Job Monitoring
+
 - **Live Status Updates**: Get real-time job execution status
 - **Execution Logs**: View full logs from notebook execution
 - **Result Downloads**: Download output files when job completes
@@ -228,10 +246,10 @@ frontend/
 
 ### Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| "Token generation failed" | Make sure you're logged into the Dashboard first |
-| Notebooks list is empty | Upload a notebook in the Dashboard first |
+| Issue                         | Solution                                                |
+| ----------------------------- | ------------------------------------------------------- |
+| "Token generation failed"     | Make sure you're logged into the Dashboard first        |
+| Notebooks list is empty       | Upload a notebook in the Dashboard first                |
 | Job submission fails with 404 | Verify notebook ID is correct and you own that notebook |
-| Status check times out | Backend may be down; check `http://localhost:8000` |
-| CORS errors | Backend CORS settings need to allow frontend origin |
+| Status check times out        | Backend may be down; check `http://localhost:8000`      |
+| CORS errors                   | Backend CORS settings need to allow frontend origin     |
