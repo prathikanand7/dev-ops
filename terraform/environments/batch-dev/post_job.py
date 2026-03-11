@@ -35,6 +35,7 @@ with open(NOTEBOOK_PATH, 'rb') as nb_file, open(DATA_FILE_PATH, 'rb') as data_fi
 
     try:
         response = requests.post(API_URL, files=files, headers=headers)
+        response.raise_for_status()
         response_json = response.json()
         print("\n=== CLOUD RESPONSE ===")
         print(f"Status Code: {response.status_code}")
