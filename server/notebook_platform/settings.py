@@ -26,11 +26,30 @@ WORKER_CALLBACK_URL = get_env_variable('WORKER_CALLBACK_URL')
 CELERY_BROKER_URL = get_env_variable('CELERY_BROKER_URL')
 WORKER_WEBHOOK_SECRET = get_env_variable('WORKER_WEBHOOK_SECRET')
 WORKER_IMAGE = get_env_variable('WORKER_IMAGE')
+AWS_BATCH_TRIGGER_FUNCTION = os.getenv('AWS_BATCH_TRIGGER_FUNCTION', 'lifewatch-batch-trigger')
+AWS_BATCH_TRIGGER_REGION = os.getenv('AWS_BATCH_TRIGGER_REGION', os.getenv('AWS_S3_REGION_NAME', 'eu-west-1'))
+AWS_BATCH_TRIGGER_ACCESS_KEY_ID = os.getenv('AWS_BATCH_TRIGGER_ACCESS_KEY_ID')
+AWS_BATCH_TRIGGER_SECRET_ACCESS_KEY = os.getenv('AWS_BATCH_TRIGGER_SECRET_ACCESS_KEY')
+AWS_BATCH_TRIGGER_SESSION_TOKEN = os.getenv('AWS_BATCH_TRIGGER_SESSION_TOKEN')
 
 # --- Routing & Security ---
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip()]
 CSRF_TRUSTED_ORIGINS = [host.strip() for host in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if host.strip()]
 LOCAL_KUBECTL_PROXY_URL = os.environ.get('LOCAL_KUBECTL_PROXY_URL')
+
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+if not CORS_ALLOWED_ORIGINS and DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:5174',
+    ]
+CORS_ALLOW_CREDENTIALS = True
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
@@ -48,6 +67,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'rest_framework',      
     'rest_framework.authtoken', 
     'django_filters',
@@ -79,6 +99,7 @@ SPECTACULAR_SETTINGS = {
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

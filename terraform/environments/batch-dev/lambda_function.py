@@ -11,8 +11,39 @@ s3 = boto3.client("s3")
 batch = boto3.client("batch")
 
 BUCKET = os.environ["BUCKET"]
-JOB_QUEUE = os.environ["JOB_QUEUE"]
-JOB_DEFINITION = os.environ["JOB_DEFINITION"]
+STANDARD_JOB_QUEUE = os.environ.get("STANDARD_JOB_QUEUE") or os.environ.get("JOB_QUEUE")
+STANDARD_JOB_DEFINITION = os.environ.get("STANDARD_JOB_DEFINITION") or os.environ.get("JOB_DEFINITION")
+EC2_200GB_JOB_QUEUE = os.environ.get("EC2_200GB_JOB_QUEUE")
+EC2_200GB_JOB_DEFINITION = os.environ.get("EC2_200GB_JOB_DEFINITION")
+
+PROFILE_ALIASES = {
+    "standard": "standard",
+    "fargate": "standard",
+    "default": "standard",
+    "ec2_200gb": "ec2_200gb",
+    "ec2-200gb": "ec2_200gb",
+    "ec2_200": "ec2_200gb",
+    "high-storage": "ec2_200gb"
+}
+
+
+def normalize_execution_profile(raw_profile):
+    normalized_key = (raw_profile or "standard").strip().lower()
+    return PROFILE_ALIASES.get(normalized_key)
+
+
+def resolve_batch_target(execution_profile):
+    if execution_profile == "standard":
+        if not STANDARD_JOB_QUEUE or not STANDARD_JOB_DEFINITION:
+            raise RuntimeError("Missing STANDARD_JOB_QUEUE or STANDARD_JOB_DEFINITION configuration.")
+        return STANDARD_JOB_QUEUE, STANDARD_JOB_DEFINITION
+
+    if execution_profile == "ec2_200gb":
+        if not EC2_200GB_JOB_QUEUE or not EC2_200GB_JOB_DEFINITION:
+            raise RuntimeError("Missing EC2_200GB_JOB_QUEUE or EC2_200GB_JOB_DEFINITION configuration.")
+        return EC2_200GB_JOB_QUEUE, EC2_200GB_JOB_DEFINITION
+
+    raise ValueError(f"Unsupported execution profile: {execution_profile}")
 
 def lambda_handler(event, context):
     try:
@@ -55,6 +86,18 @@ def lambda_handler(event, context):
                 # If no filename, treat it as a parameter key-value pair
                 params[field_name] = payload.decode("utf-8")
 
+        raw_execution_profile = params.get("execution_profile") or params.get("compute_profile")
+        execution_profile = normalize_execution_profile(raw_execution_profile)
+        if not execution_profile:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({
+                    "error": "Invalid execution_profile. Allowed values: standard, ec2_200gb"
+                })
+            }
+
+        selected_job_queue, selected_job_definition = resolve_batch_target(execution_profile)
+
         if not notebook_content:
             return {"statusCode": 400, "body": "Missing mandatory 'notebook' file."}
 
@@ -70,7 +113,7 @@ def lambda_handler(event, context):
                 else:
                     formatted_params[key] = f'{key} <- "{val}"\n'
 
-        # Inject LifeWatch configuration overrides to ensure the notebook runs in the Fargate container
+        # Inject LifeWatch configuration overrides to ensure the notebook runs inside the Batch container
         # TODO: Verify this
         formatted_params.update({
             "conf_temporary_data_directory": 'conf_temporary_data_directory <- "./outputs"\n',
@@ -115,11 +158,11 @@ def lambda_handler(event, context):
         # Submit the Batch Job
         response = batch.submit_job(
             jobName=f"r-notebook-job-{job_id[:8]}",
-            jobQueue=JOB_QUEUE,
-            jobDefinition=JOB_DEFINITION,
+            jobQueue=selected_job_queue,
+            jobDefinition=selected_job_definition,
             containerOverrides={
                 "environment": [
-                    # Pass the S3 location to Fargate so the worker knows where to pull from
+                    # Pass the S3 location so the worker knows where to pull from
                     {"name": "JOB_ID", "value": job_id},
                     {"name": "S3_JOB_PREFIX", "value": f"s3://{BUCKET}/{s3_prefix}"}
                 ]
@@ -131,7 +174,8 @@ def lambda_handler(event, context):
             "body": json.dumps({
                 "message": "Job successfully mapped and submitted",
                 "job_id": job_id,
-                "batch_job_id": response["jobId"]
+                "batch_job_id": response["jobId"],
+                "execution_profile": execution_profile
             })
         }
 

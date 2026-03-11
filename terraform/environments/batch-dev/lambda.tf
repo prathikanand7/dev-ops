@@ -54,17 +54,20 @@ resource "aws_iam_role_policy" "lambda_policy" {
 }
 
 resource "aws_lambda_function" "batch_trigger" {
-  function_name = "lifewatch-batch-trigger"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.11"
-  filename      = "lambda.zip"
+  function_name    = "lifewatch-batch-trigger"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.11"
+  filename         = "lambda.zip"
+  source_code_hash = filebase64sha256("lambda.zip")
 
   environment {
     variables = {
-      BUCKET         = aws_s3_bucket.batch_payloads.bucket
-      JOB_QUEUE      = aws_batch_job_queue.lifewatch_fargate_job_queue.name
-      JOB_DEFINITION = aws_batch_job_definition.lifewatch_fargate_job_definition.name
+      BUCKET                   = aws_s3_bucket.batch_payloads.bucket
+      STANDARD_JOB_QUEUE       = aws_batch_job_queue.lifewatch_fargate_job_queue.name
+      STANDARD_JOB_DEFINITION  = aws_batch_job_definition.lifewatch_fargate_job_definition.name
+      EC2_200GB_JOB_QUEUE      = aws_batch_job_queue.lifewatch_ec2_200gb_job_queue.name
+      EC2_200GB_JOB_DEFINITION = aws_batch_job_definition.lifewatch_ec2_200gb_job_definition.name
     }
   }
 }

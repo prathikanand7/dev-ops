@@ -93,6 +93,14 @@
             <div class="modal-body">
                 <form id="runJobForm">
                     <input type="hidden" id="modalNotebookId" name="notebook_id">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold" for="execution_profile">Execution Profile</label>
+                        <select class="form-select" id="execution_profile" name="execution_profile">
+                            <option value="standard" selected>Standard</option>
+                            <option value="ec2_200gb">Large EC2 (200GB)</option>
+                        </select>
+                        <div class="form-text">Use <code>ec2_200gb</code> for high storage workloads.</div>
+                    </div>
                     <div id="dynamicFormFields"></div>
                 </form>
             </div>
@@ -341,6 +349,7 @@ function showCurlModal(notebookId, schemaRaw) {
     const baseUrl = window.location.origin; 
     let curlCmd = `curl -X POST "${baseUrl}/api/notebooks/${notebookId}/run/" \\\n`;
     curlCmd += `     -H "Authorization: Token YOUR_API_TOKEN"`;
+    curlCmd += ` \\\n     -F "execution_profile=standard"`;
 
     try {
         let schema = [];

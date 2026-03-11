@@ -69,6 +69,7 @@ Content-Type: application/json
 ### Parameters:
 ### - param_09_years: Example numeric parameter
 ### - param_01_input_data_filename: File parameter (if uploading)
+### - execution_profile: standard | ec2_200gb
 ###
 ### Response: Job ID and status
 POST {{baseUrl}}/api/notebooks/{{notebookId}}/run/
@@ -79,6 +80,10 @@ Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0g
 Content-Disposition: form-data; name="param_09_years"
 
 5
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="execution_profile"
+
+standard
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 
 # Response example:
@@ -86,6 +91,7 @@ Content-Disposition: form-data; name="param_09_years"
 #   "message": "Job successfully queued.",
 #   "job_id": "660e8400-e29b-41d4-a716-446655440001",
 #   "status": "PENDING",
+#   "execution_profile": "standard",
 #   "resolved_payload": {...}
 # }
 
@@ -195,6 +201,10 @@ Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0g
 Content-Disposition: form-data; name="param_09_years"
 
 5
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="execution_profile"
+
+ec2_200gb
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 
 ###

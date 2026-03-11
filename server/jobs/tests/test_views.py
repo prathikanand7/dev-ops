@@ -182,10 +182,108 @@ class APIViewsTestCase(TestCase):
         
         self.assertEqual(response.status_code, 202)
         self.assertEqual(response.data['status'], 'PENDING')
+        self.assertEqual(response.data['execution_profile'], 'standard')
         
         job = Job.objects.get(id=response.data['job_id'])
-        self.assertEqual(job.job_parameters, {"x": 5})
+        self.assertEqual(job.job_parameters, {"x": 5, "execution_profile": "standard"})
         mock_dispatch.assert_called_once_with(job.id)
+
+    @patch('jobs.views.api_views.notebook_viewset.dispatch_job_task.delay')
+    @patch('jobs.utils.parse_notebook_parameters_from_payload')
+    def test_trigger_notebook_api_invalid_execution_profile(self, mock_parse_payload, mock_dispatch):
+        """Test invalid execution profile is rejected with HTTP 400."""
+        mock_parse_payload.return_value = {"x": 5}
+
+        url = reverse('notebook-run', args=[self.notebook.id])
+        response = self.client.post(
+            url,
+            {'x': 5, 'execution_profile': 'invalid-profile'},
+            format='multipart'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Invalid execution_profile', response.data['error'])
+        mock_dispatch.assert_not_called()
+
+    @patch('jobs.views.api_views.notebook_viewset.dispatch_job_task.delay')
+    @patch('jobs.views.api_views.notebook_viewset.submit_aws_batch_job')
+    @patch('jobs.utils.parse_notebook_parameters_from_payload')
+    def test_trigger_notebook_api_ec2_profile(self, mock_parse_payload, mock_submit_aws, mock_dispatch):
+        """Test ec2_200gb profile submits to AWS Batch bridge and skips Kubernetes dispatch."""
+        mock_parse_payload.return_value = {"x": 5}
+        mock_submit_aws.return_value = {
+            "batch_job_id": "aws-batch-job-123",
+            "job_id": "payload-job-id-123"
+        }
+        upload = SimpleUploadedFile(
+            "Template_MBO_Example_raw_v3.xlsx",
+            b"fake-excel-bytes",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        url = reverse('notebook-run', args=[self.notebook.id])
+        response = self.client.post(
+            url,
+            {
+                'x': 5,
+                'execution_profile': 'ec2_200gb',
+                'param_01_input_data_filename': upload,
+            },
+            format='multipart'
+        )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.data['execution_profile'], 'ec2_200gb')
+        self.assertEqual(response.data['status'], 'PROVISIONING')
+        self.assertEqual(response.data['batch_job_id'], 'aws-batch-job-123')
+
+        job = Job.objects.get(id=response.data['job_id'])
+        self.assertEqual(job.status, 'PROVISIONING')
+        self.assertEqual(job.job_parameters['execution_profile'], 'ec2_200gb')
+        self.assertEqual(job.job_parameters['batch_job_id'], 'aws-batch-job-123')
+        self.assertEqual(
+            job.job_parameters['param_01_input_data_filename'],
+            'Template_MBO_Example_raw_v3.xlsx'
+        )
+
+        submit_payload = mock_submit_aws.call_args[0][1]
+        self.assertEqual(
+            submit_payload['param_01_input_data_filename'],
+            'Template_MBO_Example_raw_v3.xlsx'
+        )
+        mock_dispatch.assert_not_called()
+
+    @patch('jobs.views.api_views.job_viewset.boto3.client')
+    def test_job_status_action_refreshes_batch_job(self, mock_boto3_client):
+        """Test /api/jobs/<id>/status/ refreshes AWS Batch-backed jobs."""
+        class FakeBatchClient:
+            def describe_jobs(self, jobs):
+                return {
+                    "jobs": [{
+                        "status": "SUCCEEDED",
+                        "container": {"logStreamName": "demo/log/stream"}
+                    }]
+                }
+
+        mock_boto3_client.return_value = FakeBatchClient()
+        job = Job.objects.create(
+            notebook=self.notebook,
+            user=self.user,
+            status='PENDING',
+            job_parameters={
+                "execution_profile": "ec2_200gb",
+                "batch_job_id": "aws-batch-job-123"
+            }
+        )
+
+        url = reverse('job-status', args=[job.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['status'], 'SUCCESS')
+        self.assertEqual(response.data['job_id'], str(job.id))
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, 'SUCCESS')
 
     def test_job_status_api_view(self):
         """Test retrieving job detail via ModelViewSet GET."""

@@ -141,6 +141,7 @@ Content-Type: multipart/form-data
 
 param_09_years=5
 param_01_input_data_filename=<file.xlsx>
+execution_profile=standard
 ```
 
 **Response (202)**:
@@ -149,7 +150,8 @@ param_01_input_data_filename=<file.xlsx>
 {
   "message": "Job successfully queued.",
   "job_id": "660e8400-e29b-41d4-a716-446655440001",
-  "status": "PENDING"
+  "status": "PENDING",
+  "execution_profile": "standard"
 }
 ```
 
