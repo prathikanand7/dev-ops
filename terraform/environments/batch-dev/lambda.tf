@@ -79,7 +79,7 @@ resource "aws_lambda_function" "job_status" {
   runtime          = "python3.11"
   filename         = "status_lambda.zip"
   source_code_hash = filebase64sha256("status_lambda.zip")
-  timeout          = 10 # Good practice to give it a little breathing room
+  timeout          = 10
 
   environment {
     variables = {
