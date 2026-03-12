@@ -16,7 +16,7 @@ env:
   AWS_REGION: eu-west-1
 
 concurrency:
-  group: notebook-e2e-main
+  group: terraform-batch-dev-state
   cancel-in-progress: false
 
 jobs:
@@ -61,7 +61,7 @@ jobs:
 
       - name: Terraform Apply
         working-directory: ./terraform/environments/batch-dev
-        run: terraform apply -auto-approve
+        run: terraform apply -lock-timeout=20m -auto-approve
 
       - name: Capture API Outputs
         working-directory: ./terraform/environments/batch-dev
@@ -103,7 +103,7 @@ jobs:
         working-directory: ./terraform/environments/batch-dev
         run: |
           terraform init
-          terraform destroy -auto-approve
+          terraform destroy -lock-timeout=20m -auto-approve
 
       - name: Verify No Batch EC2 Instances Remain
         if: always()
