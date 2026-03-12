@@ -98,12 +98,22 @@ jobs:
           path: terraform/environments/batch-dev/e2e_outputs
           if-no-files-found: warn
 
-      - name: Terraform Destroy (Always Cleanup)
+      - name: Terraform Destroy Except Payload Bucket (Always Cleanup)
         if: always()
         working-directory: ./terraform/environments/batch-dev
         run: |
+          set -euo pipefail
           terraform init
-          terraform destroy -lock-timeout=20m -auto-approve
+          mapfile -t targets < <(terraform state list | grep -v '^aws_s3_bucket.batch_payloads$' || true)
+          if [ "${#targets[@]}" -eq 0 ]; then
+            echo "Nothing to destroy."
+            exit 0
+          fi
+          args=()
+          for t in "${targets[@]}"; do
+            args+=("-target=$t")
+          done
+          terraform destroy -lock-timeout=20m -auto-approve "${args[@]}"
 
       - name: Verify No Batch EC2 Instances Remain
         if: always()
