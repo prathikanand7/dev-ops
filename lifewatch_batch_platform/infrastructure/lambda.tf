@@ -58,8 +58,8 @@ resource "aws_lambda_function" "batch_trigger" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.11"
-  filename         = "../backend_lamda_artifacts/lambda.zip"
-  source_code_hash = filebase64sha256("../backend_lamda_artifacts/lambda.zip")
+  filename         = "../backend_lambda_artifacts/lambda.zip"
+  source_code_hash = filebase64sha256("../backend_lambda_artifacts/lambda.zip")
 
   environment {
     variables = {
@@ -77,8 +77,8 @@ resource "aws_lambda_function" "job_status" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "status.lambda_handler"
   runtime          = "python3.11"
-  filename         = "../backend_lamda_artifacts/status_lambda.zip"
-  source_code_hash = filebase64sha256("../backend_lamda_artifacts/status_lambda.zip")
+  filename         = "../backend_lambda_artifacts/status_lambda.zip"
+  source_code_hash = filebase64sha256("../backend_lambda_artifacts/status_lambda.zip")
   timeout          = 10
 
   environment {
@@ -93,8 +93,8 @@ resource "aws_lambda_function" "job_logs" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "logs.lambda_handler"
   runtime          = "python3.11"
-  filename         = "../backend_lamda_artifacts/logs_lambda.zip"
-  source_code_hash = filebase64sha256("../backend_lamda_artifacts/logs_lambda.zip")
+  filename         = "../backend_lambda_artifacts/logs_lambda.zip"
+  source_code_hash = filebase64sha256("../backend_lambda_artifacts/logs_lambda.zip")
   timeout          = 10
 
   environment {
@@ -109,8 +109,8 @@ resource "aws_lambda_function" "job_results" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "results.lambda_handler"
   runtime          = "python3.11"
-  filename         = "../backend_lamda_artifacts/results_lambda.zip"
-  source_code_hash = filebase64sha256("../backend_lamda_artifacts/results_lambda.zip")
+  filename         = "../backend_lambda_artifacts/results_lambda.zip"
+  source_code_hash = filebase64sha256("../backend_lambda_artifacts/results_lambda.zip")
   timeout          = 10
 
   environment {

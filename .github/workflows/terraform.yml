@@ -17,7 +17,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./terraform/environments/batch-dev
+        working-directory: ./lifewatch_batch_platform/infrastructure
 
     steps:
       - name: Checkout Code
