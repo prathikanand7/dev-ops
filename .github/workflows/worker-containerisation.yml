@@ -55,7 +55,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./worker
-          tags: localhost:5000/r-notebook-worker:latest
+          tags: ${{ env.FULL_LOCAL_IMAGE }}:latest
           push: true
           cache-from: type=gha,scope=worker-cache
           cache-to: type=gha,mode=max,scope=worker-cache
