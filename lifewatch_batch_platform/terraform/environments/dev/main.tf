@@ -67,7 +67,7 @@ module "batch_compute_fargate" {
 
   project_name       = var.project_name
   max_vcpus          = var.fargate_max_vcpus
-  subnet_ids         = module.vpc.public_subnet_ids
+  subnet_ids         = module.vpc.private_subnet_ids
   security_group_ids = [module.security_groups.batch_sg_id]
 
   vpc_endpoint_dependency_ids = [
@@ -114,7 +114,7 @@ module "batch_compute_ec2" {
   max_vcpus          = var.ec2_max_vcpus
   instance_types     = var.ec2_instance_types
   ebs_volume_size_gb = var.ec2_ebs_volume_size_gb
-  subnet_ids         = module.vpc.public_subnet_ids
+  subnet_ids         = module.vpc.private_subnet_ids
   security_group_ids = [module.security_groups.batch_sg_id]
 
   tags = var.tags
@@ -139,35 +139,6 @@ module "batch_queue_ec2" {
   compute_environment_arn = module.batch_compute_ec2.compute_environment_arn
 
   tags = var.tags
-}
-
-################################
-# API Gateway
-################################
-
-module "api_gateway" {
-  source = "../../modules/api_gateway"
-
-  project_name              = var.project_name
-  stage_name                = var.stage_name
-  batch_trigger_lambda_arn  = module.lambda_batch_trigger.invoke_arn
-  job_status_lambda_arn     = module.lambda_job_status.invoke_arn
-  job_logs_lambda_arn       = module.lambda_job_logs.invoke_arn
-  job_results_lambda_arn    = module.lambda_job_results.invoke_arn
-}
-
-################################
-# API Key & Usage Plan
-################################
-
-module "api_key_usage_plan" {
-  source = "../../modules/api_key_usage_plan"
-
-  api_id               = module.api_gateway.api_id
-  stage_name           = module.api_gateway.stage_name
-  lifewatch_key_name   = var.api_key_name
-  usage_plan_name      = var.usage_plan_name
-  usage_plan_description = var.usage_plan_description
 }
 
 ################################
@@ -226,4 +197,33 @@ module "lambda_job_results" {
   lambda_role_arn = module.lambda_iam.role_arn
   filename        = var.lambda_results_filename
   s3_bucket_name  = module.s3_batch_payloads.bucket_name
+}
+
+################################
+# API Gateway
+################################
+
+module "api_gateway" {
+  source = "../../modules/api_gateway"
+
+  project_name              = var.project_name
+  stage_name                = var.stage_name
+  batch_trigger_lambda_arn  = module.lambda_batch_trigger.invoke_arn
+  job_status_lambda_arn     = module.lambda_job_status.invoke_arn
+  job_logs_lambda_arn       = module.lambda_job_logs.invoke_arn
+  job_results_lambda_arn    = module.lambda_job_results.invoke_arn
+}
+
+################################
+# API Key & Usage Plan
+################################
+
+module "api_key_usage_plan" {
+  source = "../../modules/api_key_usage_plan"
+
+  api_id                 = module.api_gateway.api_id
+  stage_name             = module.api_gateway.stage_name
+  lifewatch_key_name     = var.api_key_name
+  usage_plan_name        = var.usage_plan_name
+  usage_plan_description = var.usage_plan_description
 }

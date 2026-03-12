@@ -56,7 +56,7 @@ resource "aws_batch_job_definition" "fargate" {
     }
 
     networkConfiguration = {
-      assignPublicIp = "ENABLED"
+      assignPublicIp = "DISABLED"
     }
 
     # Lambda dynamically injects JOB_ID and S3_JOB_PREFIX at submission time.
