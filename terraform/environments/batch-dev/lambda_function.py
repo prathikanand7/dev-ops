@@ -169,12 +169,22 @@ def lambda_handler(event, context):
             }
         )
 
+        # Tracking file in S3 links the custom job_id to the AWS Batch ID
+        meta_payload = {
+            "batch_job_id": response["jobId"],
+            "execution_profile": execution_profile
+        }
+        s3.put_object(
+            Bucket=BUCKET,
+            Key=f"{s3_prefix}meta.json",
+            Body=json.dumps(meta_payload).encode("utf-8")
+        )
+
         return {
             "statusCode": 200,
             "body": json.dumps({
                 "message": "Job successfully mapped and submitted",
                 "job_id": job_id,
-                "batch_job_id": response["jobId"],
                 "execution_profile": execution_profile
             })
         }

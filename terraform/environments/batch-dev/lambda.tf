@@ -73,19 +73,35 @@ resource "aws_lambda_function" "batch_trigger" {
 }
 
 resource "aws_lambda_function" "job_status" {
-  function_name = "lifewatch-job-status"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "status.lambda_handler"
-  runtime       = "python3.11"
-  filename      = "status_lambda.zip"
+  function_name    = "lifewatch-job-status"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "status.lambda_handler"
+  runtime          = "python3.11"
+  filename         = "status_lambda.zip"
+  source_code_hash = filebase64sha256("status_lambda.zip")
+  timeout          = 10 # Good practice to give it a little breathing room
+
+  environment {
+    variables = {
+      BUCKET = aws_s3_bucket.batch_payloads.bucket
+    }
+  }
 }
 
 resource "aws_lambda_function" "job_logs" {
-  function_name = "lifewatch-job-logs"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "logs.lambda_handler"
-  runtime       = "python3.11"
-  filename      = "logs_lambda.zip"
+  function_name    = "lifewatch-job-logs"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "logs.lambda_handler"
+  runtime          = "python3.11"
+  filename         = "logs_lambda.zip"
+  source_code_hash = filebase64sha256("logs_lambda.zip")
+  timeout          = 10
+
+  environment {
+    variables = {
+      BUCKET = aws_s3_bucket.batch_payloads.bucket
+    }
+  }
 }
 
 resource "aws_lambda_function" "job_results" {
@@ -95,10 +111,11 @@ resource "aws_lambda_function" "job_results" {
   runtime          = "python3.11"
   filename         = "results_lambda.zip"
   source_code_hash = filebase64sha256("results_lambda.zip")
+  timeout          = 10
 
   environment {
     variables = {
-      BUCKET = "lifewatch-batch-payloads-020858641931"
+      BUCKET = aws_s3_bucket.batch_payloads.bucket
     }
   }
 }
