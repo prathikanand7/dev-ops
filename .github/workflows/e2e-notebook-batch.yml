@@ -98,22 +98,25 @@ jobs:
           path: terraform/environments/batch-dev/e2e_outputs
           if-no-files-found: warn
 
-      - name: Terraform Destroy Except Payload Bucket (Always Cleanup)
+      - name: Terraform Destroy (Keep Non-Empty Payload Bucket)
         if: always()
         working-directory: ./terraform/environments/batch-dev
         run: |
           set -euo pipefail
           terraform init
-          mapfile -t targets < <(terraform state list | grep -v '^aws_s3_bucket.batch_payloads$' || true)
-          if [ "${#targets[@]}" -eq 0 ]; then
-            echo "Nothing to destroy."
-            exit 0
+          set +e
+          terraform destroy -lock-timeout=20m -auto-approve -no-color 2>&1 | tee /tmp/terraform-destroy.log
+          destroy_exit=${PIPESTATUS[0]}
+          set -e
+
+          if [ "${destroy_exit}" -ne 0 ]; then
+            if grep -q "BucketNotEmpty" /tmp/terraform-destroy.log && grep -q "lifewatch-batch-payloads-" /tmp/terraform-destroy.log; then
+              echo "Ignoring expected BucketNotEmpty on payload bucket to preserve data."
+            else
+              echo "Terraform destroy failed with unexpected error."
+              exit "${destroy_exit}"
+            fi
           fi
-          args=()
-          for t in "${targets[@]}"; do
-            args+=("-target=$t")
-          done
-          terraform destroy -lock-timeout=20m -auto-approve "${args[@]}"
 
       - name: Verify No Batch EC2 Instances Remain
         if: always()
