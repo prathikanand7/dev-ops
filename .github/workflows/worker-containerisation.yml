@@ -1,0 +1,80 @@
+name: Worker Pod Containerisation Check
+
+on:
+  push:
+    paths:
+      - "worker/**"
+      - "server/minikube-rbac.yaml"
+      - ".github/workflows/worker-containerisation.yml"
+  pull_request:
+    paths:
+      - "worker/**"
+      - "server/minikube-rbac.yaml"
+      - ".github/workflows/worker-containerisation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-worker-pod:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+
+      - name: Start Minikube
+        uses: medyagh/setup-minikube@latest
+        with:
+          start: true
+          cache: true
+          minikube-version: latest
+          wait: all
+          addons: registry
+          insecure-registry: "10.0.0.0/24,192.168.0.0/16,172.16.0.0/12,localhost:5000"
+
+      - name: Expose Registry to Host
+        run: docker run --rm -d --network=host alpine ash -c "apk add socat && socat TCP-LISTEN:5000,reuseaddr,fork TCP:$(minikube ip):5000"
+
+      - name: Setup Kubernetes Permissions
+        run: kubectl apply -f ./server/minikube-rbac.yaml
+
+      - name: Build & Push Worker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./worker
+          tags: localhost:5000/r-notebook-worker:latest
+          push: true
+          cache-from: type=gha,scope=worker-cache
+          cache-to: type=gha,mode=max,scope=worker-cache
+
+      - name: Verify Worker Pod Containerisation
+        run: |
+          set -euo pipefail
+          kubectl delete job worker-containerisation-smoke --ignore-not-found=true
+          kubectl create job worker-containerisation-smoke --image=localhost:5000/r-notebook-worker:latest -- \
+            python -c "import os, boto3, papermill; assert os.path.exists('/app/worker.py'); print('worker-containerisation-ok')"
+
+          if ! kubectl wait --for=condition=complete --timeout=180s job/worker-containerisation-smoke; then
+            echo "Worker containerisation smoke test failed; collecting diagnostics..."
+            kubectl get pods -l job-name=worker-containerisation-smoke -o wide || true
+            kubectl describe job worker-containerisation-smoke || true
+            POD_NAME="$(kubectl get pods -l job-name=worker-containerisation-smoke -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+            if [ -n "${POD_NAME}" ]; then
+              kubectl describe pod "${POD_NAME}" || true
+              kubectl logs "${POD_NAME}" --all-containers=true || true
+            fi
+            exit 1
+          fi
+
+          kubectl logs job/worker-containerisation-smoke
+          kubectl delete job worker-containerisation-smoke --ignore-not-found=true
