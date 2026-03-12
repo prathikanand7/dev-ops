@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+import argparse
+import base64
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+import requests
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Run an end-to-end AWS Batch notebook execution test against the deployed API."
+    )
+    parser.add_argument("--api-base-url", required=True, help="API base URL, e.g. https://.../dev")
+    parser.add_argument("--api-key", required=True, help="API key used in x-api-key header")
+    parser.add_argument("--notebook-path", required=True, help="Path to notebook .ipynb")
+    parser.add_argument("--data-file-path", required=True, help="Path to main data input file")
+    parser.add_argument("--environment-path", required=True, help="Path to environment.yaml")
+    parser.add_argument(
+        "--execution-profile",
+        default="ec2_200gb",
+        choices=["standard", "ec2_200gb"],
+        help="Batch execution profile",
+    )
+    parser.add_argument("--poll-interval-seconds", type=int, default=20, help="Polling interval in seconds")
+    parser.add_argument("--timeout-seconds", type=int, default=3600, help="Overall timeout in seconds")
+    parser.add_argument(
+        "--output-dir",
+        default="terraform/environments/batch-dev/e2e_outputs",
+        help="Folder where downloaded outputs and logs are stored",
+    )
+    return parser.parse_args()
+
+
+def request_json(method, url, headers, **kwargs):
+    response = requests.request(method, url, headers=headers, timeout=120, **kwargs)
+    body_text = response.text
+
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise RuntimeError(f"Non-JSON response from {url} ({response.status_code}): {body_text}") from exc
+
+    if response.status_code >= 400:
+        raise RuntimeError(f"API error from {url} ({response.status_code}): {payload}")
+
+    return payload
+
+
+def submit_job(args, headers):
+    submit_url = f"{args.api_base_url.rstrip('/')}/batch/jobs"
+    print(f"Submitting notebook job to {submit_url} using profile={args.execution_profile} ...")
+
+    with (
+        open(args.notebook_path, "rb") as notebook_file,
+        open(args.data_file_path, "rb") as data_file,
+        open(args.environment_path, "rb") as env_file,
+    ):
+        files = {
+            "notebook": (os.path.basename(args.notebook_path), notebook_file.read(), "application/x-ipynb+json"),
+            "upload_01": (
+                os.path.basename(args.data_file_path),
+                data_file.read(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ),
+            "environment": (os.path.basename(args.environment_path), env_file.read(), "application/x-yaml"),
+            # Notebook parameters used in the current demo flow
+            "param_01_input_data_filename": (None, os.path.basename(args.data_file_path)),
+            "param_02_input_data_sheet": (None, "BIRDS"),
+            "param_03_input_metadata_sheet": (None, "METADATA"),
+            "param_04_output_samples_ecological_parameters": (None, "false"),
+            "param_05_output_make_plots": (None, "true"),
+            "param_07_first_month": (None, "1"),
+            "param_10_upper_limit_max_depth": (None, "0"),
+            "execution_profile": (None, args.execution_profile),
+        }
+        payload = request_json("POST", submit_url, headers, files=files)
+
+    batch_job_id = payload.get("batch_job_id")
+    notebook_job_id = payload.get("job_id")
+    if not batch_job_id or not notebook_job_id:
+        raise RuntimeError(f"Submit response missing IDs: {payload}")
+
+    print(f"Submitted OK. notebook_job_id={notebook_job_id} batch_job_id={batch_job_id}")
+    return payload, notebook_job_id, batch_job_id
+
+
+def poll_batch_status(api_base_url, headers, batch_job_id, poll_interval, timeout_seconds):
+    status_url = f"{api_base_url.rstrip('/')}/batch/jobs/{batch_job_id}"
+    deadline = time.time() + timeout_seconds
+    last_status = None
+    status_payload = {}
+
+    print("Polling batch status ...")
+    while time.time() < deadline:
+        status_payload = request_json("GET", status_url, headers)
+        status = status_payload.get("status", "UNKNOWN")
+        if status != last_status:
+            print(f"Current batch status: {status}")
+            last_status = status
+
+        if status in {"SUCCEEDED", "FAILED"}:
+            return status_payload
+
+        time.sleep(poll_interval)
+
+    raise TimeoutError(f"Timed out after {timeout_seconds}s waiting for batch job {batch_job_id}")
+
+
+def get_logs(api_base_url, headers, batch_job_id):
+    logs_url = f"{api_base_url.rstrip('/')}/batch/jobs/{batch_job_id}/logs"
+    logs_payload = request_json("GET", logs_url, headers)
+    raw_logs = logs_payload.get("logs", "")
+    if isinstance(raw_logs, list):
+        return "\n".join(str(line) for line in raw_logs)
+    return str(raw_logs)
+
+
+def download_results(api_base_url, headers, notebook_job_id, output_dir):
+    results_url = f"{api_base_url.rstrip('/')}/batch/jobs/{notebook_job_id}/results"
+    results_payload = request_json("GET", results_url, headers)
+    results = results_payload.get("results", [])
+
+    if not results:
+        raise RuntimeError(f"No output files returned for notebook_job_id={notebook_job_id}")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written_files = []
+    for entry in results:
+        filename = entry.get("filename")
+        content_base64 = entry.get("content_base64")
+        if not filename or not content_base64:
+            raise RuntimeError(f"Malformed result entry: {entry}")
+
+        file_path = output_dir / filename
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_bytes = base64.b64decode(content_base64)
+        file_path.write_bytes(file_bytes)
+        written_files.append(str(file_path))
+        print(f"Wrote result file: {file_path}")
+
+    return results_payload, written_files
+
+
+def main():
+    args = parse_args()
+    headers = {"x-api-key": args.api_key, "Accept": "application/json"}
+
+    notebook_path = Path(args.notebook_path)
+    data_path = Path(args.data_file_path)
+    env_path = Path(args.environment_path)
+    for required_file in [notebook_path, data_path, env_path]:
+        if not required_file.exists():
+            print(f"Missing required file: {required_file}", file=sys.stderr)
+            return 2
+
+    base_output = Path(args.output_dir)
+
+    submit_payload, notebook_job_id, batch_job_id = submit_job(args, headers)
+    status_payload = poll_batch_status(
+        args.api_base_url,
+        headers,
+        batch_job_id,
+        args.poll_interval_seconds,
+        args.timeout_seconds,
+    )
+
+    status = status_payload.get("status", "UNKNOWN")
+    job_output_dir = base_output / notebook_job_id
+    job_output_dir.mkdir(parents=True, exist_ok=True)
+
+    logs_text = get_logs(args.api_base_url, headers, batch_job_id)
+    (job_output_dir / "batch_logs.txt").write_text(logs_text, encoding="utf-8")
+    print(f"Saved logs to {job_output_dir / 'batch_logs.txt'}")
+
+    if status != "SUCCEEDED":
+        print(f"E2E FAILED: batch status is {status}", file=sys.stderr)
+        print("Recent logs:")
+        print(logs_text[-4000:])
+        return 1
+
+    results_payload, written_files = download_results(
+        args.api_base_url,
+        headers,
+        notebook_job_id,
+        job_output_dir / "results",
+    )
+
+    summary = {
+        "submit_payload": submit_payload,
+        "status_payload": status_payload,
+        "results_count": len(results_payload.get("results", [])),
+        "written_files": written_files,
+    }
+    (job_output_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print(f"E2E SUCCESS. Summary saved to {job_output_dir / 'summary.json'}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
