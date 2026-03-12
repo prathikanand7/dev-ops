@@ -40,9 +40,9 @@ module "vpc_endpoints" {
   project_name            = var.project_name
   vpc_id                  = module.vpc.vpc_id
   region                  = var.region
-  private_subnet_ids      = module.vpc.private_subnet_ids
+  private_subnet_ids      = module.vpc.private_subnets
   private_route_table_id  = module.vpc.private_route_table_id
-  endpoint_security_group = module.security_groups.endpoint_sg_id
+  endpoint_security_group = module.security_groups.endpoint_security_group_id
 
   tags = var.tags
 }
@@ -67,8 +67,8 @@ module "batch_compute_fargate" {
 
   project_name       = var.project_name
   max_vcpus          = var.fargate_max_vcpus
-  subnet_ids         = module.vpc.private_subnet_ids
-  security_group_ids = [module.security_groups.batch_sg_id]
+  subnet_ids         = module.vpc.private_subnets
+  security_group_ids = [module.security_groups.batch_security_group_id]
 
   vpc_endpoint_dependency_ids = [
     module.vpc_endpoints.s3_endpoint_id,
@@ -114,8 +114,8 @@ module "batch_compute_ec2" {
   max_vcpus          = var.ec2_max_vcpus
   instance_types     = var.ec2_instance_types
   ebs_volume_size_gb = var.ec2_ebs_volume_size_gb
-  subnet_ids         = module.vpc.private_subnet_ids
-  security_group_ids = [module.security_groups.batch_sg_id]
+  subnet_ids         = module.vpc.private_subnets
+  security_group_ids = [module.security_groups.batch_security_group_id]
 
   tags = var.tags
 }
@@ -206,12 +206,12 @@ module "lambda_job_results" {
 module "api_gateway" {
   source = "../../modules/api_gateway"
 
-  project_name              = var.project_name
-  stage_name                = var.stage_name
-  batch_trigger_lambda_arn  = module.lambda_batch_trigger.invoke_arn
-  job_status_lambda_arn     = module.lambda_job_status.invoke_arn
-  job_logs_lambda_arn       = module.lambda_job_logs.invoke_arn
-  job_results_lambda_arn    = module.lambda_job_results.invoke_arn
+  project_name             = var.project_name
+  stage_name               = var.stage_name
+  batch_trigger_lambda_arn = module.lambda_batch_trigger.invoke_arn
+  job_status_lambda_arn    = module.lambda_job_status.invoke_arn
+  job_logs_lambda_arn      = module.lambda_job_logs.invoke_arn
+  job_results_lambda_arn   = module.lambda_job_results.invoke_arn
 }
 
 ################################

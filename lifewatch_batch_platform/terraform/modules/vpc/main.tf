@@ -25,7 +25,7 @@ resource "aws_internet_gateway" "igw" {
 }
 
 ################################
-# PUBLIC SUBNETS
+# Public subnets
 ################################
 
 resource "aws_subnet" "public_a" {
@@ -51,7 +51,7 @@ resource "aws_subnet" "public_b" {
 }
 
 ################################
-# PRIVATE SUBNETS
+# Private subnets
 ################################
 
 resource "aws_subnet" "private_a" {
@@ -75,7 +75,7 @@ resource "aws_subnet" "private_b" {
 }
 
 ################################
-# PUBLIC ROUTE TABLE
+# Public route table
 ################################
 
 resource "aws_route_table" "public" {
@@ -119,7 +119,7 @@ resource "aws_nat_gateway" "nat" {
 }
 
 ################################
-# PRIVATE ROUTE TABLE
+# Private route table
 ################################
 
 resource "aws_route_table" "private" {
