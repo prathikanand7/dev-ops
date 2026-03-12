@@ -114,7 +114,6 @@ def lambda_handler(event, context):
                     formatted_params[key] = f'{key} <- "{val}"\n'
 
         # Inject LifeWatch configuration overrides to ensure the notebook runs inside the Batch container
-        # TODO: Verify this
         formatted_params.update({
             "conf_temporary_data_directory": 'conf_temporary_data_directory <- "./outputs"\n',
             "conf_virtual_lab_biotisan_euromarec": 'conf_virtual_lab_biotisan_euromarec <- "vl-biotisan-euromarec"\n',
