@@ -1,22 +1,15 @@
 #!/bin/bash
 
-BACKEND_LAMBDAS_DIR="./lifewatch_batch_platform/backend_lambdas"
-ARTIFACTS_DIR="./lifewatch_batch_platform/backend_lambda_artifacts"
+SOURCE_DIR="./lifewatch_batch_platform/backend_lamdas"
+TARGET_DIR="./lifewatch_batch_platform/backend_lambda_artifacts"
 
-mkdir -p "$ARTIFACTS_DIR"
+mkdir -p "$TARGET_DIR"
 
-for lambda_dir in "$BACKEND_LAMBDAS_DIR"/*; do
-    if [ -d "$lambda_dir" ]; then
-        lambda_name=$(basename "$lambda_dir")
-        output_file="$ARTIFACTS_DIR/${lambda_name}.zip"
-        
-        echo "Compressing $lambda_name..."
-        cd "$lambda_dir"
-        zip -r "../../$output_file" .
-        cd - > /dev/null
-        
-        echo "✓ Created $output_file"
-    fi
-done
+echo "Zipping python files..."
 
-echo "All lambdas compressed successfully!"
+zip -j "$TARGET_DIR/logs_lambda.zip" "$SOURCE_DIR/logs.py"
+zip -j "$TARGET_DIR/results_lambda.zip" "$SOURCE_DIR/results.py"
+zip -j "$TARGET_DIR/status_lambda.zip" "$SOURCE_DIR/status.py"
+zip -j "$TARGET_DIR/lambda.zip" "$SOURCE_DIR/lambda_function.py"
+
+echo "Lambdas compressed to $TARGET_DIR."
