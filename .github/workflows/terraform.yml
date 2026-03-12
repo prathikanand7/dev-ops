@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: ["main"]
 
+concurrency:
+  group: terraform-batch-dev-state
+  cancel-in-progress: false
+
 jobs:
   terraform:
     name: "Terraform Plan"
@@ -39,7 +43,7 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -no-color
+        run: terraform plan -lock-timeout=15m -no-color
 
       - name: Terraform Test
         run: terraform test
