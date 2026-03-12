@@ -44,5 +44,9 @@ with open(NOTEBOOK_PATH, 'rb') as nb_file, open(DATA_FILE_PATH, 'rb') as data_fi
         print("======================")
         if job_id:
             print("Job ID:", job_id)
+    except requests.HTTPError as e:
+        print(f"HTTP error: {e}")
+        if 'response' in locals() and hasattr(response, 'text'):
+            print(f"Response: {response.text}")
     except Exception as e:
         print(f"Failed to post job: {e}")
