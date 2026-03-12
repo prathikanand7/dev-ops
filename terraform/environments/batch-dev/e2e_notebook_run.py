@@ -32,22 +32,59 @@ def parse_args():
         default="terraform/environments/batch-dev/e2e_outputs",
         help="Folder where downloaded outputs and logs are stored",
     )
+    parser.add_argument(
+        "--submit-max-attempts",
+        type=int,
+        default=12,
+        help="How many times to retry notebook submission on transient API errors",
+    )
+    parser.add_argument(
+        "--submit-retry-seconds",
+        type=int,
+        default=10,
+        help="Seconds to wait between submission retries",
+    )
     return parser.parse_args()
 
 
-def request_json(method, url, headers, **kwargs):
-    response = requests.request(method, url, headers=headers, timeout=120, **kwargs)
-    body_text = response.text
+def request_json(
+    method,
+    url,
+    headers,
+    retries=1,
+    retry_delay_seconds=5,
+    retry_on_statuses=None,
+    **kwargs,
+):
+    retry_on_statuses = set(retry_on_statuses or [])
+    last_error = None
 
-    try:
-        payload = response.json()
-    except ValueError as exc:
-        raise RuntimeError(f"Non-JSON response from {url} ({response.status_code}): {body_text}") from exc
+    for attempt in range(1, retries + 1):
+        response = requests.request(method, url, headers=headers, timeout=120, **kwargs)
+        body_text = response.text
 
-    if response.status_code >= 400:
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise RuntimeError(f"Non-JSON response from {url} ({response.status_code}): {body_text}") from exc
+
+        if response.status_code < 400:
+            return payload
+
+        can_retry = response.status_code in retry_on_statuses and attempt < retries
+        if can_retry:
+            print(
+                f"Transient API error from {url} ({response.status_code}) on attempt {attempt}/{retries}; retrying in {retry_delay_seconds}s ..."
+            )
+            time.sleep(retry_delay_seconds)
+            last_error = RuntimeError(f"API error from {url} ({response.status_code}): {payload}")
+            continue
+
         raise RuntimeError(f"API error from {url} ({response.status_code}): {payload}")
 
-    return payload
+    if last_error:
+        raise last_error
+    raise RuntimeError(f"Failed request to {url} without a captured error state.")
 
 
 def submit_job(args, headers):
@@ -77,7 +114,15 @@ def submit_job(args, headers):
             "param_10_upper_limit_max_depth": (None, "0"),
             "execution_profile": (None, args.execution_profile),
         }
-        payload = request_json("POST", submit_url, headers, files=files)
+        payload = request_json(
+            "POST",
+            submit_url,
+            headers,
+            files=files,
+            retries=args.submit_max_attempts,
+            retry_delay_seconds=args.submit_retry_seconds,
+            retry_on_statuses={403, 429, 500, 502, 503, 504},
+        )
 
     batch_job_id = payload.get("batch_job_id")
     notebook_job_id = payload.get("job_id")
