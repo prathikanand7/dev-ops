@@ -64,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           kubectl delete job worker-containerisation-smoke --ignore-not-found=true
-          kubectl create job worker-containerisation-smoke --image=localhost:5000/r-notebook-worker:latest -- \
+          kubectl create job worker-containerisation-smoke --image=${{ env.FULL_LOCAL_IMAGE }}:latest -- \
             python -c "import os, boto3, papermill; assert os.path.exists('/app/worker.py'); print('worker-containerisation-ok')"
 
           if ! kubectl wait --for=condition=complete --timeout=180s job/worker-containerisation-smoke; then
