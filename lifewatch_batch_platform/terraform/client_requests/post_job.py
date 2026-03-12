@@ -1,6 +1,6 @@
 import requests
 
-API_URL = "https://wd2iz3j4nl.execute-api.eu-west-1.amazonaws.com/dev/batch/jobs"
+API_URL = "https://hm2jyuxlpd.execute-api.eu-west-1.amazonaws.com/dev/batch/jobs"
 API_KEY = ""
 
 NOTEBOOK_PATH = "../../../demo_input/Data_cleaning.ipynb"

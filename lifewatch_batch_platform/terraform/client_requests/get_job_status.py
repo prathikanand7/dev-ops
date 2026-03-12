@@ -1,7 +1,7 @@
 import requests
 import sys
 
-API_BASE_URL = "https://wd2iz3j4nl.execute-api.eu-west-1.amazonaws.com/dev"
+API_BASE_URL = "https://hm2jyuxlpd.execute-api.eu-west-1.amazonaws.com/dev"
 API_KEY = ""
 
 if len(sys.argv) != 2:
