@@ -5,7 +5,6 @@ import { DropZone } from './components/DropZone';
 type RunResponse = {
   message: string;
   job_id: string;
-  batch_job_id?: string;
   execution_profile?: string;
 };
 
@@ -47,7 +46,7 @@ export const App: React.FC = () => {
   });
 
   const [baseUrl, setBaseUrl] = useState(
-    'https://hm2jyuxlpd.execute-api.eu-west-1.amazonaws.com/dev',
+    'https://n69rb6bzvl.execute-api.eu-west-1.amazonaws.com/dev',
   );
   const [apiKey, setApiKey] = useState('');
   const [paramsJson, setParamsJson] = useState('{\n  "param_09_years": 5\n}');
@@ -685,9 +684,6 @@ export const App: React.FC = () => {
                       <h6 className="mb-1">Job Queued</h6>
                       <p className="mb-1">
                         <strong>Job ID:</strong> {runResult.job_id}
-                      </p>
-                      <p className="mb-1">
-                        <strong>Batch Job ID:</strong> {runResult.batch_job_id || 'n/a'}
                       </p>
                       <p className="mb-1">
                         <strong>Execution profile:</strong>{' '}

@@ -7,7 +7,7 @@
 ###
 ### ============================================================
 
-@baseUrl = https://hm2jyuxlpd.execute-api.eu-west-1.amazonaws.com/dev
+@baseUrl = https://n69rb6bzvl.execute-api.eu-west-1.amazonaws.com/dev
 @apiKey = your_api_gateway_key_here
 @jobId = your_job_id_here
 
