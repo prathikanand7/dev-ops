@@ -83,7 +83,7 @@ resource "aws_security_group_rule" "endpoint_ingress_batch" {
 }
 
 ################################
-# Endpoint → AWS Services
+# Endpoint -> AWS Services
 ################################
 
 resource "aws_security_group_rule" "endpoint_egress_all" {
