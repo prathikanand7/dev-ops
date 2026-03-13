@@ -104,7 +104,7 @@ module "batch_queue_fargate" {
 }
 
 ################################
-# Batch — EC2
+# Batch - EC2
 ################################
 
 module "batch_compute_ec2" {
