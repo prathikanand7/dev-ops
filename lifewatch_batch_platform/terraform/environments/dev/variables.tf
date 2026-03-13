@@ -48,7 +48,7 @@ variable "private_subnet_b_cidr" {
 }
 
 ################################
-# Batch — shared
+# Batch - shared
 ################################
 
 variable "container_image" {
