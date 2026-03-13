@@ -23,7 +23,7 @@ output "s3_bucket_name" {
 }
 
 ################################
-# Batch — Fargate
+# Batch - Fargate
 ################################
 
 output "fargate_compute_environment_arn" {
