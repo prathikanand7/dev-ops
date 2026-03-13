@@ -69,7 +69,7 @@ resource "aws_security_group" "endpoints" {
 }
 
 ################################
-# Endpoint ← Batch (HTTPS)
+# Endpoint <- Batch (HTTPS)
 ################################
 
 resource "aws_security_group_rule" "endpoint_ingress_batch" {
