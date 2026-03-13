@@ -13,7 +13,7 @@ resource "aws_security_group" "batch" {
 }
 
 ################################
-# Batch → Internet (HTTPS)
+# Batch -> Internet (HTTPS)
 ################################
 
 resource "aws_security_group_rule" "batch_https_out" {
