@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BsMoon, BsSun } from 'react-icons/bs';
 import { DropZone } from './components/DropZone';
 
 type RunResponse = {
@@ -33,7 +34,18 @@ type JobResultsResponse = {
   }>;
 };
 
+type ThemeMode = 'dark' | 'light';
+
 export const App: React.FC = () => {
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    const saved = window.localStorage.getItem('nop-theme');
+    if (saved === 'dark' || saved === 'light') {
+      return saved;
+    }
+
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
   const [baseUrl, setBaseUrl] = useState(
     'https://hm2jyuxlpd.execute-api.eu-west-1.amazonaws.com/dev',
   );
@@ -78,6 +90,11 @@ export const App: React.FC = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    window.localStorage.setItem('nop-theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!jobId || !apiKey) {
@@ -525,11 +542,27 @@ export const App: React.FC = () => {
     URL.revokeObjectURL(blobUrl);
   }
 
+  function toggleTheme(): void {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  }
+
   return (
     <>
-      <nav className="navbar navbar-dark bg-dark mb-4">
+      <nav className="navbar app-navbar mb-4">
         <div className="container">
-          <span className="navbar-brand text-decoration-none">Notebook Ops Platform</span>
+          <span className="navbar-brand text-decoration-none fw-semibold">Notebook Ops Platform</span>
+          <button
+            type="button"
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            <span className="theme-toggle-icon" aria-hidden="true">
+              {theme === 'dark' ? <BsSun /> : <BsMoon />}
+            </span>
+            <span className="theme-toggle-text">{theme === 'dark' ? 'Light' : 'Dark'} mode</span>
+          </button>
         </div>
       </nav>
 
@@ -747,7 +780,7 @@ export const App: React.FC = () => {
                       <p className="mb-1">
                         <strong>Status:</strong>{' '}
                         <span
-                          className={`badge ${
+                          className={`badge status-badge ${
                             jobStatus.status === 'SUCCEEDED'
                               ? 'bg-success'
                               : jobStatus.status === 'FAILED'
