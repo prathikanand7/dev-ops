@@ -62,7 +62,7 @@ variable "batch_execution_role_arn" {
 }
 
 ################################
-# Batch — Fargate
+# Batch - Fargate
 ################################
 
 variable "fargate_max_vcpus" {
