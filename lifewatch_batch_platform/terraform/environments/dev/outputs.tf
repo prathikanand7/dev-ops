@@ -42,7 +42,7 @@ output "fargate_job_definition_name" {
 }
 
 ################################
-# Batch — EC2
+# Batch - EC2
 ################################
 
 output "ec2_compute_environment_arn" {
