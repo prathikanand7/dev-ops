@@ -2,7 +2,6 @@
 
 React + TypeScript frontend that talks directly to AWS API Gateway + Lambda + AWS Batch.
 
-No Django endpoints are used by this UI.
 
 ### What this frontend does
 
