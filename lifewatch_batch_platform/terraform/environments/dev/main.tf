@@ -155,7 +155,7 @@ module "lambda_iam" {
 }
 
 ################################
-# Lambda — Functions
+# Lambda - Functions
 ################################
 
 module "lambda_batch_trigger" {
