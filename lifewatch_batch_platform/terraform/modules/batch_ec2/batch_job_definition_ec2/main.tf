@@ -1,5 +1,5 @@
 ################################
-# IAM — Job Role (S3 access)
+# IAM - Job Role (S3 access)
 ################################
 
 resource "aws_iam_role" "batch_job_role" {
