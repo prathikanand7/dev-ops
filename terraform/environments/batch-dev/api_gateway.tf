@@ -113,7 +113,7 @@ resource "aws_api_gateway_integration" "job_results_lambda" {
 
 # Shared CORS settings reused across all OPTIONS routes
 locals {
-  # Allow all origins for now; tighten to specific frontend origin(s) in production if needed.
+  # TODO: Currently allows all origins. Should be modified for production
   cors_allow_origin  = "*"
   # Headers needed by browser preflight for API key + multipart requests.
   cors_allow_headers = "Content-Type,x-api-key,Authorization"
@@ -162,6 +162,7 @@ resource "aws_api_gateway_integration" "options" {
   resource_id = each.value.resource_id
   http_method = aws_api_gateway_method.options[each.key].http_method
   type        = "MOCK"
+  content_handling = "CONVERT_TO_TEXT"
 
   request_templates = {
     "application/json" = "{\"statusCode\": 200}"
@@ -192,6 +193,11 @@ resource "aws_api_gateway_integration_response" "options" {
   resource_id = each.value.resource_id
   http_method = aws_api_gateway_method.options[each.key].http_method
   status_code = aws_api_gateway_method_response.options[each.key].status_code
+  content_handling = "CONVERT_TO_TEXT"
+
+  response_templates = {
+    "application/json" = ""
+  }
 
   response_parameters = {
     "method.response.header.Access-Control-Allow-Origin"  = "'${local.cors_allow_origin}'"
