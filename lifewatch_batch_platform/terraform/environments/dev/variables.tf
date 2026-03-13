@@ -178,3 +178,15 @@ variable "usage_plan_description" {
   type        = string
   default     = "Usage plan for Lifewatch REST API"
 }
+
+variable "burst_limit" {
+  description = "API Gateway usage plan burst limit (max concurrent requests above rate_limit)."
+  type        = number
+  default     = 5
+}
+
+variable "rate_limit" {
+  description = "API Gateway usage plan steady-state rate limit (requests per second)."
+  type        = number
+  default     = 10
+}

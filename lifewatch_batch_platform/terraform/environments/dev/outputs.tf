@@ -13,6 +13,21 @@ output "api_key" {
   sensitive   = true
 }
 
+output "api_key_id" {
+  description = "ID of the API key resource."
+  value       = module.api_key_usage_plan.api_key_id
+}
+
+output "usage_plan_id" {
+  description = "ID of the API Gateway usage plan."
+  value       = module.api_key_usage_plan.usage_plan_id
+}
+
+output "api_deployment_id" {
+  description = "ID of the active API Gateway deployment."
+  value       = module.api_gateway.deployment_id
+}
+
 ################################
 # S3
 ################################

@@ -10,6 +10,9 @@ concurrency:
   group: terraform-batch-dev-state
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   terraform:
     name: "Terraform Plan"
@@ -32,18 +35,21 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.7
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -input=false
 
       - name: Terraform Format Check
-        run: terraform fmt -check
+        run: terraform fmt -check -recursive
 
       - name: Terraform Validate
-        run: terraform validate
+        run: terraform validate -no-color
 
       - name: Terraform Plan
-        run: terraform plan -lock-timeout=15m -no-color
+        run: terraform plan -lock=false -input=false -no-color
 
       - name: Terraform Test
+        if: ${{ hashFiles('terraform/environments/batch-dev/**/*.tftest.hcl') != '' }}
         run: terraform test

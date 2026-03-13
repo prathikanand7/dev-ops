@@ -1,7 +1,8 @@
 import requests
+from fetch_api_key import fetch_api_key
 
-API_URL = "https://hm2jyuxlpd.execute-api.eu-west-1.amazonaws.com/dev/batch/jobs"
-API_KEY = ""
+API_URL = "https://n69rb6bzvl.execute-api.eu-west-1.amazonaws.com/dev/batch/jobs"
+API_KEY = fetch_api_key()
 
 NOTEBOOK_PATH = "../../../demo_input/Data_cleaning.ipynb"
 DATA_FILE_PATH = "../../../demo_input/Template_MBO_Example_raw_v3.xlsx"

@@ -1,8 +1,9 @@
 import requests
 import sys
+from fetch_api_key import fetch_api_key
 
-API_BASE_URL = "https://hm2jyuxlpd.execute-api.eu-west-1.amazonaws.com/dev"
-API_KEY = ""
+API_BASE_URL = "https://n69rb6bzvl.execute-api.eu-west-1.amazonaws.com/dev"
+API_KEY = fetch_api_key()
 
 if len(sys.argv) != 2:
     print("Usage: python get_job_results.py <job_id>")

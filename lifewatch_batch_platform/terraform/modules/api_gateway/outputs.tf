@@ -12,3 +12,8 @@ output "invoke_url" {
   description = "Base invoke URL of the deployed stage."
   value       = aws_api_gateway_stage.stage.invoke_url
 }
+
+output "deployment_id" {
+  description = "ID of the active API Gateway deployment."
+  value       = aws_api_gateway_deployment.deployment.id
+}

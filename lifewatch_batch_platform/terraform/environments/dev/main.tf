@@ -226,4 +226,6 @@ module "api_key_usage_plan" {
   lifewatch_key_name     = var.api_key_name
   usage_plan_name        = var.usage_plan_name
   usage_plan_description = var.usage_plan_description
+  burst_limit            = var.burst_limit
+  rate_limit             = var.rate_limit
 }
