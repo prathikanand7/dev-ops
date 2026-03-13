@@ -6,6 +6,7 @@ import base64
 import re
 from email.parser import BytesParser
 from email.policy import default
+from handle_cors import response as cors_response
 
 s3 = boto3.client("s3")
 batch = boto3.client("batch")
@@ -54,7 +55,7 @@ def lambda_handler(event, context):
         # Extract and decode the request body (API Gateway handling)
         content_type = event.get("headers", {}).get("content-type") or event.get("headers", {}).get("Content-Type", "")
         if not content_type.startswith("multipart/form-data"):
-            return {"statusCode": 400, "body": "Request must be multipart/form-data"}
+            return cors_response(400, {"error": "Request must be multipart/form-data"})
 
         raw_body = event.get("body", "")
         body_bytes = base64.b64decode(raw_body) if event.get("isBase64Encoded") else raw_body.encode("utf-8")
@@ -89,17 +90,14 @@ def lambda_handler(event, context):
         raw_execution_profile = params.get("execution_profile") or params.get("compute_profile")
         execution_profile = normalize_execution_profile(raw_execution_profile)
         if not execution_profile:
-            return {
-                "statusCode": 400,
-                "body": json.dumps({
-                    "error": "Invalid execution_profile. Allowed values: standard, ec2_200gb"
-                })
-            }
+            return cors_response(400, {
+                "error": "Invalid execution_profile. Allowed values: standard, ec2_200gb"
+            })
 
         selected_job_queue, selected_job_definition = resolve_batch_target(execution_profile)
 
         if not notebook_content:
-            return {"statusCode": 400, "body": "Missing mandatory 'notebook' file."}
+            return cors_response(400, {"error": "Missing mandatory 'notebook' file."})
 
         notebook_json = json.loads(notebook_content.decode("utf-8"))
         
@@ -179,18 +177,12 @@ def lambda_handler(event, context):
             Body=json.dumps(meta_payload).encode("utf-8")
         )
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "Job successfully mapped and submitted",
-                "job_id": job_id,
-                "execution_profile": execution_profile
-            })
-        }
+        return cors_response(200, {
+            "message": "Job successfully mapped and submitted",
+            "job_id": job_id,
+            "execution_profile": execution_profile
+        })
 
     except Exception as e:
         import traceback
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": str(e), "trace": traceback.format_exc()})
-        }
+        return cors_response(500, {"error": str(e), "trace": traceback.format_exc()})
