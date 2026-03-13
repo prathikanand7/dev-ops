@@ -14,8 +14,8 @@ resource "aws_api_gateway_deployment" "lifewatch" {
       aws_api_gateway_integration.logs_lambda.id,
       aws_api_gateway_integration.job_results_lambda.id,
       [for integration in values(aws_api_gateway_integration.options) : {
-        id               = integration.id
-        content_handling = integration.content_handling
+        id                = integration.id
+        content_handling  = integration.content_handling
         request_templates = integration.request_templates
       }],
       [for response in values(aws_api_gateway_integration_response.options) : {

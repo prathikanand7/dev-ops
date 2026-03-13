@@ -114,7 +114,7 @@ resource "aws_api_gateway_integration" "job_results_lambda" {
 # Shared CORS settings reused across all OPTIONS routes
 locals {
   # TODO: Currently allows all origins. Should be modified for production
-  cors_allow_origin  = "*"
+  cors_allow_origin = "*"
   # Headers needed by browser preflight for API key + multipart requests.
   cors_allow_headers = "Content-Type,x-api-key,Authorization"
 
@@ -122,23 +122,23 @@ locals {
   cors_routes = {
     # POST /batch/jobs
     jobs = {
-      resource_id    = aws_api_gateway_resource.jobs.id
-      allow_methods  = "OPTIONS,POST"
+      resource_id   = aws_api_gateway_resource.jobs.id
+      allow_methods = "OPTIONS,POST"
     }
     # GET /batch/jobs/{job_id}
     job_id = {
-      resource_id    = aws_api_gateway_resource.job_id.id
-      allow_methods  = "OPTIONS,GET"
+      resource_id   = aws_api_gateway_resource.job_id.id
+      allow_methods = "OPTIONS,GET"
     }
     # GET /batch/jobs/{job_id}/logs
     job_logs = {
-      resource_id    = aws_api_gateway_resource.job_logs.id
-      allow_methods  = "OPTIONS,GET"
+      resource_id   = aws_api_gateway_resource.job_logs.id
+      allow_methods = "OPTIONS,GET"
     }
     # GET /batch/jobs/{job_id}/results
     job_results = {
-      resource_id    = aws_api_gateway_resource.job_results.id
-      allow_methods  = "OPTIONS,GET"
+      resource_id   = aws_api_gateway_resource.job_results.id
+      allow_methods = "OPTIONS,GET"
     }
   }
 }
@@ -158,10 +158,10 @@ resource "aws_api_gateway_integration" "options" {
   # Uses MOCK integration so API Gateway can answer preflight without Lambda invocation.
   for_each = local.cors_routes
 
-  rest_api_id = aws_api_gateway_rest_api.lifewatch_api.id
-  resource_id = each.value.resource_id
-  http_method = aws_api_gateway_method.options[each.key].http_method
-  type        = "MOCK"
+  rest_api_id      = aws_api_gateway_rest_api.lifewatch_api.id
+  resource_id      = each.value.resource_id
+  http_method      = aws_api_gateway_method.options[each.key].http_method
+  type             = "MOCK"
   content_handling = "CONVERT_TO_TEXT"
 
   request_templates = {
@@ -189,10 +189,10 @@ resource "aws_api_gateway_integration_response" "options" {
   # Injects concrete header values into the preflight response.
   for_each = local.cors_routes
 
-  rest_api_id = aws_api_gateway_rest_api.lifewatch_api.id
-  resource_id = each.value.resource_id
-  http_method = aws_api_gateway_method.options[each.key].http_method
-  status_code = aws_api_gateway_method_response.options[each.key].status_code
+  rest_api_id      = aws_api_gateway_rest_api.lifewatch_api.id
+  resource_id      = each.value.resource_id
+  http_method      = aws_api_gateway_method.options[each.key].http_method
+  status_code      = aws_api_gateway_method_response.options[each.key].status_code
   content_handling = "CONVERT_TO_TEXT"
 
   response_templates = {
