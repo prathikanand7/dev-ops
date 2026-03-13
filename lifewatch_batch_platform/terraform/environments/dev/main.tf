@@ -59,7 +59,7 @@ module "s3_batch_payloads" {
 }
 
 ################################
-# Batch — Fargate
+# Batch - Fargate
 ################################
 
 module "batch_compute_fargate" {
