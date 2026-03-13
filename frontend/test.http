@@ -1,249 +1,107 @@
 ### ============================================================
-### Notebook Ops Platform - API Testing
+### Notebook Ops Platform - Serverless API Testing
 ### ============================================================
-### 
-### Use this file to test all API endpoints with REST Client 
-### (VS Code Extension) or import into Postman/Thunder Client
 ###
-### Prerequisites:
-### 1. Backend running on http://localhost:8000
-### 2. Admin user created (username: admin, password: password123)
-### 3. Notebook uploaded to the dashboard
+### Use this file with VS Code REST Client.
+### Targets AWS API Gateway + Lambda endpoints in terraform/batch-dev.
 ###
 ### ============================================================
 
-@baseUrl = http://localhost:8000
-@token = your_api_token_here
-@notebookId = your_notebook_id_here
+@baseUrl = https://hm2jyuxlpd.execute-api.eu-west-1.amazonaws.com/dev
+@apiKey = your_api_gateway_key_here
 @jobId = your_job_id_here
 
 ### ============================================================
-### 1. LOGIN & TOKEN GENERATION
+### 1. Submit Job (POST /batch/jobs)
 ### ============================================================
+### Notes:
+### - Include one .ipynb notebook part named `notebook`
+### - Include param_* scalar fields
+### - Include execution_profile: standard | ec2_200gb
+### - Include optional data file parts
 
-### Generate a new API token (requires session auth)
-### First, you need to login to the dashboard and use session cookie
-POST {{baseUrl}}/token/generate/
-Content-Type: application/json
+POST {{baseUrl}}/batch/jobs
+x-api-key: {{apiKey}}
+Content-Type: multipart/form-data; boundary=----BoundaryNotebookUpload
 
-# Response: {"token": "abc123..."}
+------BoundaryNotebookUpload
+Content-Disposition: form-data; name="notebook"; filename="Data_cleaning.ipynb"
+Content-Type: application/x-ipynb+json
 
+< ../demo_input/Data_cleaning.ipynb
+------BoundaryNotebookUpload
+Content-Disposition: form-data; name="upload_01"; filename="Template_MBO_Example_raw_v3.xlsx"
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 
-### Check if user has active token
-GET {{baseUrl}}/token/status/
-Content-Type: application/json
+< ../demo_input/Template_MBO_Example_raw_v3.xlsx
+------BoundaryNotebookUpload
+Content-Disposition: form-data; name="param_01_input_data_filename"
 
-###
+Template_MBO_Example_raw_v3.xlsx
+------BoundaryNotebookUpload
+Content-Disposition: form-data; name="param_02_input_data_sheet"
 
-### ============================================================
-### 2. LIST NOTEBOOKS
-### ============================================================
+BIRDS
+------BoundaryNotebookUpload
+Content-Disposition: form-data; name="param_03_input_metadata_sheet"
 
-### Get all notebooks owned by authenticated user
-###
-### Required: Valid API token
-GET {{baseUrl}}/api/notebooks/
-Authorization: Token {{token}}
-Content-Type: application/json
+METADATA
+------BoundaryNotebookUpload
+Content-Disposition: form-data; name="param_04_output_samples_ecological_parameters"
 
-# Response example:
-# {
-#   "notebooks": [
-#     {
-#       "id": "550e8400-e29b-41d4-a716-446655440000",
-#       "name": "Data Cleaning Demo",
-#       "created_at": "2026-03-07T10:30:00Z",
-#       "description": "Cleans and processes raw data"
-#     }
-#   ]
-# }
+false
+------BoundaryNotebookUpload
+Content-Disposition: form-data; name="param_05_output_make_plots"
 
-###
+true
+------BoundaryNotebookUpload
+Content-Disposition: form-data; name="param_07_first_month"
 
-### ============================================================
-### 3. SUBMIT JOB (TRIGGER NOTEBOOK RUN)
-### ============================================================
+1
+------BoundaryNotebookUpload
+Content-Disposition: form-data; name="param_10_upper_limit_max_depth"
 
-### Submit a job to run a specific notebook
-###
-### Parameters:
-### - param_09_years: Example numeric parameter
-### - param_01_input_data_filename: File parameter (if uploading)
-### - execution_profile: standard | ec2_200gb
-###
-### Response: Job ID and status
-POST {{baseUrl}}/api/notebooks/{{notebookId}}/run/
-Authorization: Token {{token}}
-Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
-
-------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="param_09_years"
-
-5
-------WebKitFormBoundary7MA4YWxkTrZu0gW
+0
+------BoundaryNotebookUpload
 Content-Disposition: form-data; name="execution_profile"
 
 standard
-------WebKitFormBoundary7MA4YWxkTrZu0gW--
+------BoundaryNotebookUpload--
 
-# Response example:
-# {
-#   "message": "Job successfully queued.",
-#   "job_id": "660e8400-e29b-41d4-a716-446655440001",
-#   "status": "PENDING",
-#   "execution_profile": "standard",
-#   "resolved_payload": {...}
-# }
-
-###
+### Expected response body shape:
+### {
+###   "message": "Job successfully mapped and submitted",
+###   "job_id": "...",
+###   "batch_job_id": "...",
+###   "execution_profile": "standard"
+### }
 
 ### ============================================================
-### 4. JOB STATUS & MONITORING
+### 2. Check Job Status (GET /batch/jobs/{job_id})
 ### ============================================================
 
-### Get current status of a job
-GET {{baseUrl}}/api/jobs/{{jobId}}/status/
-Authorization: Token {{token}}
-Content-Type: application/json
-
-# Response example (PENDING):
-# {
-#   "job_id": "660e8400-e29b-41d4-a716-446655440001",
-#   "status": "PENDING",
-#   "logs": "No logs available yet."
-# }
-
-# Response example (RUNNING):
-# {
-#   "job_id": "660e8400-e29b-41d4-a716-446655440001",
-#   "status": "RUNNING",
-#   "logs": "Environment built. Starting notebook execution..."
-# }
-
-# Response example (SUCCESS):
-# {
-#   "job_id": "660e8400-e29b-41d4-a716-446655440001",
-#   "status": "SUCCESS",
-#   "logs": "Execution completed and outputs zipped.",
-#   "download_url": "http://localhost:8000/media/jobs/result_archive.zip"
-# }
-
-# Response example (FAILED):
-# {
-#   "job_id": "660e8400-e29b-41d4-a716-446655440001",
-#   "status": "FAILED",
-#   "logs": "Error in cell execution",
-#   "error_message": "Execution failed. Please review the logs."
-# }
-
-###
-
-### Get full execution logs for a specific job
-GET {{baseUrl}}/api/jobs/{{jobId}}/logs/
-Authorization: Token {{token}}
-Content-Type: application/json
-
-# Response:
-# {
-#   "logs": "Full execution logs..."
-# }
-
-###
-
-### Get status of multiple recent jobs
-GET {{baseUrl}}/api/jobs/poll-status/
-Authorization: Token {{token}}
-Content-Type: application/json
-
-# Response:
-# {
-#   "jobs": [
-#     {
-#       "id": "660e8400-e29b-41d4-a716-446655440001",
-#       "status": "SUCCESS",
-#       "file_url": "http://localhost:8000/media/..."
-#     },
-#     {
-#       "id": "660e8400-e29b-41d4-a716-446655440002",
-#       "status": "PENDING",
-#       "file_url": null
-#     }
-#   ]
-# }
-
-###
+GET {{baseUrl}}/batch/jobs/{{jobId}}
+x-api-key: {{apiKey}}
 
 ### ============================================================
-### 5. WORKFLOW EXAMPLE: Complete End-to-End Test
+### 3. Fetch Job Logs (GET /batch/jobs/{job_id}/logs)
 ### ============================================================
 
-### Step 1: Generate token
-POST {{baseUrl}}/token/generate/
-Content-Type: application/json
-
-###
-
-### Step 2: After getting token, list notebooks
-### (Copy token from response above into @token variable)
-GET {{baseUrl}}/api/notebooks/
-Authorization: Token {{token}}
-Content-Type: application/json
-
-###
-
-### Step 3: Submit job with one of the notebook IDs from Step 2
-### (Copy notebook ID into @notebookId variable)
-POST {{baseUrl}}/api/notebooks/{{notebookId}}/run/
-Authorization: Token {{token}}
-Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
-
-------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="param_09_years"
-
-5
-------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="execution_profile"
-
-ec2_200gb
-------WebKitFormBoundary7MA4YWxkTrZu0gW--
-
-###
-
-### Step 4: Check job status repeatedly
-### (Copy job ID from Step 3 response into @jobId variable)
-GET {{baseUrl}}/api/jobs/{{jobId}}/status/
-Authorization: Token {{token}}
-Content-Type: application/json
-
-###
+GET {{baseUrl}}/batch/jobs/{{jobId}}/logs
+x-api-key: {{apiKey}}
 
 ### ============================================================
-### NOTES FOR TESTING
+### 4. Fetch Job Results (GET /batch/jobs/{job_id}/results)
 ### ============================================================
-###
-### 1. Get Valid Token:
-###    - Login to http://localhost:8000/dashboard/ with admin/password123
-###    - Click "Generate API Token" button
-###    - Copy the token value
-###    - Replace @token = your_api_token_here with actual token
-###
-### 2. Get Notebook ID:
-###    - Run the "Get all notebooks" request above
-###    - Copy the "id" field from response
-###    - Replace @notebookId = your_notebook_id_here
-###
-### 3. Get Job ID:
-###    - Run the "Submit job" request above
-###    - Copy the "job_id" from response
-###    - Replace @jobId = your_job_id_here
-###
-### 4. Monitor Job Progress:
-###    - Run "Get current status" request multiple times
-###    - Status transitions: PENDING → PROVISIONING → RUNNING → SUCCESS/FAILED
-###    - Takes 10-30 seconds depending on notebook complexity
-###
-### 5. Download Results:
-###    - When status is SUCCESS, look for "download_url" in response
-###    - Click the link or paste in browser to download results
-###
+
+GET {{baseUrl}}/batch/jobs/{{jobId}}/results
+x-api-key: {{apiKey}}
+
 ### ============================================================
+### 5. Optional CORS preflight check (if enabled in API Gateway)
+### ============================================================
+
+OPTIONS {{baseUrl}}/batch/jobs
+Origin: http://localhost:5173
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: x-api-key,content-type

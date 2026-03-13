@@ -11,7 +11,9 @@ resource "aws_api_gateway_deployment" "lifewatch" {
       aws_api_gateway_rest_api.lifewatch_api.binary_media_types,
       aws_api_gateway_integration.post_jobs_lambda.id,
       aws_api_gateway_integration.job_status_lambda.id,
-      aws_api_gateway_integration.logs_lambda.id
+      aws_api_gateway_integration.logs_lambda.id,
+      aws_api_gateway_integration.job_results_lambda.id,
+      [for integration in values(aws_api_gateway_integration.options) : integration.id]
     ]))
   }
 
@@ -22,7 +24,9 @@ resource "aws_api_gateway_deployment" "lifewatch" {
   depends_on = [
     aws_api_gateway_integration.post_jobs_lambda,
     aws_api_gateway_integration.job_status_lambda,
-    aws_api_gateway_integration.logs_lambda
+    aws_api_gateway_integration.logs_lambda,
+    aws_api_gateway_integration.job_results_lambda,
+    aws_api_gateway_integration.options
   ]
 }
 

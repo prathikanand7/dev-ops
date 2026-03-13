@@ -1,149 +1,235 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DropZone } from './components/DropZone';
 
 type RunResponse = {
   message: string;
   job_id: string;
-  status: string;
+  batch_job_id?: string;
   execution_profile?: string;
-  resolved_payload?: unknown;
 };
 
 type JobStatusResponse = {
   job_id: string;
+  job_name?: string;
   status: string;
-  logs?: string;
-  download_url?: string;
-  error_message?: string;
+  createdAt?: number;
+  startedAt?: number;
+  stoppedAt?: number;
+  error?: string;
 };
 
-type NotebookOption = {
-  id: string;
-  name: string;
-  created_at?: string;
-  description?: string;
+type JobLogsResponse = {
+  job_id: string;
+  logs: string[];
+};
+
+type JobResultsResponse = {
+  job_id: string;
+  status?: string;
+  download_url?: string;
+  results: Array<{
+    filename: string;
+    content_base64: string;
+  }>;
 };
 
 export const App: React.FC = () => {
-  const [baseUrl, setBaseUrl] = useState('http://localhost:8010');
-  const [token, setToken] = useState('');
-  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
-  const [tokenError, setTokenError] = useState<string | null>(null);
-
-  const [notebooks, setNotebooks] = useState<NotebookOption[]>([]);
-  const [isLoadingNotebooks, setIsLoadingNotebooks] = useState(false);
-  const [notebooksError, setNotebooksError] = useState<string | null>(null);
-
-  const [notebookId, setNotebookId] = useState('');
+  const [baseUrl, setBaseUrl] = useState(
+    'https://hm2jyuxlpd.execute-api.eu-west-1.amazonaws.com/dev',
+  );
+  const [apiKey, setApiKey] = useState('');
   const [paramsJson, setParamsJson] = useState('{\n  "param_09_years": 5\n}');
   const [fileParamName, setFileParamName] = useState('param_01_input_data_filename');
   const [executionProfile, setExecutionProfile] = useState<'standard' | 'ec2_200gb'>('standard');
-  const [dataFiles, setDataFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
+  const [extractInfo, setExtractInfo] = useState<string | null>(null);
 
   const [runResult, setRunResult] = useState<RunResponse | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [jobId, setJobId] = useState('');
   const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
+  const [statusUpdatedAt, setStatusUpdatedAt] = useState<Date | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [jobInfo, setJobInfo] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [isFetchingLogs, setIsFetchingLogs] = useState(false);
+  const [isFetchingResults, setIsFetchingResults] = useState(false);
+  const [jobLogs, setJobLogs] = useState<string[]>([]);
+  const [jobResults, setJobResults] = useState<JobResultsResponse['results']>([]);
+  const [resultsDownloadUrl, setResultsDownloadUrl] = useState<string | null>(null);
+  const [resultsError, setResultsError] = useState<string | null>(null);
+  const [resultsInfo, setResultsInfo] = useState<string | null>(null);
 
-  // Load notebooks when token changes
+  const pollRef = useRef<number | null>(null);
+  const autoFetchResultsForJobRef = useRef<string | null>(null);
+
+  const normalizedBaseUrl = useMemo(() => baseUrl.replace(/\/$/, ''), [baseUrl]);
+  const currentJobStatus = jobStatus?.status || '';
+  const logsReadyStatuses = ['RUNNING', 'SUCCEEDED', 'FAILED'];
+  const canFetchLogsNow = logsReadyStatuses.includes(currentJobStatus);
+  const canFetchResultsNow = currentJobStatus === 'SUCCEEDED';
+
   useEffect(() => {
-    if (token && baseUrl) {
-      fetchNotebooks();
+    return () => {
+      if (pollRef.current) {
+        window.clearInterval(pollRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!jobId || !apiKey) {
+      return;
     }
-  }, [token, baseUrl]);
 
-  async function handleGenerateToken() {
-    setTokenError(null);
-    setIsGeneratingToken(true);
+    if (jobStatus?.status !== 'SUCCEEDED') {
+      return;
+    }
 
+    if (resultsDownloadUrl || isFetchingResults) {
+      return;
+    }
+
+    if (autoFetchResultsForJobRef.current === jobId) {
+      return;
+    }
+
+    autoFetchResultsForJobRef.current = jobId;
+    void handleFetchResults();
+  }, [jobId, apiKey, jobStatus?.status, resultsDownloadUrl, isFetchingResults]);
+
+  function decodeApiBody<T>(raw: unknown): T {
+    if (typeof raw === 'string') {
+      try {
+        return JSON.parse(raw) as T;
+      } catch {
+        throw new Error(`API returned a non-JSON string body: ${raw}`);
+      }
+    }
+
+    return raw as T;
+  }
+
+  function readFileAsText(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        if (typeof reader.result !== 'string') {
+          reject(new Error('FileReader result is not text.'));
+          return;
+        }
+
+        resolve(reader.result);
+      };
+
+      reader.onerror = () => {
+        reject(reader.error || new Error('Failed to read file with FileReader.'));
+      };
+
+      reader.readAsText(file);
+    });
+  }
+
+  function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
+  }
+
+  function parseNotebookParameters(notebookText: string): Record<string, string | number | boolean> {
+    const notebook = JSON.parse(notebookText) as {
+      cells?: Array<{
+        cell_type?: string;
+        metadata?: { tags?: string[] };
+        source?: string[];
+      }>;
+    };
+
+    const parameterCell = notebook.cells?.find(
+      (cell) => cell.cell_type === 'code' && Array.isArray(cell.metadata?.tags) && cell.metadata.tags.includes('parameters'),
+    );
+
+    if (!parameterCell?.source?.length) {
+      return {};
+    }
+
+    const extracted: Record<string, string | number | boolean> = {};
+    const assignmentRegex = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:<-|=)\s*(.+?)\s*$/;
+
+    parameterCell.source.forEach((rawLine) => {
+      const line = rawLine.trim();
+
+      if (!line || line.startsWith('#')) {
+        return;
+      }
+
+      const match = line.match(assignmentRegex);
+      if (!match) {
+        return;
+      }
+
+      const [, key, valueRaw] = match;
+      let value: string | number | boolean = valueRaw;
+
+      if (/^[-+]?\d+(?:\.\d+)?$/.test(valueRaw)) {
+        value = Number(valueRaw);
+      } else if (/^(true|false)$/i.test(valueRaw)) {
+        value = valueRaw.toLowerCase() === 'true';
+      } else {
+        value = valueRaw.replace(/^['"]|['"]$/g, '');
+      }
+
+      extracted[key] = value;
+    });
+
+    return extracted;
+  }
+
+  async function extractParametersFromNotebook(notebookFile: File): Promise<void> {
     try {
-      // Check if user is authenticated by checking /api/token/status/
-      const statusRes = await fetch(
-        `${baseUrl.replace(/\/$/, '')}/api/token/status/`,
-        {
-          credentials: 'include',
-        },
-      );
+      const text = await readFileAsText(notebookFile);
+      const extracted = parseNotebookParameters(text);
 
-      if (!statusRes.ok) {
-        setTokenError(
-          'Please log in to the Dashboard first to generate a token. Navigate to the "Log In" section of the Notebook Ops Platform.',
-        );
+      if (Object.keys(extracted).length === 0) {
+        setExtractInfo('Notebook loaded, but no tagged parameters cell was found.');
         return;
       }
 
-      // Generate new token
-      const generateRes = await fetch(
-        `${baseUrl.replace(/\/$/, '')}/api/token/generate/`,
-        {
-          method: 'POST',
-          credentials: 'include',
-        },
-      );
-
-      if (!generateRes.ok) {
-        const text = await generateRes.text();
-        setTokenError(`Failed to generate token: ${text}`);
-        return;
-      }
-
-      const data = (await generateRes.json()) as { token: string };
-      setToken(data.token);
-      setTokenError(null);
-    } catch (err) {
-      setTokenError((err as Error).message);
-    } finally {
-      setIsGeneratingToken(false);
+      setParamsJson(JSON.stringify(extracted, null, 2));
+      setExtractInfo('Parameters extracted from notebook and prefilled.');
+    } catch (error) {
+      setExtractInfo(`Failed to parse notebook: ${(error as Error).message}`);
     }
   }
 
-  async function fetchNotebooks() {
-    setNotebooksError(null);
-    setIsLoadingNotebooks(true);
+  async function handleFilesChange(newFiles: File[]): Promise<void> {
+    setFiles(newFiles);
 
-    try {
-      const url = `${baseUrl.replace(/\/$/, '')}/api/notebooks/`;
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Token ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        setNotebooksError(`Failed to load notebooks: ${text}`);
-        return;
-      }
-
-      const data = (await res.json()) as
-        | NotebookOption[]
-        | { notebooks?: NotebookOption[]; results?: NotebookOption[] };
-
-      const notebookItems = Array.isArray(data)
-        ? data
-        : Array.isArray(data.notebooks)
-          ? data.notebooks
-          : Array.isArray(data.results)
-            ? data.results
-            : [];
-
-      setNotebooks(notebookItems);
-    } catch (err) {
-      setNotebooksError((err as Error).message);
-    } finally {
-      setIsLoadingNotebooks(false);
+    const notebookFile = newFiles.find((file) => file.name.toLowerCase().endsWith('.ipynb'));
+    if (notebookFile) {
+      await extractParametersFromNotebook(notebookFile);
+    } else {
+      setExtractInfo(null);
     }
   }
 
-  async function handleRunNotebook(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setRunError(null);
     setRunResult(null);
-    setIsRunning(true);
+    setJobError(null);
+    setJobInfo(null);
+    setJobStatus(null);
+    setJobLogs([]);
+    setJobResults([]);
+    setResultsDownloadUrl(null);
+    setResultsError(null);
+    setResultsInfo(null);
+    autoFetchResultsForJobRef.current = null;
+    setIsSubmitting(true);
 
     let parsedParams: Record<string, unknown> = {};
     if (paramsJson.trim()) {
@@ -151,32 +237,51 @@ export const App: React.FC = () => {
         parsedParams = JSON.parse(paramsJson);
       } catch (err) {
         setRunError('Parameters JSON is invalid.');
-        setIsRunning(false);
+        setIsSubmitting(false);
         return;
       }
     }
 
     try {
-      const url = `${baseUrl.replace(/\/$/, '')}/api/notebooks/${notebookId}/run/`;
+      const url = `${normalizedBaseUrl}/batch/jobs`;
 
       const formData = new FormData();
+
+      const notebookFile = files.find((file) => file.name.toLowerCase().endsWith('.ipynb'));
+      if (!notebookFile) {
+        setRunError('You must include one .ipynb notebook file.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      formData.append('notebook', notebookFile, notebookFile.name);
+
       Object.entries(parsedParams).forEach(([key, value]) => {
-        formData.append(key, String(value));
+        if (key.trim()) {
+          formData.append(key, String(value));
+        }
       });
+
       formData.append('execution_profile', executionProfile);
 
-      if (dataFiles.length > 0) {
-        const baseName = fileParamName.trim() || 'file';
-        dataFiles.forEach((file, index) => {
-          const fieldName = index === 0 ? baseName : `${baseName}_${index + 1}`;
+      const nonNotebookFiles = files.filter((file) => !file.name.toLowerCase().endsWith('.ipynb'));
+      if (nonNotebookFiles.length > 0) {
+        const baseName = fileParamName.trim() || 'param_01_input_data_filename';
+
+        nonNotebookFiles.forEach((file, index) => {
+          const fieldName = index === 0 ? baseName : `upload_${String(index).padStart(2, '0')}`;
           formData.append(fieldName, file);
         });
+
+        if (!(baseName in parsedParams)) {
+          formData.append(baseName, nonNotebookFiles[0].name);
+        }
       }
 
       const res = await fetch(url, {
         method: 'POST',
         headers: {
-          Authorization: `Token ${token}`,
+          'x-api-key': apiKey,
         },
         body: formData,
       });
@@ -187,43 +292,237 @@ export const App: React.FC = () => {
         return;
       }
 
-      const data = (await res.json()) as RunResponse;
+      const rawData = (await res.json()) as unknown;
+      const data = decodeApiBody<RunResponse>(rawData);
       setRunResult(data);
       setJobId(data.job_id);
+      startPolling(data.job_id);
     } catch (err) {
       setRunError((err as Error).message);
     } finally {
-      setIsRunning(false);
+      setIsSubmitting(false);
     }
   }
 
-  async function handleCheckStatus(e: React.FormEvent) {
-    e.preventDefault();
-    setJobError(null);
-    setJobStatus(null);
-    setIsChecking(true);
+  async function fetchStatus(
+    targetJobId: string,
+    options?: { suppressError?: boolean },
+  ): Promise<JobStatusResponse | null> {
+    const suppressError = options?.suppressError ?? false;
+
+    if (!suppressError) {
+      setJobError(null);
+    }
 
     try {
-      const url = `${baseUrl.replace(/\/$/, '')}/api/jobs/${jobId}/status/`;
+      const url = `${normalizedBaseUrl}/batch/jobs/${targetJobId}`;
       const res = await fetch(url, {
         headers: {
-          Authorization: `Token ${token}`,
+          'x-api-key': apiKey,
         },
       });
 
       if (!res.ok) {
         const text = await res.text();
-        setJobError(`Request failed (${res.status}): ${text}`);
-        return;
+        if (!suppressError) {
+          setJobError(`Request failed (${res.status}): ${text}`);
+        }
+        return null;
       }
 
-      const data = (await res.json()) as JobStatusResponse;
+      const rawData = (await res.json()) as unknown;
+      const data = decodeApiBody<JobStatusResponse>(rawData);
       setJobStatus(data);
+      setStatusUpdatedAt(new Date());
+      return data;
     } catch (err) {
-      setJobError((err as Error).message);
+      if (!suppressError) {
+        setJobError((err as Error).message);
+      }
+      return null;
+    }
+  }
+
+  async function handleCheckStatus(e: React.FormEvent) {
+    e.preventDefault();
+    setIsChecking(true);
+    setJobInfo(null);
+
+    try {
+      await fetchStatus(jobId);
     } finally {
       setIsChecking(false);
     }
+  }
+
+  function startPolling(targetJobId: string): void {
+    if (pollRef.current) {
+      window.clearInterval(pollRef.current);
+    }
+
+    pollRef.current = window.setInterval(async () => {
+      const status = await fetchStatus(targetJobId);
+
+      if (!status) {
+        return;
+      }
+
+      const terminalStatuses = ['SUCCEEDED', 'FAILED'];
+      if (terminalStatuses.includes(status.status)) {
+        if (pollRef.current) {
+          window.clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      }
+    }, 10000);
+  }
+
+  async function handleFetchLogs() {
+    if (!jobId.trim()) {
+      return;
+    }
+
+    setIsFetchingLogs(true);
+    setJobError(null);
+    setJobInfo(null);
+
+    try {
+      const status = (await fetchStatus(jobId, { suppressError: true })) || jobStatus;
+      const statusValue = status?.status || '';
+
+      if (!logsReadyStatuses.includes(statusValue)) {
+        setJobLogs([]);
+        setJobInfo('Job is still being submitted/started. Logs are available once status is RUNNING.');
+        return;
+      }
+
+      const res = await fetch(`${normalizedBaseUrl}/batch/jobs/${jobId}/logs`, {
+        headers: {
+          'x-api-key': apiKey,
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+
+        if (res.status === 500 && /log stream does not exist/i.test(text)) {
+          setJobInfo('Job is running but log stream is not ready yet. Please try again in a few moments.');
+          return;
+        }
+
+        setJobError(`Logs request failed (${res.status}): ${text}`);
+        return;
+      }
+
+      const rawData = (await res.json()) as unknown;
+      const data = decodeApiBody<JobLogsResponse>(rawData);
+      setJobLogs(data.logs || []);
+    } catch (error) {
+      setJobError((error as Error).message);
+    } finally {
+      setIsFetchingLogs(false);
+    }
+  }
+
+  async function handleFetchResults() {
+    if (!jobId.trim()) {
+      return;
+    }
+
+    setIsFetchingResults(true);
+    setResultsError(null);
+    setResultsInfo(null);
+    setResultsDownloadUrl(null);
+
+    try {
+      const status = (await fetchStatus(jobId, { suppressError: true })) || jobStatus;
+      if (status?.status !== 'SUCCEEDED') {
+        setJobResults([]);
+        setResultsDownloadUrl(null);
+        setResultsInfo('Job has not succeeded yet. Results URL becomes available only after SUCCEEDED status.');
+        return;
+      }
+
+      const maxAttempts = 8;
+      const retryDelayMs = 2500;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const res = await fetch(`${normalizedBaseUrl}/batch/jobs/${jobId}/results`, {
+          headers: {
+            'x-api-key': apiKey,
+          },
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+
+          if (res.status === 404 && attempt < maxAttempts) {
+            setResultsInfo(`Job succeeded. Preparing downloadable ZIP... (${attempt}/${maxAttempts})`);
+            await sleep(retryDelayMs);
+            continue;
+          }
+
+          if (res.status === 404) {
+            setJobResults([]);
+            setResultsDownloadUrl(null);
+            setResultsInfo('Job succeeded, but results are still being packaged. Please try again in a few moments.');
+            return;
+          }
+
+          setResultsError(`Results request failed (${res.status}): ${text}`);
+          return;
+        }
+
+        const rawData = (await res.json()) as unknown;
+        const data = decodeApiBody<JobResultsResponse>(rawData);
+
+        if (data.download_url) {
+          setJobResults([]);
+          setResultsDownloadUrl(data.download_url);
+          setResultsInfo('Results ZIP is ready to download.');
+          return;
+        }
+
+        if (Array.isArray(data.results) && data.results.length > 0) {
+          setResultsDownloadUrl(null);
+          setJobResults(data.results);
+          return;
+        }
+
+        if (attempt < maxAttempts) {
+          setResultsInfo(`Job succeeded. Waiting for results URL... (${attempt}/${maxAttempts})`);
+          await sleep(retryDelayMs);
+          continue;
+        }
+
+        setJobResults([]);
+        setResultsDownloadUrl(null);
+        setResultsInfo('Job succeeded, but results URL is not ready yet. Please try again shortly.');
+      }
+    } catch (error) {
+      setResultsError((error as Error).message);
+    } finally {
+      setIsFetchingResults(false);
+    }
+  }
+
+  function downloadResultFile(filename: string, contentBase64: string): void {
+    const bytes = window.atob(contentBase64);
+    const array = new Uint8Array(bytes.length);
+
+    for (let i = 0; i < bytes.length; i += 1) {
+      array[i] = bytes.charCodeAt(i);
+    }
+
+    const blob = new Blob([array]);
+    const blobUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = blobUrl;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(blobUrl);
   }
 
   return (
@@ -255,30 +554,18 @@ export const App: React.FC = () => {
                   />
                 </div>
                 <div className="mb-3">
-                  <label htmlFor="token" className="form-label">
-                    API Token
+                  <label htmlFor="api-key" className="form-label">
+                    API Key
                   </label>
-                  <div className="input-group">
-                    <input
-                      id="token"
-                      type="password"
-                      className="form-control"
-                      value={token}
-                      onChange={(e) => setToken(e.target.value)}
-                      placeholder="Generate or paste your API token"
-                      disabled={isGeneratingToken}
-                    />
-                    <button
-                      className="btn btn-outline-secondary"
-                      type="button"
-                      onClick={handleGenerateToken}
-                      disabled={isGeneratingToken || !baseUrl}
-                    >
-                      {isGeneratingToken ? 'Generating...' : 'Generate Token'}
-                    </button>
-                  </div>
-                  {tokenError && <div className="form-text text-danger">{tokenError}</div>}
-                  {token && <div className="form-text text-success">✓ Token loaded</div>}
+                  <input
+                    id="api-key"
+                    type="password"
+                    className="form-control"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Paste your API Gateway key"
+                  />
+                  <div className="form-text">Used as <code>x-api-key</code> for Lambda API Gateway routes.</div>
                 </div>
               </div>
             </div>
@@ -292,48 +579,11 @@ export const App: React.FC = () => {
                 <h5 className="mb-0">Trigger Notebook Run</h5>
               </div>
               <div className="card-body">
-                <form onSubmit={handleRunNotebook}>
-                  <div className="mb-3">
-                    <label htmlFor="notebook-select" className="form-label">
-                      Select Notebook
-                    </label>
-                    {isLoadingNotebooks ? (
-                      <div className="spinner-border spinner-border-sm" role="status">
-                        <span className="visually-hidden">Loading notebooks...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <select
-                          id="notebook-select"
-                          className="form-select"
-                          value={notebookId}
-                          onChange={(e) => setNotebookId(e.target.value)}
-                          required
-                          disabled={!token}
-                        >
-                          <option value="">-- Select a notebook --</option>
-                          {notebooks.map((nb) => (
-                            <option key={nb.id} value={nb.id}>
-                              {nb.name || nb.id}
-                            </option>
-                          ))}
-                        </select>
-                        {notebooksError && (
-                          <div className="form-text text-danger">{notebooksError}</div>
-                        )}
-                        {notebooks.length === 0 && token && !isLoadingNotebooks && (
-                          <div className="form-text text-muted">
-                            No notebooks found. Upload one in the Dashboard.
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-
+                <form onSubmit={handleSubmit}>
                   <div className="mb-3">
                     <label htmlFor="params-json" className="form-label">
-                      Parameters JSON{' '}
-                      <span className="text-muted">(optional scalar params such as numbers/strings)</span>
+                      Parameters JSON
+                      <span className="text-muted"> (sent as multipart fields)</span>
                     </label>
                     <textarea
                       id="params-json"
@@ -342,6 +592,7 @@ export const App: React.FC = () => {
                       onChange={(e) => setParamsJson(e.target.value)}
                       rows={5}
                     />
+                    {extractInfo && <div className="form-text text-info">{extractInfo}</div>}
                   </div>
 
                   <div className="mb-3">
@@ -357,7 +608,7 @@ export const App: React.FC = () => {
                       placeholder="param_01_input_data_filename"
                     />
                     <div className="form-text">
-                      Must match the file parameter key expected by your notebook schema.
+                      First uploaded data file is also mapped to this parameter value if missing in JSON.
                     </div>
                   </div>
 
@@ -382,16 +633,16 @@ export const App: React.FC = () => {
                   </div>
 
                   <DropZone
-                    label="Input files (.xlsx / .ipynb). These will be attached under the parameter name above."
-                    onFilesChange={setDataFiles}
+                    label="Drop one .ipynb notebook and optional data files (.xlsx/.xls)."
+                    onFilesChange={handleFilesChange}
                   />
 
                   <button
                     type="submit"
                     className="btn btn-success mt-2"
-                    disabled={isRunning || !token || !notebookId}
+                    disabled={isSubmitting || !apiKey || files.length === 0}
                   >
-                    {isRunning ? 'Submitting…' : 'Submit Job'}
+                    {isSubmitting ? 'Submitting…' : 'Submit Job'}
                   </button>
 
                   {runError && <div className="alert alert-danger mt-3 mb-0">{runError}</div>}
@@ -403,7 +654,7 @@ export const App: React.FC = () => {
                         <strong>Job ID:</strong> {runResult.job_id}
                       </p>
                       <p className="mb-1">
-                        <strong>Status:</strong> {runResult.status}
+                        <strong>Batch Job ID:</strong> {runResult.batch_job_id || 'n/a'}
                       </p>
                       <p className="mb-1">
                         <strong>Execution profile:</strong>{' '}
@@ -443,7 +694,7 @@ export const App: React.FC = () => {
                     />
                     {runResult && (
                       <div className="form-text">
-                        💡 Auto-filled from submission: <code>{runResult.job_id.substring(0, 8)}...</code>
+                        Auto-filled from submission: <code>{runResult.job_id.substring(0, 8)}...</code>
                       </div>
                     )}
                   </div>
@@ -451,21 +702,53 @@ export const App: React.FC = () => {
                   <button
                     type="submit"
                     className="btn btn-outline-primary"
-                    disabled={isChecking || !token || !jobId}
+                    disabled={isChecking || !apiKey || !jobId}
                   >
                     {isChecking ? 'Checking…' : 'Check Status'}
                   </button>
 
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary ms-2"
+                    onClick={handleFetchLogs}
+                    disabled={isFetchingLogs || !apiKey || !jobId}
+                  >
+                    {isFetchingLogs
+                      ? 'Loading Logs…'
+                      : !canFetchLogsNow && !!jobId
+                        ? 'Wait For RUNNING'
+                        : 'Fetch Logs'}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-outline-success ms-2"
+                    onClick={handleFetchResults}
+                    disabled={isFetchingResults || !apiKey || !jobId}
+                  >
+                    {isFetchingResults
+                      ? 'Waiting For ZIP…'
+                      : !canFetchResultsNow && !!jobId
+                        ? 'Wait For SUCCEEDED'
+                        : 'Fetch Results'}
+                  </button>
+
                   {jobError && <div className="alert alert-danger mt-3 mb-0">{jobError}</div>}
+                  {jobInfo && <div className="alert alert-info mt-3 mb-0">{jobInfo}</div>}
 
                   {jobStatus && (
                     <div className="mt-3">
                       <h6>Current Status</h6>
+                      {statusUpdatedAt && (
+                        <p className="mb-1 text-muted small">
+                          Last updated: {statusUpdatedAt.toLocaleString()}
+                        </p>
+                      )}
                       <p className="mb-1">
                         <strong>Status:</strong>{' '}
                         <span
                           className={`badge ${
-                            jobStatus.status === 'SUCCESS'
+                            jobStatus.status === 'SUCCEEDED'
                               ? 'bg-success'
                               : jobStatus.status === 'FAILED'
                                 ? 'bg-danger'
@@ -475,25 +758,56 @@ export const App: React.FC = () => {
                           {jobStatus.status}
                         </span>
                       </p>
-                      {jobStatus.download_url && (
-                        <p className="mb-1">
-                          <strong>Download:</strong>{' '}
-                          <a href={jobStatus.download_url} target="_blank" rel="noreferrer">
-                            Open results
-                          </a>
-                        </p>
-                      )}
-                      {jobStatus.error_message && (
+                      {jobStatus.error && (
                         <p className="mb-1 text-danger">
-                          <strong>Error:</strong> {jobStatus.error_message}
+                          <strong>Error:</strong> {jobStatus.error}
                         </p>
                       )}
-                      {jobStatus.logs && (
+
+                      {jobLogs.length > 0 && (
                         <div className="mt-2">
                           <p className="mb-1">
                             <strong>Logs:</strong>
                           </p>
-                          <pre className="logs p-2 bg-dark text-light rounded">{jobStatus.logs}</pre>
+                          <pre className="logs p-2 bg-dark text-light rounded">
+                            {jobLogs.join('\n')}
+                          </pre>
+                        </div>
+                      )}
+
+                      {resultsError && <div className="alert alert-warning mt-2 mb-0">{resultsError}</div>}
+                      {resultsInfo && <div className="alert alert-info mt-2 mb-0">{resultsInfo}</div>}
+
+                      {resultsDownloadUrl && (
+                        <div className="mt-2">
+                          <a
+                            className="btn btn-sm btn-success"
+                            href={resultsDownloadUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Download Results ZIP
+                          </a>
+                        </div>
+                      )}
+
+                      {jobResults.length > 0 && (
+                        <div className="mt-3">
+                          <p className="mb-2">
+                            <strong>Results:</strong>
+                          </p>
+                          <div className="d-flex flex-column gap-2">
+                            {jobResults.map((result) => (
+                              <button
+                                key={result.filename}
+                                type="button"
+                                className="btn btn-sm btn-outline-success text-start"
+                                onClick={() => downloadResultFile(result.filename, result.content_base64)}
+                              >
+                                Download {result.filename}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
