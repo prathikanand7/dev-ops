@@ -1,7 +1,8 @@
 import requests
 from fetch_api_key import fetch_api_key
+from fetch_api_url import fetch_api_url
 
-API_URL = "https://n69rb6bzvl.execute-api.eu-west-1.amazonaws.com/dev/batch/jobs"
+API_URL = fetch_api_url().rstrip("/") + "/batch/jobs"
 API_KEY = fetch_api_key()
 
 NOTEBOOK_PATH = "../../../demo_input/Data_cleaning.ipynb"

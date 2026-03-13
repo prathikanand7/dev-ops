@@ -6,7 +6,7 @@ import base64
 import re
 from email.parser import BytesParser
 from email.policy import default
-from handle_cors import response as cors_response
+from lifewatch_batch_platform.terraform.client_requests.handle_cors import response as cors_response
 
 s3 = boto3.client("s3")
 batch = boto3.client("batch")

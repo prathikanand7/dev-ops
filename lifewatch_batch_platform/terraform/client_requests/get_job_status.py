@@ -1,8 +1,9 @@
 import requests
 import sys
 from fetch_api_key import fetch_api_key
+from fetch_api_url import fetch_api_url
 
-API_BASE_URL = "https://n69rb6bzvl.execute-api.eu-west-1.amazonaws.com/dev"
+API_BASE_URL = fetch_api_url()
 API_KEY = fetch_api_key()
 
 if len(sys.argv) != 2:
