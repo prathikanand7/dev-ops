@@ -90,7 +90,7 @@ variable "fargate_ephemeral_storage_gib" {
 }
 
 ################################
-# Batch — EC2
+# Batch - EC2
 ################################
 
 variable "ec2_max_vcpus" {
