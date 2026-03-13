@@ -41,7 +41,6 @@ export const App: React.FC = () => {
     if (saved === 'dark' || saved === 'light') {
       return saved;
     }
-
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
@@ -96,22 +95,10 @@ export const App: React.FC = () => {
   }, [theme]);
 
   useEffect(() => {
-    if (!jobId || !apiKey) {
-      return;
-    }
-
-    if (jobStatus?.status !== 'SUCCEEDED') {
-      return;
-    }
-
-    if (resultsDownloadUrl || isFetchingResults) {
-      return;
-    }
-
-    if (autoFetchResultsForJobRef.current === jobId) {
-      return;
-    }
-
+    if (!jobId || !apiKey) return;
+    if (jobStatus?.status !== 'SUCCEEDED') return;
+    if (resultsDownloadUrl || isFetchingResults) return;
+    if (autoFetchResultsForJobRef.current === jobId) return;
     autoFetchResultsForJobRef.current = jobId;
     void handleFetchResults();
   }, [jobId, apiKey, jobStatus?.status, resultsDownloadUrl, isFetchingResults]);
@@ -124,27 +111,22 @@ export const App: React.FC = () => {
         throw new Error(`API returned a non-JSON string body: ${raw}`);
       }
     }
-
     return raw as T;
   }
 
   function readFileAsText(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-
       reader.onload = () => {
         if (typeof reader.result !== 'string') {
           reject(new Error('FileReader result is not text.'));
           return;
         }
-
         resolve(reader.result);
       };
-
       reader.onerror = () => {
         reject(reader.error || new Error('Failed to read file with FileReader.'));
       };
-
       reader.readAsText(file);
     });
   }
@@ -165,27 +147,23 @@ export const App: React.FC = () => {
     };
 
     const parameterCell = notebook.cells?.find(
-      (cell) => cell.cell_type === 'code' && Array.isArray(cell.metadata?.tags) && cell.metadata.tags.includes('parameters'),
+      (cell) =>
+        cell.cell_type === 'code' &&
+        Array.isArray(cell.metadata?.tags) &&
+        cell.metadata.tags.includes('parameters'),
     );
 
-    if (!parameterCell?.source?.length) {
-      return {};
-    }
+    if (!parameterCell?.source?.length) return {};
 
     const extracted: Record<string, string | number | boolean> = {};
     const assignmentRegex = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:<-|=)\s*(.+?)\s*$/;
 
     parameterCell.source.forEach((rawLine) => {
       const line = rawLine.trim();
-
-      if (!line || line.startsWith('#')) {
-        return;
-      }
+      if (!line || line.startsWith('#')) return;
 
       const match = line.match(assignmentRegex);
-      if (!match) {
-        return;
-      }
+      if (!match) return;
 
       const [, key, valueRaw] = match;
       let value: string | number | boolean = valueRaw;
@@ -223,7 +201,6 @@ export const App: React.FC = () => {
 
   async function handleFilesChange(newFiles: File[]): Promise<void> {
     setFiles(newFiles);
-
     const notebookFile = newFiles.find((file) => file.name.toLowerCase().endsWith('.ipynb'));
     if (notebookFile) {
       await extractParametersFromNotebook(notebookFile);
@@ -251,7 +228,7 @@ export const App: React.FC = () => {
     if (paramsJson.trim()) {
       try {
         parsedParams = JSON.parse(paramsJson);
-      } catch (err) {
+      } catch {
         setRunError('Parameters JSON is invalid.');
         setIsSubmitting(false);
         return;
@@ -260,7 +237,6 @@ export const App: React.FC = () => {
 
     try {
       const url = `${normalizedBaseUrl}/batch/jobs`;
-
       const formData = new FormData();
 
       const notebookFile = files.find((file) => file.name.toLowerCase().endsWith('.ipynb'));
@@ -273,9 +249,7 @@ export const App: React.FC = () => {
       formData.append('notebook', notebookFile, notebookFile.name);
 
       Object.entries(parsedParams).forEach(([key, value]) => {
-        if (key.trim()) {
-          formData.append(key, String(value));
-        }
+        if (key.trim()) formData.append(key, String(value));
       });
 
       formData.append('execution_profile', executionProfile);
@@ -283,12 +257,10 @@ export const App: React.FC = () => {
       const nonNotebookFiles = files.filter((file) => !file.name.toLowerCase().endsWith('.ipynb'));
       if (nonNotebookFiles.length > 0) {
         const baseName = fileParamName.trim() || 'param_01_input_data_filename';
-
         nonNotebookFiles.forEach((file, index) => {
           const fieldName = index === 0 ? baseName : `upload_${String(index).padStart(2, '0')}`;
           formData.append(fieldName, file);
         });
-
         if (!(baseName in parsedParams)) {
           formData.append(baseName, nonNotebookFiles[0].name);
         }
@@ -296,9 +268,7 @@ export const App: React.FC = () => {
 
       const res = await fetch(url, {
         method: 'POST',
-        headers: {
-          'x-api-key': apiKey,
-        },
+        headers: { 'x-api-key': apiKey },
         body: formData,
       });
 
@@ -325,24 +295,15 @@ export const App: React.FC = () => {
     options?: { suppressError?: boolean },
   ): Promise<JobStatusResponse | null> {
     const suppressError = options?.suppressError ?? false;
-
-    if (!suppressError) {
-      setJobError(null);
-    }
+    if (!suppressError) setJobError(null);
 
     try {
       const url = `${normalizedBaseUrl}/batch/jobs/${targetJobId}`;
-      const res = await fetch(url, {
-        headers: {
-          'x-api-key': apiKey,
-        },
-      });
+      const res = await fetch(url, { headers: { 'x-api-key': apiKey } });
 
       if (!res.ok) {
         const text = await res.text();
-        if (!suppressError) {
-          setJobError(`Request failed (${res.status}): ${text}`);
-        }
+        if (!suppressError) setJobError(`Request failed (${res.status}): ${text}`);
         return null;
       }
 
@@ -352,9 +313,7 @@ export const App: React.FC = () => {
       setStatusUpdatedAt(new Date());
       return data;
     } catch (err) {
-      if (!suppressError) {
-        setJobError((err as Error).message);
-      }
+      if (!suppressError) setJobError((err as Error).message);
       return null;
     }
   }
@@ -363,7 +322,6 @@ export const App: React.FC = () => {
     e.preventDefault();
     setIsChecking(true);
     setJobInfo(null);
-
     try {
       await fetchStatus(jobId);
     } finally {
@@ -372,19 +330,11 @@ export const App: React.FC = () => {
   }
 
   function startPolling(targetJobId: string): void {
-    if (pollRef.current) {
-      window.clearInterval(pollRef.current);
-    }
-
+    if (pollRef.current) window.clearInterval(pollRef.current);
     pollRef.current = window.setInterval(async () => {
       const status = await fetchStatus(targetJobId);
-
-      if (!status) {
-        return;
-      }
-
-      const terminalStatuses = ['SUCCEEDED', 'FAILED'];
-      if (terminalStatuses.includes(status.status)) {
+      if (!status) return;
+      if (['SUCCEEDED', 'FAILED'].includes(status.status)) {
         if (pollRef.current) {
           window.clearInterval(pollRef.current);
           pollRef.current = null;
@@ -394,10 +344,7 @@ export const App: React.FC = () => {
   }
 
   async function handleFetchLogs() {
-    if (!jobId.trim()) {
-      return;
-    }
-
+    if (!jobId.trim()) return;
     setIsFetchingLogs(true);
     setJobError(null);
     setJobInfo(null);
@@ -413,19 +360,15 @@ export const App: React.FC = () => {
       }
 
       const res = await fetch(`${normalizedBaseUrl}/batch/jobs/${jobId}/logs`, {
-        headers: {
-          'x-api-key': apiKey,
-        },
+        headers: { 'x-api-key': apiKey },
       });
 
       if (!res.ok) {
         const text = await res.text();
-
         if (res.status === 500 && /log stream does not exist/i.test(text)) {
           setJobInfo('Job is running but log stream is not ready yet. Please try again in a few moments.');
           return;
         }
-
         setJobError(`Logs request failed (${res.status}): ${text}`);
         return;
       }
@@ -441,10 +384,7 @@ export const App: React.FC = () => {
   }
 
   async function handleFetchResults() {
-    if (!jobId.trim()) {
-      return;
-    }
-
+    if (!jobId.trim()) return;
     setIsFetchingResults(true);
     setResultsError(null);
     setResultsInfo(null);
@@ -464,27 +404,22 @@ export const App: React.FC = () => {
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         const res = await fetch(`${normalizedBaseUrl}/batch/jobs/${jobId}/results`, {
-          headers: {
-            'x-api-key': apiKey,
-          },
+          headers: { 'x-api-key': apiKey },
         });
 
         if (!res.ok) {
           const text = await res.text();
-
           if (res.status === 404 && attempt < maxAttempts) {
             setResultsInfo(`Job succeeded. Preparing downloadable ZIP... (${attempt}/${maxAttempts})`);
             await sleep(retryDelayMs);
             continue;
           }
-
           if (res.status === 404) {
             setJobResults([]);
             setResultsDownloadUrl(null);
             setResultsInfo('Job succeeded, but results are still being packaged. Please try again in a few moments.');
             return;
           }
-
           setResultsError(`Results request failed (${res.status}): ${text}`);
           return;
         }
@@ -525,11 +460,9 @@ export const App: React.FC = () => {
   function downloadResultFile(filename: string, contentBase64: string): void {
     const bytes = window.atob(contentBase64);
     const array = new Uint8Array(bytes.length);
-
     for (let i = 0; i < bytes.length; i += 1) {
       array[i] = bytes.charCodeAt(i);
     }
-
     const blob = new Blob([array]);
     const blobUrl = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -545,154 +478,189 @@ export const App: React.FC = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }
 
+  function getStatusClass(status: string): string {
+    if (status === 'SUCCEEDED') return 'status-succeeded';
+    if (status === 'FAILED') return 'status-failed';
+    if (status === 'RUNNING') return 'status-running';
+    return 'status-other';
+  }
+
   return (
-    <>
-      <nav className="navbar app-navbar mb-4">
-        <div className="container">
-          <span className="navbar-brand text-decoration-none fw-semibold">Notebook Ops Platform</span>
+    <div className="app-root">
+      {/* ── Animated background ── */}
+      <div className="app-bg" aria-hidden="true">
+        <div className="app-bg-grid" />
+        <div className="app-bg-orb app-bg-orb-1" />
+        <div className="app-bg-orb app-bg-orb-2" />
+        <div className="app-bg-orb app-bg-orb-3" />
+      </div>
+
+      {/* ── Navbar ── */}
+      <nav className="app-navbar">
+        <div className="navbar-inner">
+          <div className="navbar-brand-area">
+            <div className="navbar-logo-dot" aria-hidden="true" />
+            <span className="navbar-brand">
+              Notebook<span>Ops</span>
+            </span>
+          </div>
           <button
             type="button"
             className="theme-toggle-btn"
             onClick={toggleTheme}
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           >
-            <span className="theme-toggle-icon" aria-hidden="true">
-              {theme === 'dark' ? <BsSun /> : <BsMoon />}
-            </span>
-            <span className="theme-toggle-text">{theme === 'dark' ? 'Light' : 'Dark'} mode</span>
+            {theme === 'dark' ? <BsSun size={13} /> : <BsMoon size={13} />}
+            {theme === 'dark' ? 'Light' : 'Dark'}
           </button>
         </div>
       </nav>
 
-      <div className="container mb-5">
-        <div className="row mb-4">
-          <div className="col-lg-8 mx-auto">
-            <div className="card shadow-sm">
-              <div className="card-header bg-primary text-white">
-                <h4 className="mb-0">API Connection</h4>
+      {/* ── Page content ── */}
+      <div className="page-container">
+
+        {/* ── API Connection card ── */}
+        <div className="row-grid row-grid-center mb-section">
+          <div className="glass-card">
+            <div className="card-inner">
+              <div className="card-head">
+                <div className="card-head-icon">⚡</div>
+                <h4>API Connection</h4>
               </div>
-              <div className="card-body">
-                <div className="mb-3">
-                  <label htmlFor="base-url" className="form-label">
-                    Base URL
-                  </label>
-                  <input
-                    id="base-url"
-                    type="text"
-                    className="form-control"
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                  />
-                </div>
-                <div className="mb-3">
-                  <label htmlFor="api-key" className="form-label">
-                    API Key
-                  </label>
-                  <input
-                    id="api-key"
-                    type="password"
-                    className="form-control"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Paste your API Gateway key"
-                  />
-                  <div className="form-text">Used as <code>x-api-key</code> for Lambda API Gateway routes.</div>
+              <div className="card-body-inner">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label-styled" htmlFor="base-url">Base URL</label>
+                    <input
+                      id="base-url"
+                      type="text"
+                      className="form-control-styled"
+                      value={baseUrl}
+                      onChange={(e) => setBaseUrl(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label-styled" htmlFor="api-key">API Key</label>
+                    <input
+                      id="api-key"
+                      type="password"
+                      className="form-control-styled"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="Paste your API Gateway key"
+                    />
+                    <p className="form-hint">
+                      Sent as <code>x-api-key</code> header on all Lambda API Gateway routes.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="row g-4">
-          <div className="col-lg-6">
-            <div className="card shadow-sm h-100">
-              <div className="card-header bg-white border-bottom">
-                <h5 className="mb-0">Trigger Notebook Run</h5>
+        {/* ── Two-column cards ── */}
+        <div className="row-grid row-grid-2">
+
+          {/* ── Submit Job ── */}
+          <div className="glass-card">
+            <div className="card-inner">
+              <div className="card-head">
+                <div className="card-head-icon">🚀</div>
+                <h5>Trigger Notebook Run</h5>
               </div>
-              <div className="card-body">
+              <div className="card-body-inner">
                 <form onSubmit={handleSubmit}>
-                  <div className="mb-3">
-                    <label htmlFor="params-json" className="form-label">
-                      Parameters JSON
-                      <span className="text-muted"> (sent as multipart fields)</span>
+                  <div className="form-group">
+                    <label className="form-label-styled" htmlFor="params-json">
+                      Parameters JSON&nbsp;
+                      <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--ink-muted)', fontSize: '0.72rem' }}>
+                        (sent as multipart fields)
+                      </span>
                     </label>
                     <textarea
                       id="params-json"
-                      className="form-control"
+                      className="form-control-styled"
                       value={paramsJson}
                       onChange={(e) => setParamsJson(e.target.value)}
                       rows={5}
                     />
-                    {extractInfo && <div className="form-text text-info">{extractInfo}</div>}
+                    {extractInfo && <p className="extract-info">{extractInfo}</p>}
                   </div>
 
-                  <div className="mb-3">
-                    <label htmlFor="file-param-name" className="form-label">
+                  <div className="form-group">
+                    <label className="form-label-styled" htmlFor="file-param-name">
                       File parameter name
                     </label>
                     <input
                       id="file-param-name"
                       type="text"
-                      className="form-control"
+                      className="form-control-styled"
                       value={fileParamName}
                       onChange={(e) => setFileParamName(e.target.value)}
                       placeholder="param_01_input_data_filename"
                     />
-                    <div className="form-text">
+                    <p className="form-hint">
                       First uploaded data file is also mapped to this parameter value if missing in JSON.
-                    </div>
+                    </p>
                   </div>
 
-                  <div className="mb-3">
-                    <label htmlFor="execution-profile" className="form-label">
-                      Execution profile
+                  <div className="form-group">
+                    <label className="form-label-styled" htmlFor="execution-profile">
+                      Execution Profile
                     </label>
                     <select
                       id="execution-profile"
-                      className="form-select"
+                      className="form-control-styled"
                       value={executionProfile}
-                      onChange={(e) =>
-                        setExecutionProfile(e.target.value as 'standard' | 'ec2_200gb')
-                      }
+                      onChange={(e) => setExecutionProfile(e.target.value as 'standard' | 'ec2_200gb')}
                     >
                       <option value="standard">Standard</option>
                       <option value="ec2_200gb">Large EC2 (200GB)</option>
                     </select>
-                    <div className="form-text">
+                    <p className="form-hint">
                       Use <code>ec2_200gb</code> for high storage workloads.
-                    </div>
+                    </p>
                   </div>
 
                   <DropZone
-                    label="Drop one .ipynb notebook and optional data files (.xlsx/.xls)."
+                    label="Drop one .ipynb notebook and optional data files (.xlsx / .xls)"
                     onFilesChange={handleFilesChange}
                   />
 
-                  <button
-                    type="submit"
-                    className="btn btn-success mt-2"
-                    disabled={isSubmitting || !apiKey || files.length === 0}
-                  >
-                    {isSubmitting ? 'Submitting…' : 'Submit Job'}
-                  </button>
+                  <div className="btn-row">
+                    <button
+                      type="submit"
+                      className="btn-neon btn-primary-neon"
+                      disabled={isSubmitting || !apiKey || files.length === 0}
+                    >
+                      <span>{isSubmitting ? '⏳ Submitting…' : '▶ Submit Job'}</span>
+                    </button>
+                  </div>
 
-                  {runError && <div className="alert alert-danger mt-3 mb-0">{runError}</div>}
+                  {runError && (
+                    <div className="alert-neon alert-danger-neon">
+                      <h6>Error</h6>
+                      {runError}
+                    </div>
+                  )}
 
                   {runResult && (
-                    <div className="alert alert-success mt-3 mb-0">
-                      <h6 className="mb-1">Job Queued</h6>
-                      <p className="mb-1">
-                        <strong>Job ID:</strong> {runResult.job_id}
-                      </p>
-                      <p className="mb-1">
-                        <strong>Execution profile:</strong>{' '}
-                        {runResult.execution_profile || executionProfile}
-                      </p>
+                    <div className="alert-neon alert-success-neon">
+                      <h6>Job Queued</h6>
+                      <div className="kv-row">
+                        <span className="kv-label">Job ID:</span>
+                        <span className="kv-value">{runResult.job_id}</span>
+                      </div>
+                      <div className="kv-row">
+                        <span className="kv-label">Profile:</span>
+                        <span className="kv-value">{runResult.execution_profile || executionProfile}</span>
+                      </div>
                       {runResult.message && (
-                        <p className="mb-0">
-                          <strong>Message:</strong> {runResult.message}
-                        </p>
+                        <div className="kv-row">
+                          <span className="kv-label">Message:</span>
+                          <span className="kv-value">{runResult.message}</span>
+                        </div>
                       )}
                     </div>
                   )}
@@ -701,139 +669,152 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="col-lg-6">
-            <div className="card shadow-sm h-100">
-              <div className="card-header bg-white border-bottom">
-                <h5 className="mb-0">Job Status</h5>
+          {/* ── Job Status ── */}
+          <div className="glass-card">
+            <div className="card-inner">
+              <div className="card-head">
+                <div className="card-head-icon">📡</div>
+                <h5>Job Status</h5>
               </div>
-              <div className="card-body">
+              <div className="card-body-inner">
                 <form onSubmit={handleCheckStatus}>
-                  <div className="mb-3">
-                    <label htmlFor="job-id" className="form-label">
+                  <div className="form-group">
+                    <label className="form-label-styled" htmlFor="job-id">
                       Job ID (UUID)
                     </label>
                     <input
                       id="job-id"
                       type="text"
-                      className="form-control"
+                      className="form-control-styled"
                       value={jobId}
                       onChange={(e) => setJobId(e.target.value)}
-                      placeholder="Paste Job ID from the left card"
+                      placeholder="Paste Job ID from the left panel"
                       required
                     />
                     {runResult && (
-                      <div className="form-text">
-                        Auto-filled from submission: <code>{runResult.job_id.substring(0, 8)}...</code>
-                      </div>
+                      <p className="form-hint">
+                        Auto-filled from submission: <code>{runResult.job_id.substring(0, 8)}…</code>
+                      </p>
                     )}
                   </div>
 
-                  <button
-                    type="submit"
-                    className="btn btn-outline-primary"
-                    disabled={isChecking || !apiKey || !jobId}
-                  >
-                    {isChecking ? 'Checking…' : 'Check Status'}
-                  </button>
+                  <div className="btn-row">
+                    <button
+                      type="submit"
+                      className="btn-neon btn-secondary-neon"
+                      disabled={isChecking || !apiKey || !jobId}
+                    >
+                      <span>{isChecking ? '⏳ Checking…' : '🔍 Check Status'}</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary ms-2"
-                    onClick={handleFetchLogs}
-                    disabled={isFetchingLogs || !apiKey || !jobId}
-                  >
-                    {isFetchingLogs
-                      ? 'Loading Logs…'
-                      : !canFetchLogsNow && !!jobId
-                        ? 'Wait For RUNNING'
-                        : 'Fetch Logs'}
-                  </button>
+                    <button
+                      type="button"
+                      className="btn-neon btn-ghost-neon"
+                      onClick={handleFetchLogs}
+                      disabled={isFetchingLogs || !apiKey || !jobId}
+                    >
+                      <span>
+                        {isFetchingLogs
+                          ? '⏳ Loading…'
+                          : !canFetchLogsNow && !!jobId
+                            ? '⏸ Wait for RUNNING'
+                            : '📋 Fetch Logs'}
+                      </span>
+                    </button>
 
-                  <button
-                    type="button"
-                    className="btn btn-outline-success ms-2"
-                    onClick={handleFetchResults}
-                    disabled={isFetchingResults || !apiKey || !jobId}
-                  >
-                    {isFetchingResults
-                      ? 'Waiting For ZIP…'
-                      : !canFetchResultsNow && !!jobId
-                        ? 'Wait For SUCCEEDED'
-                        : 'Fetch Results'}
-                  </button>
+                    <button
+                      type="button"
+                      className="btn-neon btn-ghost-neon"
+                      onClick={handleFetchResults}
+                      disabled={isFetchingResults || !apiKey || !jobId}
+                    >
+                      <span>
+                        {isFetchingResults
+                          ? '⏳ Waiting for ZIP…'
+                          : !canFetchResultsNow && !!jobId
+                            ? '⏸ Wait for SUCCEEDED'
+                            : '📦 Fetch Results'}
+                      </span>
+                    </button>
+                  </div>
 
-                  {jobError && <div className="alert alert-danger mt-3 mb-0">{jobError}</div>}
-                  {jobInfo && <div className="alert alert-info mt-3 mb-0">{jobInfo}</div>}
+                  {jobError && (
+                    <div className="alert-neon alert-danger-neon">
+                      <h6>Error</h6>
+                      {jobError}
+                    </div>
+                  )}
+                  {jobInfo && (
+                    <div className="alert-neon alert-info-neon">
+                      {jobInfo}
+                    </div>
+                  )}
 
                   {jobStatus && (
-                    <div className="mt-3">
-                      <h6>Current Status</h6>
+                    <div className="status-section">
                       {statusUpdatedAt && (
-                        <p className="mb-1 text-muted small">
+                        <p className="status-timestamp">
                           Last updated: {statusUpdatedAt.toLocaleString()}
                         </p>
                       )}
-                      <p className="mb-1">
-                        <strong>Status:</strong>{' '}
-                        <span
-                          className={`badge status-badge ${
-                            jobStatus.status === 'SUCCEEDED'
-                              ? 'bg-success'
-                              : jobStatus.status === 'FAILED'
-                                ? 'bg-danger'
-                                : 'bg-info'
-                          }`}
-                        >
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--ink-muted)', fontWeight: 600 }}>STATUS</span>
+                        <span className={`status-pill ${getStatusClass(jobStatus.status)}`}>
                           {jobStatus.status}
                         </span>
-                      </p>
+                      </div>
+
                       {jobStatus.error && (
-                        <p className="mb-1 text-danger">
+                        <p className="status-error-text">
                           <strong>Error:</strong> {jobStatus.error}
                         </p>
                       )}
 
                       {jobLogs.length > 0 && (
-                        <div className="mt-2">
-                          <p className="mb-1">
-                            <strong>Logs:</strong>
+                        <div>
+                          <p style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-muted)', marginBottom: 0 }}>
+                            Logs
                           </p>
-                          <pre className="logs p-2 bg-dark text-light rounded">
-                            {jobLogs.join('\n')}
-                          </pre>
+                          <pre className="logs-terminal">{jobLogs.join('\n')}</pre>
                         </div>
                       )}
 
-                      {resultsError && <div className="alert alert-warning mt-2 mb-0">{resultsError}</div>}
-                      {resultsInfo && <div className="alert alert-info mt-2 mb-0">{resultsInfo}</div>}
+                      {resultsError && (
+                        <div className="alert-neon alert-warning-neon">{resultsError}</div>
+                      )}
+                      {resultsInfo && (
+                        <div className="alert-neon alert-info-neon">{resultsInfo}</div>
+                      )}
 
                       {resultsDownloadUrl && (
-                        <div className="mt-2">
+                        <div style={{ marginTop: '1rem' }}>
                           <a
-                            className="btn btn-sm btn-success"
+                            className="btn-neon btn-success-neon"
                             href={resultsDownloadUrl}
                             target="_blank"
                             rel="noreferrer"
                           >
-                            Download Results ZIP
+                            <span>⬇ Download Results ZIP</span>
                           </a>
                         </div>
                       )}
 
                       {jobResults.length > 0 && (
-                        <div className="mt-3">
-                          <p className="mb-2">
-                            <strong>Results:</strong>
+                        <div style={{ marginTop: '1rem' }}>
+                          <p style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-muted)', marginBottom: '0.6rem' }}>
+                            Result Files
                           </p>
-                          <div className="d-flex flex-column gap-2">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             {jobResults.map((result) => (
                               <button
                                 key={result.filename}
                                 type="button"
-                                className="btn btn-sm btn-outline-success text-start"
+                                className="btn-neon btn-success-neon"
+                                style={{ justifyContent: 'flex-start', textAlign: 'left' }}
                                 onClick={() => downloadResultFile(result.filename, result.content_base64)}
                               >
-                                Download {result.filename}
+                                <span>⬇ {result.filename}</span>
                               </button>
                             ))}
                           </div>
@@ -847,6 +828,6 @@ export const App: React.FC = () => {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
