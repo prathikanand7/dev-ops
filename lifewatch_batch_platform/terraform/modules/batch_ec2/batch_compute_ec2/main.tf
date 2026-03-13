@@ -23,7 +23,7 @@ resource "aws_iam_role_policy_attachment" "batch_service_role" {
 }
 
 ################################
-# IAM — EC2 Instance Role
+# IAM - EC2 Instance Role
 ################################
 
 resource "aws_iam_role" "ec2_instance_role" {
