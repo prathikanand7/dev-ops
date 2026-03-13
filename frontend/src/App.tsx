@@ -490,6 +490,7 @@ export const App: React.FC = () => {
       {/* ── Animated background ── */}
       <div className="app-bg" aria-hidden="true">
         <div className="app-bg-grid" />
+        <div className="app-bg-lines" />
         <div className="app-bg-orb app-bg-orb-1" />
         <div className="app-bg-orb app-bg-orb-2" />
         <div className="app-bg-orb app-bg-orb-3" />
