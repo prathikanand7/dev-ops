@@ -41,7 +41,7 @@ resource "aws_security_group_rule" "batch_http_out" {
 }
 
 ################################
-# Batch → VPC Endpoints (HTTPS)
+# Batch -> VPC Endpoints (HTTPS)
 ################################
 
 resource "aws_security_group_rule" "batch_to_endpoints" {
