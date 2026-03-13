@@ -48,7 +48,7 @@ jobs:
         run: terraform validate -no-color
 
       - name: Terraform Plan
-        run: terraform plan -lock=false -input=false -no-color
+        run: terraform plan -lock=false -input=false -no-color -var-file=terraform.tfvars
 
       - name: Terraform Test
         if: ${{ hashFiles('terraform/environments/batch-dev/**/*.tftest.hcl') != '' }}
