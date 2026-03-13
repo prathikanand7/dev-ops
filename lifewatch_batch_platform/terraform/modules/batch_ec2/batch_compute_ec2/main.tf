@@ -1,5 +1,5 @@
 ################################
-# IAM — Batch Service Role
+# IAM - Batch Service Role
 ################################
 
 resource "aws_iam_role" "batch_service_role" {
