@@ -142,7 +142,7 @@ module "batch_queue_ec2" {
 }
 
 ################################
-# Lambda — IAM (shared)
+# Lambda - IAM (shared)
 ################################
 
 module "lambda_iam" {
