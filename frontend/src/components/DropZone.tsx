@@ -41,6 +41,9 @@ export const DropZone: React.FC<DropZoneProps> = ({ label, onFilesChange }) => {
       'application/vnd.ms-excel': ['.xls'],
       'application/x-ipynb+json': ['.ipynb'],
       'application/json': ['.ipynb'],
+      'text/yaml': ['.yaml', '.yml'],
+      'application/x-yaml': ['.yaml', '.yml'],
+      'text/plain': ['.txt'],
     },
     multiple: true,
     validator: duplicateValidator,
@@ -57,10 +60,10 @@ export const DropZone: React.FC<DropZoneProps> = ({ label, onFilesChange }) => {
   const removeAll = () => { setFiles([]); setRejected([]); };
 
   const dropMessage = useMemo(() => {
-    if (isDragReject) return 'Files will be rejected — only .xlsx, .xls and .ipynb allowed';
+    if (isDragReject) return 'Files will be rejected — only .xlsx, .xls, .ipynb, .yaml, .yml, and .txt allowed';
     if (isDragAccept) return 'All files look good — drop them here';
     if (isDragActive) return 'Drop the files here…';
-    return 'Drag & drop .xlsx / .ipynb files here, or click to select';
+    return 'Drag & drop only (.xlsx / .xls / .ipynb / .yaml / .txt) files here, or click to select';
   }, [isDragActive, isDragAccept, isDragReject]);
 
   const dropIcon = useMemo(() => {

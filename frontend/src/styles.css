@@ -186,7 +186,7 @@ html[data-theme='light'] .app-bg-corner-br { opacity: 0.35; }
   /* anchor so transforms are relative to centre */
   top: calc(50% - 210px);
   left: calc(50% - 210px);
-  animation: bulb-travel 20s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  animation: bulb-travel 50s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
   will-change: transform;
 }
 
@@ -203,7 +203,7 @@ html[data-theme='light'] .app-bg-corner-br { opacity: 0.35; }
   filter: blur(10px);
   top: calc(50% - 60px);
   left: calc(50% - 60px);
-  animation: bulb-travel 20s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  animation: bulb-travel 50s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
   will-change: transform;
 }
 
@@ -376,14 +376,11 @@ html[data-theme='light'] .app-navbar {
 /* ══════════════════════════════════════════════════════════════
    GLASS CARD  — revolving perimeter border on hover
    ─────────────────────────────────────────────────────────────
-   Structure:
-     ::before  z-index 0  — the revolving conic-gradient (inset: -2px)
-     ::after   z-index 1  — solid fill that masks the interior
-     .card-inner  z-index 2  — actual content
+   The conic-gradient is masked so ONLY the 2px border strip
+   is visible — no interior torch/radar effect at all.
 
-   The conic-gradient has ONE bright green arc (~40°) that
-   travels around the full perimeter.  The rest is transparent,
-   so only a glowing line traces the border edge.
+   Technique: padding: 2px on ::before + mask-composite: xor
+   cuts out the inner content-box, leaving just the padded ring.
    ══════════════════════════════════════════════════════════════ */
 .glass-card {
   position: relative;
@@ -398,40 +395,37 @@ html[data-theme='light'] .app-navbar {
   animation: card-enter 500ms ease both;
 }
 
-/* Revolving border layer — sits OUTSIDE the card edge */
+/* Border-only ring via mask-composite */
 .glass-card::before {
   content: '';
   position: absolute;
-  inset: -2px;
+  inset: 0;
   border-radius: inherit;
-  /* single bright arc that sweeps around the perimeter */
+  padding: 2px;                     /* ring thickness           */
   background: conic-gradient(
     from var(--border-angle),
-    transparent              0deg,
-    transparent            315deg,
-    rgba(74, 222, 128, 0.1) 330deg,
-    rgba(74, 222, 128, 0.6) 348deg,
-    rgba(134,239,172, 1.0)  354deg,
-    rgba(74, 222, 128, 0.6) 358deg,
-    transparent            360deg
+    transparent               0deg,
+    transparent             310deg,
+    rgba(74, 222, 128, 0.08) 328deg,
+    rgba(74, 222, 128, 0.55) 346deg,
+    rgba(134, 239, 172, 1.0) 353deg,
+    rgba(74, 222, 128, 0.55) 358deg,
+    transparent              360deg
   );
+  /* Show only the padding strip — mask out the content-box interior */
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
   z-index: 0;
   opacity: 0;
   transition: opacity 280ms ease;
-  /* paused until hover */
-  animation: border-revolve 2.2s linear infinite paused;
-}
-
-/* Solid fill that masks the interior so only the border glows */
-.glass-card::after {
-  content: '';
-  position: absolute;
-  inset: 2px;
-  border-radius: calc(1.1rem - 2px);
-  background: var(--surface);
-  z-index: 1;
-  /* also transitions so the surface colour matches theme changes */
-  transition: background 200ms ease;
+  animation: border-revolve 5.5s linear infinite paused;
+  pointer-events: none;
 }
 
 .glass-card:hover::before {
@@ -440,15 +434,15 @@ html[data-theme='light'] .app-navbar {
 }
 
 .glass-card:hover {
-  border-color: transparent;
+  border-color: rgba(74, 222, 128, 0.25);
   box-shadow: var(--shadow-deep), var(--glow-accent);
   transform: translateY(-2px);
 }
 
-/* All real content above the mask */
+/* All content above the border ring */
 .card-inner {
   position: relative;
-  z-index: 2;
+  z-index: 1;
 }
 
 @keyframes border-revolve {
@@ -562,11 +556,8 @@ select.form-control-styled {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   BUTTONS  —  same revolving perimeter border as cards
-   ─────────────────────────────────────────────────────────────
-   ::before = conic-gradient revolving border (inset: -2px)
-   ::after  = solid background mask (inset: 1px)
-   All text/icon children sit at z-index 2.
+   BUTTONS  —  revolving perimeter border, no interior glow
+   Same mask-composite technique as cards.
    ══════════════════════════════════════════════════════════════ */
 .btn-neon {
   position: relative;
@@ -589,37 +580,36 @@ select.form-control-styled {
   isolation: isolate;
 }
 
-/* Revolving border layer */
+/* Border-only ring — mask-composite cuts out interior */
 .btn-neon::before {
   content: '';
   position: absolute;
-  inset: -2px;
+  inset: 0;
   border-radius: inherit;
+  padding: 2px;
   background: conic-gradient(
     from var(--border-angle),
     transparent               0deg,
     transparent             300deg,
-    rgba(74, 222, 128, 0.12) 322deg,
-    rgba(74, 222, 128, 0.7)  344deg,
-    rgba(134,239,172, 1.0)   352deg,
-    rgba(74, 222, 128, 0.7)  357deg,
+    rgba(74, 222, 128, 0.1)  322deg,
+    rgba(74, 222, 128, 0.65) 344deg,
+    rgba(134, 239, 172, 1.0) 352deg,
+    rgba(74, 222, 128, 0.65) 357deg,
     transparent              360deg
   );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
   z-index: 0;
   opacity: 0;
   transition: opacity 240ms ease;
-  animation: border-revolve 1.8s linear infinite paused;
-}
-
-/* Solid fill mask — matches the button's own bg */
-.btn-neon::after {
-  content: '';
-  position: absolute;
-  inset: 2px;
-  border-radius: calc(0.6rem - 2px);
-  background: inherit;
-  z-index: 1;
-  transition: background 220ms ease;
+  animation: border-revolve 3.15s linear infinite paused;
+  pointer-events: none;
 }
 
 .btn-neon:hover:not(:disabled)::before {
@@ -627,8 +617,8 @@ select.form-control-styled {
   animation-play-state: running;
 }
 
-/* All text/icons above the mask */
-.btn-neon > * { position: relative; z-index: 2; }
+/* All text/icons above the border layer */
+.btn-neon > * { position: relative; z-index: 1; }
 
 /* ── Variant: Green filled (primary) */
 .btn-primary-neon {
@@ -868,7 +858,7 @@ select.form-control-styled {
 
 .status-timestamp {
   font-size: 0.72rem;
-  color: var(--ink-dim);
+  color: var(--ink-muted);
   font-family: 'Space Mono', monospace;
   margin-bottom: 0.5rem;
 }
@@ -1025,7 +1015,12 @@ select.form-control-styled {
 
 /* ─── Grid helpers ──────────────────────────────────────────── */
 .row-grid { display: grid; gap: 1.5rem; }
-.row-grid-2 { grid-template-columns: 1fr 1fr; }
+
+/* align-items: start so each card is only as tall as its content */
+.row-grid-2 {
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+}
 
 @media (max-width: 900px) { .row-grid-2 { grid-template-columns: 1fr; } }
 
@@ -1054,6 +1049,140 @@ select.form-control-styled {
   font-style: italic;
 }
 
+/* ─── Auto-generated param form ─────────────────────────────── */
+.param-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 1rem;
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 600px) {
+  .param-form-grid { grid-template-columns: 1fr; }
+}
+
+.param-field-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.param-field-key {
+  overflow-wrap: break-word;
+  word-break: break-all;
+  min-width: 0;
+  flex: 1;
+}
+
+.param-type-tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.12em 0.45em;
+  border-radius: 4px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  margin-top: 0.05em;
+}
+
+.param-type-number  { background: rgba(79, 158, 255, 0.14); color: #4f9eff; border: 1px solid rgba(79,158,255,0.2); }
+.param-type-boolean { background: rgba(167, 139, 250, 0.14); color: #a78bfa; border: 1px solid rgba(167,139,250,0.2); }
+.param-type-string  { background: rgba(74, 222, 128, 0.1);  color: var(--accent2); border: 1px solid rgba(74,222,128,0.18); }
+
+/* Awaiting notebook — inline info row, no dashed box */
+.param-pending {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.6rem;
+  background: rgba(74, 222, 128, 0.04);
+  border: 1px solid rgba(74, 222, 128, 0.12);
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+  margin-top: 0.25rem;
+}
+
+.param-pending svg {
+  flex-shrink: 0;
+  color: var(--accent2);
+  opacity: 0.8;
+}
+
+.param-no-params {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.6rem;
+  background: rgba(74, 222, 128, 0.04);
+  border: 1px solid rgba(74, 222, 128, 0.1);
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  margin-top: 0.25rem;
+}
+
+/* Submit hint — shown when button is disabled */
+.submit-hint {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* ─── Dropdown / select dark theme ──────────────────────────── */
+/* Style the native <select> and its <option> children */
+select.form-control-styled {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234ade80' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  padding-right: 2.5rem;
+  /* Ensures browser uses our colours for the popup list */
+  color-scheme: dark;
+}
+
+html[data-theme='light'] select.form-control-styled {
+  color-scheme: light;
+}
+
+/* Options inherit the select's background — override explicitly */
+select.form-control-styled option {
+  background-color: #0d1f10;
+  color: #e4f0e8;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.9rem;
+}
+
+select.form-control-styled option:checked,
+select.form-control-styled option:hover,
+select.form-control-styled option:focus {
+  background-color: #1a3d20;
+  color: #4ade80;
+}
+
+html[data-theme='light'] select.form-control-styled option {
+  background-color: #f0f7f1;
+  color: #0a1f0e;
+}
+
+html[data-theme='light'] select.form-control-styled option:checked,
+html[data-theme='light'] select.form-control-styled option:focus {
+  background-color: #d1fae5;
+  color: #15803d;
+}
+
 /* ─── Animations ────────────────────────────────────────────── */
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(4px); }
@@ -1075,3 +1204,4 @@ select.form-control-styled {
     transition-duration: 0.01ms !important;
   }
 }
+

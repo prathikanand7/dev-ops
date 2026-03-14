@@ -1,100 +1,100 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { BsMoon, BsSun } from 'react-icons/bs';
 import {
-  FiZap,
-  FiRadio,
-  FiLink,
-  FiPlay,
-  FiSearch,
-  FiFileText,
-  FiPackage,
-  FiDownload,
-  FiAlertCircle,
-  FiInfo,
-  FiCheckCircle,
+  FiZap, FiRadio, FiLink, FiPlay, FiSearch, FiFileText,
+  FiPackage, FiDownload, FiAlertCircle, FiInfo, FiCheckCircle,
 } from 'react-icons/fi';
 import { DropZone } from './components/DropZone';
 
-type RunResponse = {
-  message: string;
-  job_id: string;
-  execution_profile?: string;
-};
+/* ─── API types ─────────────────────────────────────────────── */
+type RunResponse       = { message: string; job_id: string; execution_profile?: string; };
+type JobStatusResponse = { job_id: string; job_name?: string; status: string; createdAt?: number; startedAt?: number; stoppedAt?: number; error?: string; };
+type JobLogsResponse   = { job_id: string; logs: string[]; };
+type JobResultsResponse = { job_id: string; status?: string; download_url?: string; results: Array<{ filename: string; content_base64: string; }>; };
+type ThemeMode         = 'dark' | 'light';
 
-type JobStatusResponse = {
-  job_id: string;
-  job_name?: string;
-  status: string;
-  createdAt?: number;
-  startedAt?: number;
-  stoppedAt?: number;
-  error?: string;
-};
+/* ─── Param form types ──────────────────────────────────────── */
+type ParamType  = 'number' | 'boolean' | 'string';
+type ParamEntry = { value: string; type: ParamType; };
+type FormParams = Record<string, ParamEntry>;
 
-type JobLogsResponse = {
-  job_id: string;
-  logs: string[];
-};
+function detectType(v: string | number | boolean): ParamType {
+  if (typeof v === 'number') return 'number';
+  if (typeof v === 'boolean') return 'boolean';
+  return 'string';
+}
 
-type JobResultsResponse = {
-  job_id: string;
-  status?: string;
-  download_url?: string;
-  results: Array<{
-    filename: string;
-    content_base64: string;
-  }>;
-};
-
-type ThemeMode = 'dark' | 'light';
+function isEnvironmentFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return name.endsWith('.yaml') || name.endsWith('.yml') || name.endsWith('.txt');
+}
 
 export const App: React.FC = () => {
+  /* Theme */
   const [theme, setTheme] = useState<ThemeMode>(() => {
-    const saved = window.localStorage.getItem('nop-theme');
-    if (saved === 'dark' || saved === 'light') return saved;
+    const s = window.localStorage.getItem('nop-theme');
+    if (s === 'dark' || s === 'light') return s;
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
-  const [baseUrl, setBaseUrl] = useState(
-    'https://n69rb6bzvl.execute-api.eu-west-1.amazonaws.com/dev',
-  );
-  const [apiKey, setApiKey] = useState('');
-  const [paramsJson, setParamsJson] = useState('{\n  "param_09_years": 5\n}');
-  const [fileParamName, setFileParamName] = useState('param_01_input_data_filename');
-  const [executionProfile, setExecutionProfile] = useState<'standard' | 'ec2_200gb'>('standard');
-  const [files, setFiles] = useState<File[]>([]);
-  const [extractInfo, setExtractInfo] = useState<string | null>(null);
+  /* Connection */
+  const [baseUrl, setBaseUrl] = useState('https://n69rb6bzvl.execute-api.eu-west-1.amazonaws.com/dev');
+  const [apiKey,  setApiKey]  = useState('');
 
-  const [runResult, setRunResult] = useState<RunResponse | null>(null);
-  const [runError, setRunError] = useState<string | null>(null);
+  /* Param form */
+  const [formParams,      setFormParams]      = useState<FormParams>({});
+  const [notebookLoaded,  setNotebookLoaded]  = useState(false);
+  const [extractInfo,     setExtractInfo]     = useState<string | null>(null);
+
+  /* Job submission */
+  const [executionProfile, setExecutionProfile] = useState<'standard' | 'ec2_200gb'>('standard');
+  /* FIX #5: files held in a ref as well so the submit button reads the latest value
+     without needing a re-render cycle from the DropZone callback */
+  const [files,        setFiles]        = useState<File[]>([]);
+  const filesRef                        = useRef<File[]>([]);
+  const [runResult,    setRunResult]    = useState<RunResponse | null>(null);
+  const [runError,     setRunError]     = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [jobId, setJobId] = useState('');
-  const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
-  const [statusUpdatedAt, setStatusUpdatedAt] = useState<Date | null>(null);
-  const [jobError, setJobError] = useState<string | null>(null);
-  const [jobInfo, setJobInfo] = useState<string | null>(null);
-  const [isChecking, setIsChecking] = useState(false);
-  const [isFetchingLogs, setIsFetchingLogs] = useState(false);
-  const [isFetchingResults, setIsFetchingResults] = useState(false);
-  const [jobLogs, setJobLogs] = useState<string[]>([]);
-  const [jobResults, setJobResults] = useState<JobResultsResponse['results']>([]);
+  /* Job monitoring */
+  const [jobId,              setJobId]              = useState('');
+  const [jobStatus,          setJobStatus]          = useState<JobStatusResponse | null>(null);
+  const [statusUpdatedAt,    setStatusUpdatedAt]    = useState<Date | null>(null);
+  const [jobError,           setJobError]           = useState<string | null>(null);
+  const [jobInfo,            setJobInfo]            = useState<string | null>(null);
+  const [isChecking,         setIsChecking]         = useState(false);
+  const [isFetchingLogs,     setIsFetchingLogs]     = useState(false);
+  const [isFetchingResults,  setIsFetchingResults]  = useState(false);
+  const [jobLogs,            setJobLogs]            = useState<string[]>([]);
+  const [jobResults,         setJobResults]         = useState<JobResultsResponse['results']>([]);
   const [resultsDownloadUrl, setResultsDownloadUrl] = useState<string | null>(null);
-  const [resultsError, setResultsError] = useState<string | null>(null);
-  const [resultsInfo, setResultsInfo] = useState<string | null>(null);
+  const [resultsError,       setResultsError]       = useState<string | null>(null);
+  const [resultsInfo,        setResultsInfo]        = useState<string | null>(null);
 
-  const pollRef = useRef<number | null>(null);
-  const autoFetchResultsForJobRef = useRef<string | null>(null);
+  const pollRef      = useRef<number | null>(null);
+  const autoFetchRef = useRef<string | null>(null);
 
-  const normalizedBaseUrl = useMemo(() => baseUrl.replace(/\/$/, ''), [baseUrl]);
-  const currentJobStatus = jobStatus?.status || '';
-  const logsReadyStatuses = ['RUNNING', 'SUCCEEDED', 'FAILED'];
-  const canFetchLogsNow = logsReadyStatuses.includes(currentJobStatus);
+  const normalizedBaseUrl  = useMemo(() => baseUrl.replace(/\/$/, ''), [baseUrl]);
+  const currentJobStatus   = jobStatus?.status || '';
+  const logsReadyStatuses  = ['RUNNING', 'SUCCEEDED', 'FAILED'];
+  const canFetchLogsNow    = logsReadyStatuses.includes(currentJobStatus);
   const canFetchResultsNow = currentJobStatus === 'SUCCEEDED';
+  const hasParams          = Object.keys(formParams).length > 0;
 
-  useEffect(() => {
-    return () => { if (pollRef.current) window.clearInterval(pollRef.current); };
-  }, []);
+  /* Derive disabled reason so we can show the user exactly what's missing */
+  const hasNotebook = files.some((f) => f.name.toLowerCase().endsWith('.ipynb'));
+  const hasEnvironmentFile = files.some((f) => isEnvironmentFile(f));
+  const canSubmit   = !isSubmitting && !!apiKey && hasNotebook && hasEnvironmentFile;
+  const submitHint  = !apiKey
+    ? 'Enter your API key above to enable submission.'
+    : !hasNotebook
+    ? 'Drop a .ipynb notebook file to enable submission.'
+    : !hasEnvironmentFile
+    ? 'Drop an environment file (.yaml/.yml/.txt) to enable submission.'
+    : null;
+
+  /* ── lifecycle ──────────────────────────────────────────── */
+  useEffect(() => () => { if (pollRef.current) window.clearInterval(pollRef.current); }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -105,118 +105,178 @@ export const App: React.FC = () => {
     if (!jobId || !apiKey) return;
     if (jobStatus?.status !== 'SUCCEEDED') return;
     if (resultsDownloadUrl || isFetchingResults) return;
-    if (autoFetchResultsForJobRef.current === jobId) return;
-    autoFetchResultsForJobRef.current = jobId;
+    if (autoFetchRef.current === jobId) return;
+    autoFetchRef.current = jobId;
     void handleFetchResults();
   }, [jobId, apiKey, jobStatus?.status, resultsDownloadUrl, isFetchingResults]);
 
+  /* ── utils ──────────────────────────────────────────────── */
   function decodeApiBody<T>(raw: unknown): T {
-    if (typeof raw === 'string') {
-      try { return JSON.parse(raw) as T; }
-      catch { throw new Error(`API returned a non-JSON string body: ${raw}`); }
-    }
+    if (typeof raw === 'string') { try { return JSON.parse(raw) as T; } catch { throw new Error(`Non-JSON: ${raw}`); } }
     return raw as T;
   }
 
   function readFileAsText(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result !== 'string') { reject(new Error('FileReader result is not text.')); return; }
-        resolve(reader.result);
-      };
-      reader.onerror = () => reject(reader.error || new Error('Failed to read file with FileReader.'));
-      reader.readAsText(file);
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload  = () => { if (typeof r.result !== 'string') { rej(new Error('Not text')); return; } res(r.result); };
+      r.onerror = () => rej(r.error || new Error('Read failed'));
+      r.readAsText(file);
     });
   }
 
-  function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => { window.setTimeout(resolve, ms); });
-  }
+  function sleep(ms: number) { return new Promise<void>((r) => window.setTimeout(r, ms)); }
 
-  function parseNotebookParameters(notebookText: string): Record<string, string | number | boolean> {
-    const notebook = JSON.parse(notebookText) as {
+  /* ── notebook param extraction ──────────────────────────── */
+  function parseNotebookParameters(text: string): Record<string, string | number | boolean> {
+    const nb = JSON.parse(text) as {
       cells?: Array<{ cell_type?: string; metadata?: { tags?: string[] }; source?: string[] }>;
     };
-    const parameterCell = notebook.cells?.find(
-      (cell) => cell.cell_type === 'code' && Array.isArray(cell.metadata?.tags) && cell.metadata.tags.includes('parameters'),
+    const fallbackCellRegex = /^\s*((?:param_|conf_)[A-Za-z0-9_]*)\s*(?:<-|=)\s*(.+?)\s*$/;
+    function stripComment(line: string): string {
+      let inString: string | null = null;
+      for (let index = 0; index < line.length; index += 1) {
+        const char = line[index];
+        if (inString) {
+          if (char === inString) inString = null;
+          continue;
+        }
+        if (char === '"' || char === "'") {
+          inString = char;
+          continue;
+        }
+        if (char === '#') {
+          return line.slice(0, index).trimEnd();
+        }
+      }
+      return line;
+    }
+
+    let cell = nb.cells?.find(
+      (c) => c.cell_type === 'code' && Array.isArray(c.metadata?.tags) && c.metadata!.tags!.includes('parameters'),
     );
-    if (!parameterCell?.source?.length) return {};
-    const extracted: Record<string, string | number | boolean> = {};
-    const assignmentRegex = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:<-|=)\s*(.+?)\s*$/;
-    parameterCell.source.forEach((rawLine) => {
-      const line = rawLine.trim();
+    if (!cell) {
+      cell = nb.cells?.find(
+        (c) => c.cell_type === 'code' && c.source?.some((line) => fallbackCellRegex.test(stripComment(line))),
+      );
+    }
+    if (!cell?.source?.length) return {};
+    const out: Record<string, string | number | boolean> = {};
+    const re  = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:<-|=)\s*(.+?)\s*$/;
+    cell.source.forEach((raw) => {
+      const line = stripComment(raw).trim();
       if (!line || line.startsWith('#')) return;
-      const match = line.match(assignmentRegex);
-      if (!match) return;
-      const [, key, valueRaw] = match;
-      let value: string | number | boolean = valueRaw;
-      if (/^[-+]?\d+(?:\.\d+)?$/.test(valueRaw)) value = Number(valueRaw);
-      else if (/^(true|false)$/i.test(valueRaw)) value = valueRaw.toLowerCase() === 'true';
-      else value = valueRaw.replace(/^['"]|['"]$/g, '');
-      extracted[key] = value;
+      const m = line.match(re);
+      if (!m) return;
+      const [, key, vRaw] = m;
+      let v: string | number | boolean = vRaw;
+      if (/^[-+]?\d+(?:\.\d+)?$/.test(vRaw)) {
+        v = Number(vRaw);
+      } else if (/^(true|false)$/i.test(vRaw)) {
+        // unquoted: true / false / True / False
+        v = vRaw.toLowerCase() === 'true';
+      } else {
+        // strip surrounding quotes first, then re-check for boolean
+        const stripped = vRaw.replace(/^['"]|['"]$/g, '');
+        if (/^(true|false)$/i.test(stripped)) {
+          v = stripped.toLowerCase() === 'true';
+        } else {
+          v = stripped;
+        }
+      }
+      out[key] = v;
     });
-    return extracted;
+    return out;
   }
 
-  async function extractParametersFromNotebook(notebookFile: File): Promise<void> {
+  async function extractParametersFromNotebook(file: File): Promise<void> {
     try {
-      const text = await readFileAsText(notebookFile);
+      const text      = await readFileAsText(file);
       const extracted = parseNotebookParameters(text);
+      setNotebookLoaded(true);
       if (Object.keys(extracted).length === 0) {
-        setExtractInfo('Notebook loaded, but no tagged parameters cell was found.');
+        setFormParams({});
+        setExtractInfo('Notebook loaded — no tagged parameters cell found.');
         return;
       }
-      setParamsJson(JSON.stringify(extracted, null, 2));
-      setExtractInfo('Parameters extracted from notebook and prefilled.');
-    } catch (error) {
-      setExtractInfo(`Failed to parse notebook: ${(error as Error).message}`);
+      const fp: FormParams = {};
+      Object.entries(extracted).forEach(([k, v]) => { fp[k] = { value: String(v), type: detectType(v) }; });
+      setFormParams(fp);
+      setExtractInfo(`${Object.keys(fp).length} parameter${Object.keys(fp).length !== 1 ? 's' : ''} extracted from notebook.`);
+    } catch (err) {
+      setNotebookLoaded(true);
+      setFormParams({});
+      setExtractInfo(`Could not parse notebook: ${(err as Error).message}`);
     }
   }
 
-  async function handleFilesChange(newFiles: File[]): Promise<void> {
+  /* FIX #5: useCallback so DropZone's useEffect([files, onFilesChange])
+     does NOT re-fire every time App re-renders, which would reset files state */
+  const handleFilesChange = useCallback(async (newFiles: File[]): Promise<void> => {
+    /* Keep ref in sync for immediate reads (e.g. submit button) */
+    filesRef.current = newFiles;
     setFiles(newFiles);
-    const notebookFile = newFiles.find((f) => f.name.toLowerCase().endsWith('.ipynb'));
-    if (notebookFile) await extractParametersFromNotebook(notebookFile);
-    else setExtractInfo(null);
+    const nb = newFiles.find((f) => f.name.toLowerCase().endsWith('.ipynb'));
+    if (nb) {
+      await extractParametersFromNotebook(nb);
+    } else {
+      setNotebookLoaded(false);
+      setFormParams({});
+      setExtractInfo(null);
+    }
+  /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, []); // intentionally empty — extractParametersFromNotebook uses no captured state
+
+  /* FIX #4: update a single param value (user edits an auto-filled field) */
+  function updateParam(key: string, value: string) {
+    setFormParams((prev) => ({ ...prev, [key]: { ...prev[key], value } }));
   }
 
+  /* ── submit ─────────────────────────────────────────────── */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    /* Read from ref to get latest file list regardless of render cycle */
+    const currentFiles = filesRef.current;
+
     setRunError(null); setRunResult(null); setJobError(null); setJobInfo(null);
     setJobStatus(null); setJobLogs([]); setJobResults([]);
     setResultsDownloadUrl(null); setResultsError(null); setResultsInfo(null);
-    autoFetchResultsForJobRef.current = null;
+    autoFetchRef.current = null;
     setIsSubmitting(true);
 
-    let parsedParams: Record<string, unknown> = {};
-    if (paramsJson.trim()) {
-      try { parsedParams = JSON.parse(paramsJson); }
-      catch { setRunError('Parameters JSON is invalid.'); setIsSubmitting(false); return; }
-    }
-
     try {
-      const url = `${normalizedBaseUrl}/batch/jobs`;
+      const nb = currentFiles.find((f) => f.name.toLowerCase().endsWith('.ipynb'));
+      if (!nb) { setRunError('You must include one .ipynb notebook file.'); return; }
+
+      const envFile = currentFiles.find((f) => isEnvironmentFile(f));
+      if (!envFile) { setRunError('You must include an environment file (.yaml, .yml, or .txt).'); return; }
+
       const formData = new FormData();
-      const notebookFile = files.find((f) => f.name.toLowerCase().endsWith('.ipynb'));
-      if (!notebookFile) { setRunError('You must include one .ipynb notebook file.'); setIsSubmitting(false); return; }
-      formData.append('notebook', notebookFile, notebookFile.name);
-      Object.entries(parsedParams).forEach(([key, value]) => { if (key.trim()) formData.append(key, String(value)); });
+      formData.append('notebook', nb, nb.name);
+      formData.append('environment', envFile, envFile.name);
+
+      /* FIX #4: use current formParams values (whatever the user has edited) */
+      Object.entries(formParams).forEach(([key, entry]) => {
+        if (key.trim()) formData.append(key, entry.value);
+      });
+
       formData.append('execution_profile', executionProfile);
-      const nonNotebookFiles = files.filter((f) => !f.name.toLowerCase().endsWith('.ipynb'));
-      if (nonNotebookFiles.length > 0) {
-        const baseName = fileParamName.trim() || 'param_01_input_data_filename';
-        nonNotebookFiles.forEach((f, i) => {
-          formData.append(i === 0 ? baseName : `upload_${String(i).padStart(2, '0')}`, f);
+
+      /* Append extra data files (exclude notebook and chosen environment file) */
+      let uploadIndex = 0;
+      currentFiles
+        .filter((f) => !f.name.toLowerCase().endsWith('.ipynb') && f !== envFile)
+        .forEach((file) => {
+          formData.append(uploadIndex === 0 ? 'upload_data' : `upload_${String(uploadIndex).padStart(2, '0')}`, file);
+          uploadIndex += 1;
         });
-        if (!(baseName in parsedParams)) formData.append(baseName, nonNotebookFiles[0].name);
-      }
-      const res = await fetch(url, { method: 'POST', headers: { 'x-api-key': apiKey }, body: formData });
-      if (!res.ok) { const text = await res.text(); setRunError(`Request failed (${res.status}): ${text}`); return; }
+
+      const res = await fetch(`${normalizedBaseUrl}/batch/jobs`, {
+        method: 'POST', headers: { 'x-api-key': apiKey }, body: formData,
+      });
+      if (!res.ok) { const t = await res.text(); setRunError(`Request failed (${res.status}): ${t}`); return; }
       const data = decodeApiBody<RunResponse>((await res.json()) as unknown);
-      setRunResult(data);
-      setJobId(data.job_id);
-      startPolling(data.job_id);
+      setRunResult(data); setJobId(data.job_id); startPolling(data.job_id);
     } catch (err) {
       setRunError((err as Error).message);
     } finally {
@@ -224,22 +284,16 @@ export const App: React.FC = () => {
     }
   }
 
-  async function fetchStatus(targetJobId: string, options?: { suppressError?: boolean }): Promise<JobStatusResponse | null> {
-    const suppress = options?.suppressError ?? false;
-    if (!suppress) setJobError(null);
+  /* ── status / logs / results ────────────────────────────── */
+  async function fetchStatus(id: string, opts?: { suppressError?: boolean }): Promise<JobStatusResponse | null> {
+    const sup = opts?.suppressError ?? false;
+    if (!sup) setJobError(null);
     try {
-      const res = await fetch(`${normalizedBaseUrl}/batch/jobs/${targetJobId}`, { headers: { 'x-api-key': apiKey } });
-      if (!res.ok) {
-        const text = await res.text();
-        if (!suppress) setJobError(`Request failed (${res.status}): ${text}`);
-        return null;
-      }
+      const res = await fetch(`${normalizedBaseUrl}/batch/jobs/${id}`, { headers: { 'x-api-key': apiKey } });
+      if (!res.ok) { const t = await res.text(); if (!sup) setJobError(`Request failed (${res.status}): ${t}`); return null; }
       const data = decodeApiBody<JobStatusResponse>((await res.json()) as unknown);
       setJobStatus(data); setStatusUpdatedAt(new Date()); return data;
-    } catch (err) {
-      if (!suppress) setJobError((err as Error).message);
-      return null;
-    }
+    } catch (err) { if (!sup) setJobError((err as Error).message); return null; }
   }
 
   async function handleCheckStatus(e: React.FormEvent) {
@@ -247,11 +301,11 @@ export const App: React.FC = () => {
     try { await fetchStatus(jobId); } finally { setIsChecking(false); }
   }
 
-  function startPolling(targetJobId: string): void {
+  function startPolling(id: string) {
     if (pollRef.current) window.clearInterval(pollRef.current);
     pollRef.current = window.setInterval(async () => {
-      const status = await fetchStatus(targetJobId);
-      if (status && ['SUCCEEDED', 'FAILED'].includes(status.status)) {
+      const s = await fetchStatus(id);
+      if (s && ['SUCCEEDED', 'FAILED'].includes(s.status)) {
         if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; }
       }
     }, 10000);
@@ -260,110 +314,134 @@ export const App: React.FC = () => {
   async function handleFetchLogs() {
     if (!jobId.trim()) return;
     setIsFetchingLogs(true); setJobError(null); setJobInfo(null);
+    /* Clear results panel so view switches cleanly to logs */
+    setResultsInfo(null); setResultsError(null); setJobResults([]); setResultsDownloadUrl(null);
     try {
-      const status = (await fetchStatus(jobId, { suppressError: true })) || jobStatus;
-      if (!logsReadyStatuses.includes(status?.status || '')) {
-        setJobLogs([]); setJobInfo('Job is still being submitted/started. Logs are available once status is RUNNING.'); return;
-      }
+      const s = (await fetchStatus(jobId, { suppressError: true })) || jobStatus;
+      if (!logsReadyStatuses.includes(s?.status || '')) { setJobLogs([]); setJobInfo('Logs available once status is RUNNING.'); return; }
       const res = await fetch(`${normalizedBaseUrl}/batch/jobs/${jobId}/logs`, { headers: { 'x-api-key': apiKey } });
       if (!res.ok) {
-        const text = await res.text();
-        if (res.status === 500 && /log stream does not exist/i.test(text)) {
-          setJobInfo('Job is running but log stream is not ready yet. Please try again in a few moments.'); return;
-        }
-        setJobError(`Logs request failed (${res.status}): ${text}`); return;
+        const t = await res.text();
+        if (res.status === 500 && /log stream does not exist/i.test(t)) { setJobInfo('Log stream not ready yet. Try again shortly.'); return; }
+        setJobError(`Logs request failed (${res.status}): ${t}`); return;
       }
       const data = decodeApiBody<JobLogsResponse>((await res.json()) as unknown);
       setJobLogs(data.logs || []);
-    } catch (error) { setJobError((error as Error).message); }
+    } catch (err) { setJobError((err as Error).message); }
     finally { setIsFetchingLogs(false); }
   }
 
   async function handleFetchResults() {
     if (!jobId.trim()) return;
     setIsFetchingResults(true); setResultsError(null); setResultsInfo(null); setResultsDownloadUrl(null);
+    /* Clear logs panel so view switches cleanly to results */
+    setJobInfo(null); setJobLogs([]);
     try {
-      const status = (await fetchStatus(jobId, { suppressError: true })) || jobStatus;
-      if (status?.status !== 'SUCCEEDED') {
-        setJobResults([]); setResultsDownloadUrl(null);
-        setResultsInfo('Job has not succeeded yet. Results URL becomes available only after SUCCEEDED status.'); return;
-      }
-      const maxAttempts = 8; const retryDelayMs = 2500;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const s = (await fetchStatus(jobId, { suppressError: true })) || jobStatus;
+      if (s?.status !== 'SUCCEEDED') { setJobResults([]); setResultsInfo('Results available only after SUCCEEDED status.'); return; }
+      for (let attempt = 1; attempt <= 8; attempt++) {
         const res = await fetch(`${normalizedBaseUrl}/batch/jobs/${jobId}/results`, { headers: { 'x-api-key': apiKey } });
         if (!res.ok) {
-          const text = await res.text();
-          if (res.status === 404 && attempt < maxAttempts) { setResultsInfo(`Preparing ZIP... (${attempt}/${maxAttempts})`); await sleep(retryDelayMs); continue; }
+          const t = await res.text();
+          if (res.status === 404 && attempt < 8) { setResultsInfo(`Preparing ZIP... (${attempt}/8)`); await sleep(2500); continue; }
           if (res.status === 404) { setResultsInfo('Results still being packaged. Try again shortly.'); return; }
-          setResultsError(`Results request failed (${res.status}): ${text}`); return;
+          setResultsError(`Results failed (${res.status}): ${t}`); return;
         }
         const data = decodeApiBody<JobResultsResponse>((await res.json()) as unknown);
         if (data.download_url) { setJobResults([]); setResultsDownloadUrl(data.download_url); setResultsInfo('Results ZIP ready.'); return; }
         if (Array.isArray(data.results) && data.results.length > 0) { setResultsDownloadUrl(null); setJobResults(data.results); return; }
-        if (attempt < maxAttempts) { setResultsInfo(`Waiting for results... (${attempt}/${maxAttempts})`); await sleep(retryDelayMs); continue; }
+        if (attempt < 8) { setResultsInfo(`Waiting for results... (${attempt}/8)`); await sleep(2500); continue; }
         setResultsInfo('Results URL not ready yet. Please try again shortly.');
       }
-    } catch (error) { setResultsError((error as Error).message); }
+    } catch (err) { setResultsError((err as Error).message); }
     finally { setIsFetchingResults(false); }
   }
 
-  function downloadResultFile(filename: string, contentBase64: string): void {
-    const bytes = window.atob(contentBase64);
-    const array = new Uint8Array(bytes.length);
-    for (let i = 0; i < bytes.length; i++) array[i] = bytes.charCodeAt(i);
-    const blobUrl = URL.createObjectURL(new Blob([array]));
-    const a = document.createElement('a');
-    a.href = blobUrl; a.download = filename;
+  function downloadResultFile(filename: string, b64: string) {
+    const bytes = window.atob(b64);
+    const arr   = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([arr]));
+    const a   = document.createElement('a');
+    a.href = url; a.download = filename;
     document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(blobUrl);
+    document.body.removeChild(a); URL.revokeObjectURL(url);
   }
 
-  function toggleTheme(): void { setTheme((p) => (p === 'dark' ? 'light' : 'dark')); }
+  function toggleTheme() { setTheme((p) => (p === 'dark' ? 'light' : 'dark')); }
 
-  function getStatusClass(status: string): string {
-    if (status === 'SUCCEEDED') return 'status-succeeded';
-    if (status === 'FAILED') return 'status-failed';
-    if (status === 'RUNNING') return 'status-running';
+  function getStatusClass(s: string) {
+    if (s === 'SUCCEEDED') return 'status-succeeded';
+    if (s === 'FAILED')    return 'status-failed';
+    if (s === 'RUNNING')   return 'status-running';
     return 'status-other';
   }
 
+  /* ── param field renderer ───────────────────────────────── */
+  /* FIX #4: fields are fully controlled — onChange calls updateParam */
+  function renderParamField(key: string, entry: ParamEntry) {
+    return (
+      <div key={key} className="form-group" style={{ marginBottom: 0 }}>
+        {/* title shows full name on hover when label is truncated */}
+        <label className="param-field-label" htmlFor={`param-${key}`} title={key}>
+          <span className="param-field-key">{key}</span>
+          <span className={`param-type-tag param-type-${entry.type}`}>{entry.type}</span>
+        </label>
+
+        {entry.type === 'boolean' ? (
+          <select
+            id={`param-${key}`}
+            className="form-control-styled"
+            value={entry.value}
+            onChange={(e) => updateParam(key, e.target.value)}
+          >
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        ) : (
+          <input
+            id={`param-${key}`}
+            type={entry.type === 'number' ? 'number' : 'text'}
+            className="form-control-styled"
+            value={entry.value}
+            onChange={(e) => updateParam(key, e.target.value)}
+            step={entry.type === 'number' ? 'any' : undefined}
+          />
+        )}
+      </div>
+    );
+  }
+
+  /* ── render ─────────────────────────────────────────────── */
   return (
     <div className="app-root">
 
-      {/* ── Background ── */}
+      {/* Background */}
       <div className="app-bg" aria-hidden="true">
         <div className="app-bg-grid" />
         <div className="app-bg-lines" />
-        {/* Static corner glows — GoQuant gradient feel */}
         <div className="app-bg-corner-tl" />
         <div className="app-bg-corner-br" />
-        {/* Bouncing light orb — bloom layer + bright core */}
         <div className="app-bg-bulb" />
         <div className="app-bg-bulb-core" />
       </div>
 
-      {/* ── Navbar ── */}
+      {/* Navbar */}
       <nav className="app-navbar">
         <div className="navbar-inner">
           <div className="navbar-brand-area">
             <div className="navbar-logo-dot" aria-hidden="true" />
-            <span className="navbar-brand">
-              Notebook<span>Ops</span>
-            </span>
+            <span className="navbar-brand">Notebook<span>Ops</span></span>
           </div>
-          <button
-            type="button"
-            className="theme-toggle-btn"
-            onClick={toggleTheme}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          >
+          <button type="button" className="theme-toggle-btn" onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
             {theme === 'dark' ? <BsSun size={13} /> : <BsMoon size={13} />}
             {theme === 'dark' ? 'Light' : 'Dark'}
           </button>
         </div>
       </nav>
 
-      {/* ── Page ── */}
+      {/* Page */}
       <div className="page-container">
 
         {/* API Connection */}
@@ -391,10 +469,10 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Two columns */}
+        {/* Two columns — FIX #1: align-items: start prevents forced equal heights */}
         <div className="row-grid row-grid-2">
 
-          {/* Submit Job */}
+          {/* ── Submit Job ── */}
           <div className="glass-card">
             <div className="card-inner">
               <div className="card-head">
@@ -404,45 +482,80 @@ export const App: React.FC = () => {
               <div className="card-body-inner">
                 <form onSubmit={handleSubmit}>
 
+                  {/* Drop zone */}
                   <div className="form-group">
-                    <label className="form-label-styled" htmlFor="params-json">
-                      Parameters JSON
-                      <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--ink-muted)', fontSize: '0.72rem', marginLeft: '0.4rem' }}>
-                        (sent as multipart fields)
-                      </span>
-                    </label>
-                    <textarea id="params-json" className="form-control-styled" value={paramsJson} onChange={(e) => setParamsJson(e.target.value)} rows={5} />
+                    <DropZone
+                      label="Upload Files"
+                      onFilesChange={handleFilesChange}
+                    />
+                    <p className="submit-hint">
+                      <FiInfo size={15} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                      One .ipynb notebook & one environment file (.yaml/.yml/.txt) are needed. Data files (.xlsx/.xls) are optional.
+                    </p>
                     {extractInfo && (
-                      <p className="extract-info">
-                        <FiInfo size={11} />
-                        {extractInfo}
+                      <p className="extract-info" style={{ marginTop: '0.55rem' }}>
+                        <FiInfo size={11} />{extractInfo}
                       </p>
                     )}
                   </div>
 
+                  {/* Parameters */}
                   <div className="form-group">
-                    <label className="form-label-styled" htmlFor="file-param-name">File parameter name</label>
-                    <input id="file-param-name" type="text" className="form-control-styled" value={fileParamName} onChange={(e) => setFileParamName(e.target.value)} placeholder="param_01_input_data_filename" />
-                    <p className="form-hint">First uploaded data file is also mapped to this parameter value if missing in JSON.</p>
+                    <label className="form-label-styled">Parameters</label>
+
+                    {/* FIX #2: info row instead of dashed dropzone box */}
+                    {!notebookLoaded ? (
+                      <div className="param-pending">
+                        <FiInfo size={14} />
+                        <span>Drop a notebook above, parameters will be auto-extracted and shown here as editable fields.</span>
+                      </div>
+                    ) : !hasParams ? (
+                      <div className="param-no-params">
+                        <FiInfo size={14} />
+                        <span>No tagged parameters cell found in this notebook.</span>
+                      </div>
+                    ) : (
+                      /* FIX #4: fully controlled inputs — changes go to formParams state */
+                      <div className="param-form-grid">
+                        {Object.entries(formParams).map(([key, entry]) => renderParamField(key, entry))}
+                      </div>
+                    )}
                   </div>
 
+                  {/* Execution profile — FIX #3: option colours set via CSS */}
                   <div className="form-group">
                     <label className="form-label-styled" htmlFor="execution-profile">Execution Profile</label>
-                    <select id="execution-profile" className="form-control-styled" value={executionProfile} onChange={(e) => setExecutionProfile(e.target.value as 'standard' | 'ec2_200gb')}>
+                    <select
+                      id="execution-profile"
+                      className="form-control-styled"
+                      value={executionProfile}
+                      onChange={(e) => setExecutionProfile(e.target.value as 'standard' | 'ec2_200gb')}
+                    >
                       <option value="standard">Standard</option>
-                      <option value="ec2_200gb">Large EC2 (200GB)</option>
+                      <option value="ec2_200gb">Large EC2 (200 GB)</option>
                     </select>
-                    <p className="form-hint">Use <code>ec2_200gb</code> for high storage workloads.</p>
+                    <p className="form-hint">Use <code>ec2_200gb</code> for high-storage workloads.</p>
                   </div>
 
-                  <DropZone label="Drop one .ipynb notebook and optional data files (.xlsx / .xls)" onFilesChange={handleFilesChange} />
-
+                  {/* FIX #5: button enabled as soon as notebook + apiKey present */}
                   <div className="btn-row">
-                    <button type="submit" className="btn-neon btn-primary-neon" disabled={isSubmitting || !apiKey || files.length === 0}>
+                    <button
+                      type="submit"
+                      className="btn-neon btn-primary-neon"
+                      disabled={!canSubmit}
+                    >
                       <FiPlay size={13} />
                       {isSubmitting ? 'Submitting…' : 'Submit Job'}
                     </button>
                   </div>
+
+                  {/* Show the user exactly why the button is disabled */}
+                  {submitHint && (
+                    <p className="submit-hint">
+                      <FiInfo size={12} />
+                      {submitHint}
+                    </p>
+                  )}
 
                   {runError && (
                     <div className="alert-neon alert-danger-neon">
@@ -464,7 +577,7 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Job Status */}
+          {/* ── Job Status ── */}
           <div className="glass-card">
             <div className="card-inner">
               <div className="card-head">
@@ -476,21 +589,28 @@ export const App: React.FC = () => {
 
                   <div className="form-group">
                     <label className="form-label-styled" htmlFor="job-id">Job ID (UUID)</label>
-                    <input id="job-id" type="text" className="form-control-styled" value={jobId} onChange={(e) => setJobId(e.target.value)} placeholder="Paste Job ID from the left panel" required />
-                    {runResult && <p className="form-hint">Auto-filled from submission: <code>{runResult.job_id.substring(0, 8)}…</code></p>}
+                    <input
+                      id="job-id"
+                      type="text"
+                      className="form-control-styled"
+                      value={jobId}
+                      onChange={(e) => setJobId(e.target.value)}
+                      placeholder="Paste Job ID from the left panel"
+                      required
+                    />
+                    {runResult && (
+                      <p className="form-hint">Auto-filled from submission: <code>{runResult.job_id.substring(0, 8)}…</code></p>
+                    )}
                   </div>
 
                   <div className="btn-row">
                     <button type="submit" className="btn-neon btn-secondary-neon" disabled={isChecking || !apiKey || !jobId}>
-                      <FiSearch size={13} />
-                      {isChecking ? 'Checking…' : 'Check Status'}
+                      <FiSearch size={13} />{isChecking ? 'Checking…' : 'Check Status'}
                     </button>
-
                     <button type="button" className="btn-neon btn-ghost-neon" onClick={handleFetchLogs} disabled={isFetchingLogs || !apiKey || !jobId}>
                       <FiFileText size={13} />
                       {isFetchingLogs ? 'Loading…' : !canFetchLogsNow && !!jobId ? 'Wait for RUNNING' : 'Fetch Logs'}
                     </button>
-
                     <button type="button" className="btn-neon btn-ghost-neon" onClick={handleFetchResults} disabled={isFetchingResults || !apiKey || !jobId}>
                       <FiPackage size={13} />
                       {isFetchingResults ? 'Waiting for ZIP…' : !canFetchResultsNow && !!jobId ? 'Wait for SUCCEEDED' : 'Fetch Results'}
@@ -503,10 +623,12 @@ export const App: React.FC = () => {
                       {jobError}
                     </div>
                   )}
-                  {jobInfo && (
+
+                  {/* Fix 1: single info area — shows jobInfo OR resultsInfo, whichever is active */}
+                  {(jobInfo || resultsInfo) && (
                     <div className="alert-neon alert-info-neon" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
                       <FiInfo size={13} style={{ flexShrink: 0, marginTop: 2 }} />
-                      <span>{jobInfo}</span>
+                      <span>{resultsInfo || jobInfo}</span>
                     </div>
                   )}
 
@@ -529,13 +651,11 @@ export const App: React.FC = () => {
                       )}
 
                       {resultsError && <div className="alert-neon alert-warning-neon">{resultsError}</div>}
-                      {resultsInfo && <div className="alert-neon alert-info-neon">{resultsInfo}</div>}
 
                       {resultsDownloadUrl && (
                         <div style={{ marginTop: '1rem' }}>
                           <a className="btn-neon btn-success-neon" href={resultsDownloadUrl} target="_blank" rel="noreferrer">
-                            <FiDownload size={13} />
-                            Download Results ZIP
+                            <FiDownload size={13} />Download Results ZIP
                           </a>
                         </div>
                       )}
@@ -544,10 +664,11 @@ export const App: React.FC = () => {
                         <div style={{ marginTop: '1rem' }}>
                           <p style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-muted)', marginBottom: '0.6rem' }}>Result Files</p>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {jobResults.map((result) => (
-                              <button key={result.filename} type="button" className="btn-neon btn-success-neon" style={{ justifyContent: 'flex-start' }} onClick={() => downloadResultFile(result.filename, result.content_base64)}>
-                                <FiDownload size={13} />
-                                {result.filename}
+                            {jobResults.map((r) => (
+                              <button key={r.filename} type="button" className="btn-neon btn-success-neon"
+                                style={{ justifyContent: 'flex-start' }}
+                                onClick={() => downloadResultFile(r.filename, r.content_base64)}>
+                                <FiDownload size={13} />{r.filename}
                               </button>
                             ))}
                           </div>
