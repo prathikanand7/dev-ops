@@ -27,8 +27,8 @@ crash.log
 crash.*.log
 
 # Exclude all .tfvars files
-*.tfvars
-*.tfvars.json
+secrets.tfvars
+secrets.tfvars.json
 /terraform-bootstrap/**/*.tfvars
 /terraform-bootstrap/**/*.tfvars.json
 
