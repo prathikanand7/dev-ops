@@ -155,7 +155,7 @@ export const App: React.FC = () => {
     });
   }
 
-  function parseNotebookParameters(notebookText: string): Record<string, string | number | boolean> {
+    function parseNotebookParameters(notebookText: string): Record<string, string | number | boolean> {
       const notebook = JSON.parse(notebookText) as {
         cells?: Array<{
           cell_type?: string;
@@ -167,6 +167,20 @@ export const App: React.FC = () => {
       if (!notebook.cells) return {};
 
       const assignmentRegex = /^\s*((?:param_|conf_)[A-Za-z0-9_]*)\s*(?:<-|=)\s*(.+?)\s*$/;
+      function stripComment(line: string): string {
+        let inString: string | null = null;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (inString) {
+            if (ch === inString) inString = null;
+          } else if (ch === '"' || ch === "'") {
+            inString = ch;
+          } else if (ch === '#') {
+            return line.slice(0, i).trimEnd();
+          }
+        }
+        return line;
+      }
 
       let parameterCell = notebook.cells.find(
         (cell) => cell.cell_type === 'code' && Array.isArray(cell.metadata?.tags) && cell.metadata.tags.includes('parameters')
@@ -174,7 +188,7 @@ export const App: React.FC = () => {
 
       if (!parameterCell) {
         parameterCell = notebook.cells.find(
-          (cell) => cell.cell_type === 'code' && cell.source?.some(line => assignmentRegex.test(line))
+          (cell) => cell.cell_type === 'code' && cell.source?.some(line => assignmentRegex.test(stripComment(line)))
         );
       }
 
@@ -185,7 +199,7 @@ export const App: React.FC = () => {
       const extracted: Record<string, string | number | boolean> = {};
 
       parameterCell.source.forEach((rawLine) => {
-        const line = rawLine.trim();
+        const line = stripComment(rawLine).trim();
 
         if (!line || line.startsWith('#')) {
           return;
@@ -213,7 +227,7 @@ export const App: React.FC = () => {
       });
 
       return extracted;
-  }
+    }
 
   const extractParametersFromNotebook = useCallback(async (notebookFile: File) => {
     try {
