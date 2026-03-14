@@ -3,6 +3,7 @@ import { BsMoon, BsSun } from 'react-icons/bs';
 import {
   FiZap, FiRadio, FiLink, FiPlay, FiSearch, FiFileText,
   FiPackage, FiDownload, FiAlertCircle, FiInfo, FiCheckCircle,
+  FiClock, FiChevronDown, FiChevronRight, FiRefreshCw, FiExternalLink,
 } from 'react-icons/fi';
 import { DropZone } from './components/DropZone';
 
@@ -12,11 +13,30 @@ type JobStatusResponse = { job_id: string; job_name?: string; status: string; cr
 type JobLogsResponse   = { job_id: string; logs: string[]; };
 type JobResultsResponse = { job_id: string; status?: string; download_url?: string; results: Array<{ filename: string; content_base64: string; }>; };
 type ThemeMode         = 'dark' | 'light';
+type AppPage           = 'submission' | 'history';
 
 /* ─── Param form types ──────────────────────────────────────── */
 type ParamType  = 'number' | 'boolean' | 'string';
 type ParamEntry = { value: string; type: ParamType; };
 type FormParams = Record<string, ParamEntry>;
+
+type JobHistoryItem = {
+  jobId: string;
+  submittedAt: string;
+  notebookName: string;
+  environmentName: string;
+  executionProfile: string;
+  params: Record<string, string>;
+  status: string;
+  logs: string;
+  artifactUrl: string | null;
+  s3Uri: string | null;
+  info: string | null;
+  error: string | null;
+  lastCheckedAt: string | null;
+};
+
+const JOB_HISTORY_KEY = 'nop-job-history';
 
 function detectType(v: string | number | boolean): ParamType {
   if (typeof v === 'number') return 'number';
@@ -29,7 +49,40 @@ function isEnvironmentFile(file: File): boolean {
   return name.endsWith('.yaml') || name.endsWith('.yml') || name.endsWith('.txt');
 }
 
+function safeLoadJobHistory(): JobHistoryItem[] {
+  try {
+    const raw = window.localStorage.getItem(JOB_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as JobHistoryItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function deriveS3Uri(downloadUrl: string): string | null {
+  try {
+    const parsed = new URL(downloadUrl);
+    const host = parsed.hostname;
+    const path = decodeURIComponent(parsed.pathname).replace(/^\/+/, '');
+    if (!path) return null;
+
+    const hostParts = host.split('.');
+    if (hostParts.length > 0 && hostParts[0] && hostParts[0] !== 's3') {
+      return `s3://${hostParts[0]}/${path}`;
+    }
+
+    const [bucket, ...rest] = path.split('/');
+    if (!bucket || rest.length === 0) return null;
+    return `s3://${bucket}/${rest.join('/')}`;
+  } catch {
+    return null;
+  }
+}
+
 export const App: React.FC = () => {
+  const [activePage, setActivePage] = useState<AppPage>('submission');
+
   /* Theme */
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const s = window.localStorage.getItem('nop-theme');
@@ -71,6 +124,12 @@ export const App: React.FC = () => {
   const [resultsError,       setResultsError]       = useState<string | null>(null);
   const [resultsInfo,        setResultsInfo]        = useState<string | null>(null);
 
+  /* Job history */
+  const [jobHistory, setJobHistory] = useState<JobHistoryItem[]>(() => safeLoadJobHistory());
+  const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({});
+  const [historyLoadingIds, setHistoryLoadingIds] = useState<Record<string, boolean>>({});
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
   const pollRef      = useRef<number | null>(null);
   const autoFetchRef = useRef<string | null>(null);
 
@@ -102,6 +161,10 @@ export const App: React.FC = () => {
   }, [theme]);
 
   useEffect(() => {
+    window.localStorage.setItem(JOB_HISTORY_KEY, JSON.stringify(jobHistory.slice(0, 200)));
+  }, [jobHistory]);
+
+  useEffect(() => {
     if (!jobId || !apiKey) return;
     if (jobStatus?.status !== 'SUCCEEDED') return;
     if (resultsDownloadUrl || isFetchingResults) return;
@@ -126,6 +189,89 @@ export const App: React.FC = () => {
   }
 
   function sleep(ms: number) { return new Promise<void>((r) => window.setTimeout(r, ms)); }
+
+  function upsertHistoryItem(item: JobHistoryItem) {
+    setJobHistory((prev) => [item, ...prev.filter((h) => h.jobId !== item.jobId)].slice(0, 200));
+  }
+
+  function patchHistoryItem(jobIdToPatch: string, patch: Partial<JobHistoryItem>) {
+    setJobHistory((prev) => prev.map((h) => (
+      h.jobId === jobIdToPatch ? { ...h, ...patch } : h
+    )));
+  }
+
+  async function refreshHistoryItem(targetJobId: string, includeLogs: boolean): Promise<void> {
+    if (!targetJobId.trim()) return;
+    setHistoryError(null);
+    setHistoryLoadingIds((prev) => ({ ...prev, [targetJobId]: true }));
+
+    try {
+      const statusRes = await fetch(`${normalizedBaseUrl}/batch/jobs/${targetJobId}`, {
+        headers: { 'x-api-key': apiKey },
+      });
+      if (!statusRes.ok) {
+        const t = await statusRes.text();
+        patchHistoryItem(targetJobId, { error: `Status failed (${statusRes.status}): ${t}` });
+        return;
+      }
+      const statusData = decodeApiBody<JobStatusResponse>((await statusRes.json()) as unknown);
+      const patch: Partial<JobHistoryItem> = {
+        status: statusData.status,
+        error: null,
+        info: null,
+        lastCheckedAt: new Date().toISOString(),
+      };
+
+      if (includeLogs) {
+        if (!logsReadyStatuses.includes(statusData.status)) {
+          patch.logs = 'Logs available once status is RUNNING.';
+        } else {
+          const logsRes = await fetch(`${normalizedBaseUrl}/batch/jobs/${targetJobId}/logs`, {
+            headers: { 'x-api-key': apiKey },
+          });
+          if (logsRes.ok) {
+            const logsData = decodeApiBody<JobLogsResponse>((await logsRes.json()) as unknown);
+            patch.logs = (logsData.logs || []).join('\n');
+          } else {
+            const t = await logsRes.text();
+            patch.error = `Logs failed (${logsRes.status}): ${t}`;
+          }
+        }
+      }
+
+      if (statusData.status === 'SUCCEEDED') {
+        const resultsRes = await fetch(`${normalizedBaseUrl}/batch/jobs/${targetJobId}/results`, {
+          headers: { 'x-api-key': apiKey },
+        });
+        if (resultsRes.ok) {
+          const resultsData = decodeApiBody<JobResultsResponse>((await resultsRes.json()) as unknown);
+          if (resultsData.download_url) {
+            patch.artifactUrl = resultsData.download_url;
+            patch.s3Uri = deriveS3Uri(resultsData.download_url);
+          }
+        }
+      }
+
+      patchHistoryItem(targetJobId, patch);
+    } catch (err) {
+      setHistoryError((err as Error).message);
+    } finally {
+      setHistoryLoadingIds((prev) => {
+        const next = { ...prev };
+        delete next[targetJobId];
+        return next;
+      });
+    }
+  }
+
+  async function refreshAllHistoryItems(): Promise<void> {
+    if (!apiKey || jobHistory.length === 0) return;
+    for (const item of jobHistory) {
+      // Sequential refresh is gentler on API Gateway and CloudWatch APIs.
+      // eslint-disable-next-line no-await-in-loop
+      await refreshHistoryItem(item.jobId, false);
+    }
+  }
 
   /* ── notebook param extraction ──────────────────────────── */
   function parseNotebookParameters(text: string): Record<string, string | number | boolean> {
@@ -276,6 +422,26 @@ export const App: React.FC = () => {
       });
       if (!res.ok) { const t = await res.text(); setRunError(`Request failed (${res.status}): ${t}`); return; }
       const data = decodeApiBody<RunResponse>((await res.json()) as unknown);
+      const envName = envFile.name;
+      const paramsSnapshot: Record<string, string> = {};
+      Object.entries(formParams).forEach(([k, v]) => { paramsSnapshot[k] = v.value; });
+
+      upsertHistoryItem({
+        jobId: data.job_id,
+        submittedAt: new Date().toISOString(),
+        notebookName: nb.name,
+        environmentName: envName,
+        executionProfile,
+        params: paramsSnapshot,
+        status: 'SUBMITTED',
+        logs: '',
+        artifactUrl: null,
+        s3Uri: null,
+        info: null,
+        error: null,
+        lastCheckedAt: null,
+      });
+
       setRunResult(data); setJobId(data.job_id); startPolling(data.job_id);
     } catch (err) {
       setRunError((err as Error).message);
@@ -292,7 +458,9 @@ export const App: React.FC = () => {
       const res = await fetch(`${normalizedBaseUrl}/batch/jobs/${id}`, { headers: { 'x-api-key': apiKey } });
       if (!res.ok) { const t = await res.text(); if (!sup) setJobError(`Request failed (${res.status}): ${t}`); return null; }
       const data = decodeApiBody<JobStatusResponse>((await res.json()) as unknown);
-      setJobStatus(data); setStatusUpdatedAt(new Date()); return data;
+      setJobStatus(data); setStatusUpdatedAt(new Date());
+      patchHistoryItem(data.job_id, { status: data.status, lastCheckedAt: new Date().toISOString(), error: null });
+      return data;
     } catch (err) { if (!sup) setJobError((err as Error).message); return null; }
   }
 
@@ -327,6 +495,7 @@ export const App: React.FC = () => {
       }
       const data = decodeApiBody<JobLogsResponse>((await res.json()) as unknown);
       setJobLogs(data.logs || []);
+      patchHistoryItem(jobId, { logs: (data.logs || []).join('\n'), info: null, error: null });
     } catch (err) { setJobError((err as Error).message); }
     finally { setIsFetchingLogs(false); }
   }
@@ -348,7 +517,17 @@ export const App: React.FC = () => {
           setResultsError(`Results failed (${res.status}): ${t}`); return;
         }
         const data = decodeApiBody<JobResultsResponse>((await res.json()) as unknown);
-        if (data.download_url) { setJobResults([]); setResultsDownloadUrl(data.download_url); setResultsInfo('Results ZIP ready.'); return; }
+        if (data.download_url) {
+          setJobResults([]); setResultsDownloadUrl(data.download_url); setResultsInfo('Results ZIP ready.');
+          patchHistoryItem(jobId, {
+            artifactUrl: data.download_url,
+            s3Uri: deriveS3Uri(data.download_url),
+            status: 'SUCCEEDED',
+            info: 'Results ZIP ready.',
+            error: null,
+          });
+          return;
+        }
         if (Array.isArray(data.results) && data.results.length > 0) { setResultsDownloadUrl(null); setJobResults(data.results); return; }
         if (attempt < 8) { setResultsInfo(`Waiting for results... (${attempt}/8)`); await sleep(2500); continue; }
         setResultsInfo('Results URL not ready yet. Please try again shortly.');
@@ -433,6 +612,28 @@ export const App: React.FC = () => {
             <div className="navbar-logo-dot" aria-hidden="true" />
             <span className="navbar-brand">Notebook<span>Ops</span></span>
           </div>
+
+          <div className="navbar-tabs" role="tablist" aria-label="Page navigation">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activePage === 'submission'}
+              className={`navbar-tab-btn ${activePage === 'submission' ? 'is-active' : ''}`}
+              onClick={() => setActivePage('submission')}
+            >
+              Job Submission
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activePage === 'history'}
+              className={`navbar-tab-btn ${activePage === 'history' ? 'is-active' : ''}`}
+              onClick={() => setActivePage('history')}
+            >
+              Job History
+            </button>
+          </div>
+
           <button type="button" className="theme-toggle-btn" onClick={toggleTheme}
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
             {theme === 'dark' ? <BsSun size={13} /> : <BsMoon size={13} />}
@@ -443,6 +644,8 @@ export const App: React.FC = () => {
 
       {/* Page */}
       <div className="page-container">
+        {activePage === 'submission' ? (
+          <>
 
         {/* API Connection */}
         <div className="row-grid row-grid-center mb-section">
@@ -682,6 +885,148 @@ export const App: React.FC = () => {
           </div>
 
         </div>
+          </>
+        ) : (
+          <div className="row-grid">
+            <div className="glass-card">
+              <div className="card-inner">
+                <div className="card-head">
+                  <div className="card-head-icon"><FiClock size={14} /></div>
+                  <h5>Job History</h5>
+                </div>
+                <div className="card-body-inner">
+                  <div className="history-actions-row">
+                    <p className="form-hint" style={{ margin: 0 }}>
+                      Scroll, expand, and inspect historical runs with parameters, logs, and artifact links.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn-neon btn-ghost-neon"
+                      onClick={() => void refreshAllHistoryItems()}
+                      disabled={!apiKey || Object.keys(historyLoadingIds).length > 0 || jobHistory.length === 0}
+                    >
+                      <FiRefreshCw size={13} />Refresh All
+                    </button>
+                  </div>
+
+                  {historyError && (
+                    <div className="alert-neon alert-warning-neon" style={{ marginTop: '0.9rem' }}>{historyError}</div>
+                  )}
+
+                  {jobHistory.length === 0 ? (
+                    <div className="param-pending" style={{ marginTop: '0.95rem' }}>
+                      <FiInfo size={14} />
+                      <span>No jobs in history yet. Submit a job from Job Submission and it will appear here.</span>
+                    </div>
+                  ) : (
+                    <div className="history-scroll-list">
+                      {jobHistory.map((item) => {
+                        const isExpanded = !!expandedHistory[item.jobId];
+                        const isLoading = !!historyLoadingIds[item.jobId];
+                        const hasParamsForItem = Object.keys(item.params || {}).length > 0;
+                        return (
+                          <div key={item.jobId} className="history-item-card">
+                            <div className="history-item-top">
+                              <div>
+                                <p className="history-item-jobid">{item.jobId}</p>
+                                <p className="history-item-meta">
+                                  Submitted {new Date(item.submittedAt).toLocaleString()}
+                                  {item.lastCheckedAt ? ` • Checked ${new Date(item.lastCheckedAt).toLocaleString()}` : ''}
+                                </p>
+                              </div>
+
+                              <div className="history-item-top-right">
+                                <span className={`status-pill ${getStatusClass(item.status)}`}>{item.status}</span>
+                                <button
+                                  type="button"
+                                  className="btn-neon btn-ghost-neon"
+                                  onClick={() => void refreshHistoryItem(item.jobId, isExpanded)}
+                                  disabled={!apiKey || isLoading}
+                                >
+                                  <FiRefreshCw size={13} />{isLoading ? 'Refreshing…' : 'Refresh'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-neon btn-secondary-neon"
+                                  onClick={() => {
+                                    setExpandedHistory((prev) => ({ ...prev, [item.jobId]: !isExpanded }));
+                                    if (!isExpanded) void refreshHistoryItem(item.jobId, true);
+                                  }}
+                                >
+                                  {isExpanded ? <FiChevronDown size={13} /> : <FiChevronRight size={13} />}
+                                  {isExpanded ? 'Collapse' : 'Expand'}
+                                </button>
+                              </div>
+                            </div>
+
+                            {isExpanded && (
+                              <div className="history-item-expanded">
+                                <div className="history-kv-grid">
+                                  <div className="history-kv-box">
+                                    <span className="history-kv-label">Notebook</span>
+                                    <span className="history-kv-value">{item.notebookName || '-'}</span>
+                                  </div>
+                                  <div className="history-kv-box">
+                                    <span className="history-kv-label">Environment</span>
+                                    <span className="history-kv-value">{item.environmentName || '-'}</span>
+                                  </div>
+                                  <div className="history-kv-box">
+                                    <span className="history-kv-label">Profile</span>
+                                    <span className="history-kv-value">{item.executionProfile || '-'}</span>
+                                  </div>
+                                  <div className="history-kv-box">
+                                    <span className="history-kv-label">S3 Prefix</span>
+                                    <span className="history-kv-value">jobs/{item.jobId}/</span>
+                                  </div>
+                                </div>
+
+                                {item.artifactUrl && (
+                                  <div className="history-artifact-row">
+                                    <a className="btn-neon btn-success-neon" href={item.artifactUrl} target="_blank" rel="noreferrer">
+                                      <FiExternalLink size={13} />Open Artifact Link
+                                    </a>
+                                    {item.s3Uri && <span className="history-s3-link">{item.s3Uri}</span>}
+                                  </div>
+                                )}
+
+                                <div style={{ marginTop: '0.8rem' }}>
+                                  <p className="history-subtitle">Parameters</p>
+                                  {!hasParamsForItem ? (
+                                    <p className="form-hint" style={{ marginTop: 0 }}>No parameters captured for this run.</p>
+                                  ) : (
+                                    <div className="history-params-grid">
+                                      {Object.entries(item.params).map(([paramKey, paramValue]) => (
+                                        <div key={paramKey} className="history-param-row">
+                                          <span className="history-param-key">{paramKey}</span>
+                                          <span className="history-param-value">{paramValue}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div style={{ marginTop: '0.8rem' }}>
+                                  <p className="history-subtitle">Logs</p>
+                                  <pre className="logs-terminal history-logs-terminal">{item.logs || 'No logs loaded yet. Click Refresh.'}</pre>
+                                </div>
+
+                                {(item.info || item.error) && (
+                                  <div className={`alert-neon ${item.error ? 'alert-danger-neon' : 'alert-info-neon'}`} style={{ marginTop: '0.8rem' }}>
+                                    {item.error || item.info}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -320,6 +320,43 @@ html[data-theme='light'] .app-navbar {
 
 .navbar-brand span { color: var(--accent); }
 
+.navbar-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(74, 222, 128, 0.03);
+}
+
+.navbar-tab-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+
+.navbar-tab-btn:hover {
+  color: var(--ink);
+  border-color: rgba(74, 222, 128, 0.22);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.navbar-tab-btn.is-active {
+  color: var(--accent);
+  border-color: rgba(74, 222, 128, 0.32);
+  background: rgba(74, 222, 128, 0.12);
+  box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.08) inset;
+}
+
 .theme-toggle-btn {
   display: inline-flex;
   align-items: center;
@@ -869,6 +906,156 @@ select.form-control-styled {
   margin-top: 0.4rem;
 }
 
+/* ─── Job history page ─────────────────────────────────────── */
+.history-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.history-scroll-list {
+  margin-top: 1rem;
+  max-height: 65vh;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.history-item-card {
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: rgba(74, 222, 128, 0.03);
+  padding: 0.8rem;
+}
+
+.history-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.history-item-jobid {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.history-item-meta {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+}
+
+.history-item-top-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.history-item-expanded {
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px dashed var(--border);
+}
+
+.history-kv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.history-kv-box {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: rgba(0, 0, 0, 0.16);
+  padding: 0.55rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.history-kv-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.history-kv-value {
+  font-size: 0.82rem;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.history-artifact-row {
+  margin-top: 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.history-s3-link {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.history-subtitle {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.history-params-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
+}
+
+.history-param-row {
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 0.45rem 0.6rem;
+  display: grid;
+  grid-template-columns: minmax(130px, 0.75fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.history-param-key {
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  letter-spacing: 0.03em;
+  overflow-wrap: anywhere;
+}
+
+.history-param-value {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.history-logs-terminal {
+  max-height: 240px;
+  margin-top: 0;
+}
+
 /* ─── Drop zone ─────────────────────────────────────────────── */
 .dz-root { margin: 0.5rem 0; }
 
@@ -1193,6 +1380,11 @@ html[data-theme='light'] select.form-control-styled option:focus {
 @media (max-width: 600px) {
   .page-container { padding: 1.5rem 1rem 3rem; }
   .card-body-inner { padding: 1.1rem; }
+  .navbar-inner { flex-wrap: wrap; gap: 0.6rem; justify-content: center; }
+  .navbar-tabs { order: 3; width: 100%; justify-content: center; }
+  .history-actions-row { flex-direction: column; align-items: stretch; }
+  .history-kv-grid { grid-template-columns: 1fr; }
+  .history-param-row { grid-template-columns: 1fr; }
   .btn-row { flex-direction: column; }
   .btn-neon { width: 100%; }
 }
