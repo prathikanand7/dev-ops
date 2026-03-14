@@ -41,6 +41,20 @@ resource "aws_security_group_rule" "batch_http_out" {
 }
 
 ################################
+# Batch -> Internet (TCP 9000)
+################################
+
+resource "aws_security_group_rule" "batch_9000_out" {
+  type              = "egress"
+  description       = "Allow TCP 9000 to internet"
+  from_port         = 9000
+  to_port           = 9000
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.batch.id
+}
+
+################################
 # Batch -> VPC Endpoints (HTTPS)
 ################################
 
