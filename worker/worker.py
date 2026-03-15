@@ -3,8 +3,9 @@ import sys
 import subprocess
 import shutil
 import boto3
-import botocore
+import json
 import papermill as pm
+import botocore
 
 def download_s3_folder(s3_client, bucket, prefix, local_dir="."):
     """Downloads all files from a specific S3 prefix to a local directory."""
@@ -49,7 +50,6 @@ if not job_id or not s3_job_prefix_uri:
     sys.exit(1)
 
 # Parse the S3 URI
-# s3_job_prefix_uri.split("/") -> ['s3:', '', 'my-bucket', 'jobs', 'uuid', '']
 bucket = s3_job_prefix_uri.split("/")[2]
 prefix = "/".join(s3_job_prefix_uri.split("/")[3:])
 
@@ -65,7 +65,27 @@ except Exception as e:
     print(f"FATAL: Failed to download notebook from S3: {e}")
     sys.exit(1)
 
-# Download the Inputs (Excel files, CSVs, etc.)
+# Handle Dynamic Environment (Download from Root Level)
+env_file_path = None
+try:
+    s3.download_file(bucket, f"{prefix}environment.yaml", "./environment.yaml")
+    env_file_path = "./environment.yaml"
+except botocore.exceptions.ClientError as e:
+    if e.response['Error']['Code'] == "404":
+        try:
+            s3.download_file(bucket, f"{prefix}environment.yml", "./environment.yml")
+            env_file_path = "./environment.yml"
+        except botocore.exceptions.ClientError as e2:
+            if e2.response['Error']['Code'] == "404":
+                print("No environment file (.yaml or .yml) found at job root.")
+            else:
+                print(f"FATAL: Error checking for environment.yml: {e2}")
+                sys.exit(1)
+    else:
+        print(f"FATAL: Error checking for environment.yaml: {e}")
+        sys.exit(1)
+
+# Download the Input files
 try:
     print("Downloading input files...")
     download_s3_folder(s3, bucket, f"{prefix}inputs/")
@@ -73,40 +93,50 @@ except Exception as e:
     print(f"FATAL: Failed to download input files: {e}")
     sys.exit(1)
 
-# Handle Dynamic Environment (Mamba)
-env_file_path = "environment.yaml"
+# Determine notebook language
 try:
-    # Attempt to download the environment file. If it doesn't exist, just skip.
-    s3.download_file(bucket, f"{prefix}environment.yaml", env_file_path)
-    
-    print("Environment file detected. Installing dynamic dependencies via mamba...")
-    try:
-        subprocess.run(
-            ["mamba", "env", "update", "--name", "base", "--file", env_file_path],
-            check=True,
-            stdout=sys.stdout, 
-            stderr=sys.stderr
-        )
-        print("Dynamic dependencies installed successfully.")
-    except subprocess.CalledProcessError as e:
-        print(f"FATAL: Failed to install dependencies. Error code: {e.returncode}")
-        sys.exit(1)
+    with open(input_nb_path, 'r', encoding='utf-8') as f:
+        nb_data = json.load(f)
+    lang = nb_data.get('metadata', {}).get('language_info', {}).get('name', 'r').lower()
+    auto_kernel = 'python3' if lang == 'python' else 'ir'
+except Exception as e:
+    print(f"Warning: Could not detect notebook language, defaulting to 'python3'.")
+    lang = 'python'
+    auto_kernel = 'python3'
 
-except botocore.exceptions.ClientError as e:
-    if e.response['Error']['Code'] == "404":
-        print("No environment file provided. Using default container environment.")
-    else:
-        print(f"FATAL: Error checking for environment file: {e}")
+# Build Isolated Sandbox if Environment File Exists
+if env_file_path and os.path.exists(env_file_path):
+    print(f"Environment file ({env_file_path}) detected! Building isolated sandbox environment...")
+    try:
+        # Create new environment named 'job_env'
+        subprocess.run(["mamba", "env", "create", "-n", "job_env", "-f", env_file_path], check=True)
+        
+        # Inject kernel into isolated environment
+        if lang == 'python':
+            subprocess.run(["mamba", "install", "-n", "job_env", "ipykernel", "-y"], check=True)
+            subprocess.run(["conda", "run", "-n", "job_env", "python", "-m", "ipykernel", "install", "--user", "--name", "job_env"], check=True)
+        else:
+            subprocess.run(["mamba", "install", "-n", "job_env", "r-irkernel", "-y"], check=True)
+            subprocess.run(["conda", "run", "-n", "job_env", "Rscript", "-e", "IRkernel::installspec(name='job_env', user=TRUE)"], check=True)
+        
+        # Override the Papermill kernel
+        auto_kernel = 'job_env'
+        print(f"Isolated sandbox built and registered as kernel: {auto_kernel}")
+        
+    except subprocess.CalledProcessError as e:
+        print(f"FATAL: Failed to build isolated environment. Error code: {e.returncode}")
         sys.exit(1)
+else:
+    print("Using default container tools (No custom environment built).")
 
 # Execute Notebook via Papermill
 output_nb_path = "output.ipynb"
 try:
-    print("Executing notebook via Papermill...")
+    print(f"Executing notebook using kernel: {auto_kernel}...")
     pm.execute_notebook(
         input_nb_path,
         output_nb_path,
-        kernel_name='ir',
+        kernel_name=auto_kernel,
         log_output=True
     )
     print("Execution Successful!")

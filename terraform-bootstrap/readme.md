@@ -1,5 +1,3 @@
-Here’s a professional README you can include in your bootstrap repository:
-
 ---
 
 # Terraform S3 Backend & DynamoDB Lock Setup

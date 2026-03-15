@@ -20,7 +20,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./terraform/environments/batch-dev
+        working-directory: ./lifewatch_batch_platform/terraform/environments/dev
 
     steps:
       - name: Checkout Code
@@ -48,7 +48,13 @@ jobs:
         run: terraform validate -no-color
 
       - name: Terraform Plan
-        run: terraform plan -lock=false -input=false -no-color
+        run: |
+          terraform plan \
+            -lock=false \
+            -input=false \
+            -no-color \
+            -var="container_image=${{ secrets.CONTAINER_IMAGE }}" \
+            -var="batch_execution_role_arn=${{ secrets.BATCH_EXECUTION_ROLE_ARN }}"
 
       - name: Terraform Test
         if: ${{ hashFiles('terraform/environments/batch-dev/**/*.tftest.hcl') != '' }}
