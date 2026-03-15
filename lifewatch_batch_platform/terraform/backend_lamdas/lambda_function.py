@@ -169,9 +169,13 @@ def lambda_handler(event, context):
         )
 
         # Tracking file in S3 links the custom job_id to the AWS Batch ID
+        # Also include metadata for the history List
         meta_payload = {
             "batch_job_id": response["jobId"],
-            "execution_profile": execution_profile
+            "execution_profile": execution_profile,
+            "notebook_name": next((f["filename"] for f in files_to_upload if f["filename"].endswith(".ipynb")), "notebook.ipynb"),
+            "environment_name": "environment.yaml" if environment_content else "none",
+            "params": params
         }
         s3.put_object(
             Bucket=BUCKET,
