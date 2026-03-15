@@ -72,7 +72,7 @@ locals {
 ################################
 
 module "batch_compute_fargate" {
-  source = "../../modules/batch_fargate/batch_compute_fargate"
+  source   = "../../modules/batch_fargate/batch_compute_fargate"
   for_each = local.fargate_profiles
 
   project_name       = var.project_name
@@ -90,9 +90,9 @@ module "batch_compute_fargate" {
 }
 
 module "batch_job_definition_fargate" {
-  job_role_arn          = module.batch_iam.batch_job_role_arn
-  source = "../../modules/batch_fargate/batch_job_definition_fargate"
-  for_each = local.fargate_profiles
+  job_role_arn = module.batch_iam.batch_job_role_arn
+  source       = "../../modules/batch_fargate/batch_job_definition_fargate"
+  for_each     = local.fargate_profiles
 
   project_name          = var.project_name
   profile_name          = each.key
@@ -107,7 +107,7 @@ module "batch_job_definition_fargate" {
 }
 
 module "batch_queue_fargate" {
-  source = "../../modules/batch_fargate/batch_queue_fargate"
+  source   = "../../modules/batch_fargate/batch_queue_fargate"
   for_each = local.fargate_profiles
 
   project_name            = var.project_name
@@ -122,10 +122,10 @@ module "batch_queue_fargate" {
 ################################
 
 module "batch_compute_ec2" {
-  service_role_arn      = module.batch_iam.batch_service_role_arn
-  instance_profile_arn  = module.batch_iam.ec2_instance_profile_arn
-  source = "../../modules/batch_ec2/batch_compute_ec2"
-  for_each = local.ec2_profiles
+  service_role_arn     = module.batch_iam.batch_service_role_arn
+  instance_profile_arn = module.batch_iam.ec2_instance_profile_arn
+  source               = "../../modules/batch_ec2/batch_compute_ec2"
+  for_each             = local.ec2_profiles
 
   project_name       = var.project_name
   profile_name       = each.key
@@ -139,9 +139,9 @@ module "batch_compute_ec2" {
 }
 
 module "batch_job_definition_ec2" {
-  job_role_arn          = module.batch_iam.batch_job_role_arn
-  source = "../../modules/batch_ec2/batch_job_definition_ec2"
-  for_each = local.ec2_profiles
+  job_role_arn = module.batch_iam.batch_job_role_arn
+  source       = "../../modules/batch_ec2/batch_job_definition_ec2"
+  for_each     = local.ec2_profiles
 
   project_name    = var.project_name
   profile_name    = each.key
@@ -154,7 +154,7 @@ module "batch_job_definition_ec2" {
 }
 
 module "batch_queue_ec2" {
-  source = "../../modules/batch_ec2/batch_queue_ec2"
+  source   = "../../modules/batch_ec2/batch_queue_ec2"
   for_each = local.ec2_profiles
 
   project_name            = var.project_name
@@ -172,7 +172,7 @@ module "batch_iam" {
 
   project_name  = var.project_name
   s3_bucket_arn = module.s3_batch_payloads.bucket_arn
-  
+
   tags = var.tags
 }
 
@@ -203,13 +203,13 @@ module "lambda_batch_trigger" {
 
   job_profiles_config_json = jsonencode(merge(
     { for k, v in local.fargate_profiles : k => {
-        queue      = module.batch_queue_fargate[k].job_queue_name
-        definition = module.batch_job_definition_fargate[k].job_definition_name
+      queue      = module.batch_queue_fargate[k].job_queue_name
+      definition = module.batch_job_definition_fargate[k].job_definition_name
       }
     },
     { for k, v in local.ec2_profiles : k => {
-        queue      = module.batch_queue_ec2[k].job_queue_name
-        definition = module.batch_job_definition_ec2[k].job_definition_name
+      queue      = module.batch_queue_ec2[k].job_queue_name
+      definition = module.batch_job_definition_ec2[k].job_definition_name
       }
     }
   ))
