@@ -212,12 +212,12 @@ module "lambda_job_history_list" {
 module "api_gateway" {
   source = "../../modules/api_gateway"
 
-  project_name             = var.project_name
-  stage_name               = var.stage_name
-  batch_trigger_lambda_arn = module.lambda_batch_trigger.invoke_arn
-  job_status_lambda_arn    = module.lambda_job_status.invoke_arn
-  job_logs_lambda_arn      = module.lambda_job_logs.invoke_arn
-  job_results_lambda_arn   = module.lambda_job_results.invoke_arn
+  project_name                = var.project_name
+  stage_name                  = var.stage_name
+  batch_trigger_lambda_arn    = module.lambda_batch_trigger.invoke_arn
+  job_status_lambda_arn       = module.lambda_job_status.invoke_arn
+  job_logs_lambda_arn         = module.lambda_job_logs.invoke_arn
+  job_results_lambda_arn      = module.lambda_job_results.invoke_arn
   job_history_list_lambda_arn = module.lambda_job_history_list.invoke_arn
 }
 
