@@ -196,6 +196,15 @@ module "lambda_job_results" {
   s3_bucket_name  = module.s3_batch_payloads.bucket_name
 }
 
+module "lambda_job_history_list" {
+  source = "../../modules/lambda/lambda_job_history_list"
+
+  project_name    = var.project_name
+  lambda_role_arn = module.lambda_iam.role_arn
+  filename        = var.lambda_history_list_filename
+  s3_bucket_name  = module.s3_batch_payloads.bucket_name
+}
+
 ################################
 # API Gateway
 ################################
@@ -203,12 +212,13 @@ module "lambda_job_results" {
 module "api_gateway" {
   source = "../../modules/api_gateway"
 
-  project_name             = var.project_name
-  stage_name               = var.stage_name
-  batch_trigger_lambda_arn = module.lambda_batch_trigger.invoke_arn
-  job_status_lambda_arn    = module.lambda_job_status.invoke_arn
-  job_logs_lambda_arn      = module.lambda_job_logs.invoke_arn
-  job_results_lambda_arn   = module.lambda_job_results.invoke_arn
+  project_name                = var.project_name
+  stage_name                  = var.stage_name
+  batch_trigger_lambda_arn    = module.lambda_batch_trigger.invoke_arn
+  job_status_lambda_arn       = module.lambda_job_status.invoke_arn
+  job_logs_lambda_arn         = module.lambda_job_logs.invoke_arn
+  job_results_lambda_arn      = module.lambda_job_results.invoke_arn
+  job_history_list_lambda_arn = module.lambda_job_history_list.invoke_arn
 }
 
 ################################

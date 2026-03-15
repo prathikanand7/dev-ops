@@ -38,10 +38,11 @@ ec2_memory_mib         = 16384
 ################################
 # Lambda
 ################################
-lambda_trigger_filename = "../../backend_lambda_artifacts/lambda.zip"
-lambda_status_filename  = "../../backend_lambda_artifacts/status_lambda.zip"
-lambda_logs_filename    = "../../backend_lambda_artifacts/logs_lambda.zip"
-lambda_results_filename = "../../backend_lambda_artifacts/results_lambda.zip"
+lambda_trigger_filename      = "../../backend_lambda_artifacts/lambda.zip"
+lambda_status_filename       = "../../backend_lambda_artifacts/status_lambda.zip"
+lambda_logs_filename         = "../../backend_lambda_artifacts/logs_lambda.zip"
+lambda_results_filename      = "../../backend_lambda_artifacts/results_lambda.zip"
+lambda_history_list_filename = "../../backend_lambda_artifacts/history_list_lambda.zip"
 
 ################################
 # API Gateway

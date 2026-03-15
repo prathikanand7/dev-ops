@@ -98,3 +98,8 @@ output "lambda_job_results_arn" {
   description = "ARN of the job results Lambda function."
   value       = module.lambda_job_results.function_arn
 }
+
+output "lambda_job_history_list_arn" {
+  description = "ARN of the history list Lambda function."
+  value       = module.lambda_job_history_list.function_arn
+}

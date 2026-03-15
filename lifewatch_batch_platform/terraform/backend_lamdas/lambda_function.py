@@ -85,7 +85,7 @@ def lambda_handler(event, context):
                 files_to_upload.append({"filename": safe_filename, "content": payload})
             elif field_name:
                 # If no filename, treat it as a parameter key-value pair
-                params[field_name] = payload.decode("utf-8")
+                params[field_name] = payload.decode("utf-8").strip()
 
         raw_execution_profile = params.get("execution_profile") or params.get("compute_profile")
         execution_profile = normalize_execution_profile(raw_execution_profile)
@@ -123,13 +123,32 @@ def lambda_handler(event, context):
             "conf_cloud_storage_path": f'conf_cloud_storage_path {assign_op} "."\n'
         })
 
+        # Dictionary to hold the final merged parameters
+        final_params = {}
+        
+        # Regex to find default parameter assignments 
+        param_regex = re.compile(r"^(param_[a-zA-Z0-9_]+)\s*(?:<-|=)\s*(.*)")
+
         # Loop through all cells and substitute the existing lines
         for cell in notebook_json.get("cells", []):
             if cell.get("cell_type") == "code":
                 new_source = []
                 for line in cell.get("source", []):
+                    
+                    # Extract defaults
+                    match = param_regex.match(line.strip())
+                    if match:
+                        p_key = match.group(1)
+                        p_val_raw = match.group(2)
+                        
+                        p_val_clean = p_val_raw.split('#')[0].strip().strip("'\"")
+                        
+                        # Store it as a default
+                        if p_key not in final_params:
+                            final_params[p_key] = p_val_clean
+
+                    # Inject custom params
                     replaced = False
-                    # Check if this line assigns a value to one of our parameters or config variables
                     for param_key, param_line in formatted_params.items():
                         if re.match(rf"^{re.escape(param_key)}\s*(<-|=)", line):
                             new_source.append(param_line)
@@ -144,6 +163,11 @@ def lambda_handler(event, context):
                 cell["source"] = new_source
 
         updated_notebook_bytes = json.dumps(notebook_json).encode("utf-8")
+
+        # Overwrite defaults with any custom user inputs
+        for k, v in params.items():
+            if k.startswith("param_"):
+                final_params[k] = v
 
         # Upload Artifacts to S3
         s3.put_object(Bucket=BUCKET, Key=f"{s3_prefix}notebook.ipynb", Body=updated_notebook_bytes)
@@ -169,9 +193,13 @@ def lambda_handler(event, context):
         )
 
         # Tracking file in S3 links the custom job_id to the AWS Batch ID
+        # Also include metadata for the history List
         meta_payload = {
             "batch_job_id": response["jobId"],
-            "execution_profile": execution_profile
+            "execution_profile": execution_profile,
+            "notebook_name": next((f["filename"] for f in files_to_upload if f["filename"].endswith(".ipynb")), "notebook.ipynb"),
+            "environment_name": "environment.yaml" if environment_content else "none",
+            "params": final_params
         }
         s3.put_object(
             Bucket=BUCKET,

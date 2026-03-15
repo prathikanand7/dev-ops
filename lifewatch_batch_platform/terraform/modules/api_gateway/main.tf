@@ -49,6 +49,37 @@ resource "aws_api_gateway_integration" "post_jobs_lambda" {
 }
 
 ################################
+# /batch/jobs/history_list
+################################
+
+resource "aws_api_gateway_resource" "history_list" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_resource.jobs.id
+  path_part   = "history_list"
+}
+
+################################
+# GET /batch/jobs/history_list
+################################
+
+resource "aws_api_gateway_method" "get_history_list" {
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.history_list.id
+  http_method      = "GET"
+  authorization    = "NONE"
+  api_key_required = true
+}
+
+resource "aws_api_gateway_integration" "get_history_list_lambda" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.history_list.id
+  http_method             = aws_api_gateway_method.get_history_list.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = var.job_history_list_lambda_arn
+}
+
+################################
 # /batch/jobs/{job_id}
 ################################
 
@@ -150,6 +181,11 @@ locals {
       resource_id   = aws_api_gateway_resource.jobs.id
       allow_methods = "OPTIONS,POST"
     }
+    # GET /batch/jobs/history_list
+    history_list = {
+      resource_id   = aws_api_gateway_resource.history_list.id
+      allow_methods = "OPTIONS,GET"
+    }
     # GET /batch/jobs/{job_id}
     job_id = {
       resource_id   = aws_api_gateway_resource.job_id.id
@@ -240,6 +276,7 @@ resource "aws_api_gateway_deployment" "deployment" {
     redeployment = sha1(jsonencode([
       aws_api_gateway_rest_api.api.binary_media_types,
       aws_api_gateway_integration.post_jobs_lambda.id,
+      aws_api_gateway_integration.get_history_list_lambda.id,
       aws_api_gateway_integration.job_status_lambda.id,
       aws_api_gateway_integration.logs_lambda.id,
       aws_api_gateway_integration.job_results_lambda.id,
@@ -267,6 +304,7 @@ resource "aws_api_gateway_deployment" "deployment" {
 
   depends_on = [
     aws_api_gateway_integration.post_jobs_lambda,
+    aws_api_gateway_integration.get_history_list_lambda,
     aws_api_gateway_integration.job_status_lambda,
     aws_api_gateway_integration.logs_lambda,
     aws_api_gateway_integration.job_results_lambda,

@@ -151,6 +151,12 @@ variable "lambda_results_filename" {
   default     = "results_lambda.zip"
 }
 
+variable "lambda_history_list_filename" {
+  description = "Path to the job history list Lambda deployment ZIP."
+  type        = string
+  default     = "history_list_lambda.zip"
+}
+
 ################################
 # API Gateway
 ################################

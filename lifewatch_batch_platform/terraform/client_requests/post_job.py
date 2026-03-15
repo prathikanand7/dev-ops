@@ -31,7 +31,7 @@ with open(NOTEBOOK_PATH, 'rb') as nb_file, open(DATA_FILE_PATH, 'rb') as data_fi
         'param_04_output_samples_ecological_parameters': (None, 'false'),
         'param_05_output_make_plots': (None, 'true'),
         'param_07_first_month': (None, '1'),
-        'param_10_upper_limit_max_depth': (None, '0'),
+        'param_10_upper_limit_max_depth': (None, '1'),
         'execution_profile': (None, EXECUTION_PROFILE)
     }
 

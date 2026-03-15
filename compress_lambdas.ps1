@@ -9,5 +9,6 @@ Compress-Archive -Path "$SourceDir\logs.py", "$SourceDir\handle_cors.py" -Destin
 Compress-Archive -Path "$SourceDir\results.py", "$SourceDir\handle_cors.py" -DestinationPath "$TargetDir\results_lambda.zip" -Force
 Compress-Archive -Path "$SourceDir\status.py", "$SourceDir\handle_cors.py" -DestinationPath "$TargetDir\status_lambda.zip" -Force
 Compress-Archive -Path "$SourceDir\lambda_function.py", "$SourceDir\handle_cors.py" -DestinationPath "$TargetDir\lambda.zip" -Force
+Compress-Archive -Path "$SourceDir\history_list.py", "$SourceDir\handle_cors.py" -DestinationPath "$TargetDir\history_list_lambda.zip" -Force
 
 Write-Host "Lambdas compressed to $TargetDir."
