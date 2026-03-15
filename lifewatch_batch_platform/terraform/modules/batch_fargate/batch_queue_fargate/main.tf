@@ -3,7 +3,7 @@
 ################################
 
 resource "aws_batch_job_queue" "fargate" {
-  name     = "${var.project_name}-fargate-job-queue"
+  name     = "${var.project_name}-${var.profile_name}-job-queue"
   state    = "ENABLED"
   priority = var.priority
 
@@ -20,6 +20,6 @@ resource "aws_batch_job_queue" "fargate" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-fargate-job-queue"
+    Name = "${var.project_name}-${var.profile_name}-job-queue"
   })
 }

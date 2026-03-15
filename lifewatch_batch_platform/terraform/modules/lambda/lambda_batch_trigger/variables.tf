@@ -25,22 +25,7 @@ variable "s3_bucket_name" {
   type        = string
 }
 
-variable "standard_job_queue_name" {
-  description = "Name of the Fargate (standard) Batch job queue."
-  type        = string
-}
-
-variable "standard_job_definition_name" {
-  description = "Name of the Fargate (standard) Batch job definition."
-  type        = string
-}
-
-variable "ec2_job_queue_name" {
-  description = "Name of the EC2 200GB Batch job queue."
-  type        = string
-}
-
-variable "ec2_job_definition_name" {
-  description = "Name of the EC2 200GB Batch job definition."
+variable "job_profiles_config_json" {
+  description = "JSON encoded configuration of job queues and definitions per profile."
   type        = string
 }

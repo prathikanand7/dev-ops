@@ -54,3 +54,14 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "profile_name" {
+  type = string
+}
+
+variable "service_role_arn" {
+  type = string
+}
+variable "instance_profile_arn" {
+  type = string
+}

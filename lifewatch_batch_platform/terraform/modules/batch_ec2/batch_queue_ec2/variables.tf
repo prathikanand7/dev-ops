@@ -25,3 +25,7 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "profile_name" {
+  type = string
+}

@@ -59,13 +59,25 @@ module "s3_batch_payloads" {
 }
 
 ################################
+# Locals for dynamic setup
+################################
+locals {
+  job_profiles_data = jsondecode(file("../../../../job_profiles.json"))
+  fargate_profiles  = { for k, v in local.job_profiles_data.profiles : k => v if v.backend_type == "FARGATE" }
+  ec2_profiles      = { for k, v in local.job_profiles_data.profiles : k => v if v.backend_type == "EC2" }
+}
+
+################################
 # Batch - Fargate
 ################################
 
 module "batch_compute_fargate" {
   source = "../../modules/batch_fargate/batch_compute_fargate"
+  for_each = local.fargate_profiles
 
   project_name       = var.project_name
+  profile_name       = each.key
+  service_role_arn   = module.batch_iam.batch_service_role_arn
   max_vcpus          = var.fargate_max_vcpus
   subnet_ids         = module.vpc.private_subnets
   security_group_ids = [module.security_groups.batch_security_group_id]
@@ -78,24 +90,29 @@ module "batch_compute_fargate" {
 }
 
 module "batch_job_definition_fargate" {
+  job_role_arn          = module.batch_iam.batch_job_role_arn
   source = "../../modules/batch_fargate/batch_job_definition_fargate"
+  for_each = local.fargate_profiles
 
   project_name          = var.project_name
+  profile_name          = each.key
   container_image       = var.container_image
   execution_role_arn    = var.batch_execution_role_arn
   s3_bucket_arn         = module.s3_batch_payloads.bucket_arn
-  vcpus                 = var.fargate_vcpus
-  memory_mib            = var.fargate_memory_mib
-  ephemeral_storage_gib = var.fargate_ephemeral_storage_gib
+  vcpus                 = try(each.value.vcpu, var.fargate_vcpus)
+  memory_mib            = try(each.value.memory_mb, var.fargate_memory_mib)
+  ephemeral_storage_gib = try(each.value.storage_gb, var.fargate_ephemeral_storage_gib)
 
   tags = var.tags
 }
 
 module "batch_queue_fargate" {
   source = "../../modules/batch_fargate/batch_queue_fargate"
+  for_each = local.fargate_profiles
 
   project_name            = var.project_name
-  compute_environment_arn = module.batch_compute_fargate.compute_environment_arn
+  profile_name            = each.key
+  compute_environment_arn = module.batch_compute_fargate[each.key].compute_environment_arn
 
   tags = var.tags
 }
@@ -105,12 +122,16 @@ module "batch_queue_fargate" {
 ################################
 
 module "batch_compute_ec2" {
+  service_role_arn      = module.batch_iam.batch_service_role_arn
+  instance_profile_arn  = module.batch_iam.ec2_instance_profile_arn
   source = "../../modules/batch_ec2/batch_compute_ec2"
+  for_each = local.ec2_profiles
 
   project_name       = var.project_name
+  profile_name       = each.key
   max_vcpus          = var.ec2_max_vcpus
   instance_types     = var.ec2_instance_types
-  ebs_volume_size_gb = var.ec2_ebs_volume_size_gb
+  ebs_volume_size_gb = try(each.value.storage_gb, var.ec2_ebs_volume_size_gb)
   subnet_ids         = module.vpc.private_subnets
   security_group_ids = [module.security_groups.batch_security_group_id]
 
@@ -118,23 +139,40 @@ module "batch_compute_ec2" {
 }
 
 module "batch_job_definition_ec2" {
+  job_role_arn          = module.batch_iam.batch_job_role_arn
   source = "../../modules/batch_ec2/batch_job_definition_ec2"
+  for_each = local.ec2_profiles
 
   project_name    = var.project_name
+  profile_name    = each.key
   container_image = var.container_image
   s3_bucket_arn   = module.s3_batch_payloads.bucket_arn
-  vcpus           = var.ec2_vcpus
-  memory_mib      = var.ec2_memory_mib
+  vcpus           = try(each.value.vcpu, var.ec2_vcpus)
+  memory_mib      = try(each.value.memory_mb, var.ec2_memory_mib)
 
   tags = var.tags
 }
 
 module "batch_queue_ec2" {
   source = "../../modules/batch_ec2/batch_queue_ec2"
+  for_each = local.ec2_profiles
 
   project_name            = var.project_name
-  compute_environment_arn = module.batch_compute_ec2.compute_environment_arn
+  profile_name            = each.key
+  compute_environment_arn = module.batch_compute_ec2[each.key].compute_environment_arn
 
+  tags = var.tags
+}
+
+################################
+# Batch - IAM (shared)
+################################
+module "batch_iam" {
+  source = "../../modules/batch_iam"
+
+  project_name  = var.project_name
+  s3_bucket_arn = module.s3_batch_payloads.bucket_arn
+  
   tags = var.tags
 }
 
@@ -163,10 +201,18 @@ module "lambda_batch_trigger" {
   filename        = var.lambda_trigger_filename
   s3_bucket_name  = module.s3_batch_payloads.bucket_name
 
-  standard_job_queue_name      = module.batch_queue_fargate.job_queue_name
-  standard_job_definition_name = module.batch_job_definition_fargate.job_definition_name
-  ec2_job_queue_name           = module.batch_queue_ec2.job_queue_name
-  ec2_job_definition_name      = module.batch_job_definition_ec2.job_definition_name
+  job_profiles_config_json = jsonencode(merge(
+    { for k, v in local.fargate_profiles : k => {
+        queue      = module.batch_queue_fargate[k].job_queue_name
+        definition = module.batch_job_definition_fargate[k].job_definition_name
+      }
+    },
+    { for k, v in local.ec2_profiles : k => {
+        queue      = module.batch_queue_ec2[k].job_queue_name
+        definition = module.batch_job_definition_ec2[k].job_definition_name
+      }
+    }
+  ))
 }
 
 module "lambda_job_status" {
