@@ -29,6 +29,7 @@ Provisions an AWS API Gateway REST API with Lambda integrations, CORS preflight 
 | `job_status_lambda_arn` | `string` | yes | Invoke ARN of the Lambda for `GET /batch/jobs/{job_id}` |
 | `job_logs_lambda_arn` | `string` | yes | Invoke ARN of the Lambda for `GET /batch/jobs/{job_id}/logs` |
 | `job_results_lambda_arn` | `string` | yes | Invoke ARN of the Lambda for `GET /batch/jobs/{job_id}/results` |
+| `job_history_list_lambda_arn` | `string` | yes | Invoke ARN of the Lambda for `GET /batch/jobs/history_list` |
 
 ---
 
@@ -71,6 +72,7 @@ module "api_gateway" {
   job_status_lambda_arn    = module.lambda_status.invoke_arn
   job_logs_lambda_arn      = module.lambda_logs.invoke_arn
   job_results_lambda_arn   = module.lambda_results.invoke_arn
+  job_history_list_lambda_arn   = module.lambda_history_list.invoke_arn
 }
 
 module "api_key_usage_plan" {

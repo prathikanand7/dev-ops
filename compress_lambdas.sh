@@ -23,4 +23,8 @@ zip -j "$TARGET_DIR/lambda.zip" \
     "$SOURCE_DIR/lambda_function.py" \
     "$SOURCE_DIR/handle_cors.py"
 
+zip -j "$TARGET_DIR/history_list_lambda.zip" \
+    "$SOURCE_DIR/history_list.py" \
+    "$SOURCE_DIR/handle_cors.py"
+
 echo "Lambdas compressed to $TARGET_DIR."

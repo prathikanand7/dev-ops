@@ -27,3 +27,8 @@ variable "job_results_lambda_arn" {
   description = "Invoke ARN of the Lambda that handles GET /batch/jobs/{job_id}/results."
   type        = string
 }
+
+variable "job_history_list_lambda_arn" {
+  description = "Invoke ARN of the Lambda that handles GET /batch/jobs/history_list."
+  type        = string
+}
