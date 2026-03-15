@@ -1,0 +1,40 @@
+name: laserfarm
+channels:
+  - conda-forge
+dependencies:
+  - ipykernel>=6.29.5
+  - git>=2.39.1
+  - jq>=1.8
+  - minio>=7.2.15
+  - pip>=25.0.1
+  - python>=3.10 
+  - asyncssh
+  - cxx-compiler
+  - distro
+  - gcc
+  - libgcc
+  - libstdcxx-ng
+  - dask
+  - dask-core
+  - gdal>=3.5
+  - html5lib
+  - jinja2
+  - laspy
+  - lazrs-python
+  - matplotlib
+  - numpy
+  - pdal
+  - plyfile
+  - pyshp
+  - python-pdal
+  - scipy
+  - sentinelhub
+  - setuptools
+  - shapely
+  - webdavclient3
+  - wradlib
+  - rasterio
+  - pip:
+      - SecretsProvider
+      - git+https://github.com/QCDIS/Laserfarm.git
+      - git+https://github.com/QCDIS/laserchicken.git

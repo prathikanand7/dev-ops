@@ -54,6 +54,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ label, onFilesChange }) => {
       'application/vnd.ms-excel': ['.xls'],
       'application/x-ipynb+json': ['.ipynb'],
       'application/json': ['.ipynb'],
+      'text/yaml': ['.yaml', '.yml'],
     },
     multiple: true,
     validator: duplicateValidator,

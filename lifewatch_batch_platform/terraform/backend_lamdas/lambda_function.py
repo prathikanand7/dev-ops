@@ -101,23 +101,26 @@ def lambda_handler(event, context):
 
         notebook_json = json.loads(notebook_content.decode("utf-8"))
         
-        # Format the parameters for R syntax
+        # Auto-detect language to choose the correct assignment operator
+        lang = notebook_json.get("metadata", {}).get("language_info", {}).get("name", "r").lower()
+        assign_op = "=" if lang == "python" else "<-"
+
+        # Format the parameters dynamically
         formatted_params = {}
         for key, val in params.items():
             if key.startswith("param_"):
-                # Basic type inference: keep digits as numbers, wrap everything else in quotes
-                if val.replace(".", "", 1).isdigit():
-                    formatted_params[key] = f'{key} <- {val}\n'
+                if val.lstrip('-').replace(".", "", 1).isdigit():
+                    formatted_params[key] = f'{key} {assign_op} {val}\n'
                 else:
-                    formatted_params[key] = f'{key} <- "{val}"\n'
+                    formatted_params[key] = f'{key} {assign_op} "{val}"\n'
 
-        # Inject LifeWatch configuration overrides to ensure the notebook runs inside the Batch container
+        # Inject LifeWatch configuration overrides
         formatted_params.update({
-            "conf_temporary_data_directory": 'conf_temporary_data_directory <- "./outputs"\n',
-            "conf_virtual_lab_biotisan_euromarec": 'conf_virtual_lab_biotisan_euromarec <- "vl-biotisan-euromarec"\n',
-            "conf_naavre_public": 'conf_naavre_public <- "naa-vre-public"\n',
-            "conf_naavre_user_data": 'conf_naavre_user_data <- ""\n',
-            "conf_cloud_storage_path": 'conf_cloud_storage_path <- "."\n'
+            "conf_temporary_data_directory": f'conf_temporary_data_directory {assign_op} "./outputs"\n',
+            "conf_virtual_lab_biotisan_euromarec": f'conf_virtual_lab_biotisan_euromarec {assign_op} "vl-biotisan-euromarec"\n',
+            "conf_naavre_public": f'conf_naavre_public {assign_op} "naa-vre-public"\n',
+            "conf_naavre_user_data": f'conf_naavre_user_data {assign_op} ""\n',
+            "conf_cloud_storage_path": f'conf_cloud_storage_path {assign_op} "."\n'
         })
 
         # Loop through all cells and substitute the existing lines
@@ -128,8 +131,7 @@ def lambda_handler(event, context):
                     replaced = False
                     # Check if this line assigns a value to one of our parameters or config variables
                     for param_key, param_line in formatted_params.items():
-                        # Matches the variable name, optional spaces, and the <- operator
-                        if re.match(rf"^{re.escape(param_key)}\s*<-", line):
+                        if re.match(rf"^{re.escape(param_key)}\s*(<-|=)", line):
                             new_source.append(param_line)
                             replaced = True
                             break # Move to the next line in the cell once replaced

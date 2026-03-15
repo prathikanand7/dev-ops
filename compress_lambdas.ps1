@@ -1,13 +1,13 @@
-$SourceDir = ".\lifewatch_batch_platform\backend_lamdas"
-$TargetDir = ".\lifewatch_batch_platform\backend_lambda_artifacts"
+$SourceDir = ".\lifewatch_batch_platform\terraform\backend_lamdas"
+$TargetDir = ".\lifewatch_batch_platform\terraform\backend_lambda_artifacts"
 
 New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
 
-Write-Host "Zipping python files..."
+Write-Host "Zipping python files with shared dependencies..."
 
-Compress-Archive -Path "$SourceDir\logs.py" -DestinationPath "$TargetDir\logs_lambda.zip" -Force
-Compress-Archive -Path "$SourceDir\results.py" -DestinationPath "$TargetDir\results_lambda.zip" -Force
-Compress-Archive -Path "$SourceDir\status.py" -DestinationPath "$TargetDir\status_lambda.zip" -Force
-Compress-Archive -Path "$SourceDir\lambda_function.py" -DestinationPath "$TargetDir\lambda.zip" -Force
+Compress-Archive -Path "$SourceDir\logs.py", "$SourceDir\handle_cors.py" -DestinationPath "$TargetDir\logs_lambda.zip" -Force
+Compress-Archive -Path "$SourceDir\results.py", "$SourceDir\handle_cors.py" -DestinationPath "$TargetDir\results_lambda.zip" -Force
+Compress-Archive -Path "$SourceDir\status.py", "$SourceDir\handle_cors.py" -DestinationPath "$TargetDir\status_lambda.zip" -Force
+Compress-Archive -Path "$SourceDir\lambda_function.py", "$SourceDir\handle_cors.py" -DestinationPath "$TargetDir\lambda.zip" -Force
 
 Write-Host "Lambdas compressed to $TargetDir."

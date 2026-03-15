@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { BsMoon, BsSun } from 'react-icons/bs';
 import { DropZone } from './components/DropZone';
 
@@ -155,62 +155,87 @@ export const App: React.FC = () => {
     });
   }
 
-  function parseNotebookParameters(notebookText: string): Record<string, string | number | boolean> {
-    const notebook = JSON.parse(notebookText) as {
-      cells?: Array<{
-        cell_type?: string;
-        metadata?: { tags?: string[] };
-        source?: string[];
-      }>;
-    };
+    function parseNotebookParameters(notebookText: string): Record<string, string | number | boolean> {
+      const notebook = JSON.parse(notebookText) as {
+        cells?: Array<{
+          cell_type?: string;
+          metadata?: { tags?: string[] };
+          source?: string[];
+        }>;
+      };
 
-    const parameterCell = notebook.cells?.find(
-      (cell) => cell.cell_type === 'code' && Array.isArray(cell.metadata?.tags) && cell.metadata.tags.includes('parameters'),
-    );
+      if (!notebook.cells) return {};
 
-    if (!parameterCell?.source?.length) {
-      return {};
+      const assignmentRegex = /^\s*((?:param_|conf_)[A-Za-z0-9_]*)\s*(?:<-|=)\s*(.+?)\s*$/;
+      function stripComment(line: string): string {
+        let inString: string | null = null;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (inString) {
+            if (ch === inString) inString = null;
+          } else if (ch === '"' || ch === "'") {
+            inString = ch;
+          } else if (ch === '#') {
+            return line.slice(0, i).trimEnd();
+          }
+        }
+        return line;
+      }
+
+      let parameterCell = notebook.cells.find(
+        (cell) => cell.cell_type === 'code' && Array.isArray(cell.metadata?.tags) && cell.metadata.tags.includes('parameters')
+      );
+
+      if (!parameterCell) {
+        parameterCell = notebook.cells.find(
+          (cell) => cell.cell_type === 'code' && cell.source?.some(line => assignmentRegex.test(stripComment(line)))
+        );
+      }
+
+      if (!parameterCell?.source?.length) {
+        return {};
+      }
+
+      const extracted: Record<string, string | number | boolean> = {};
+
+      parameterCell.source.forEach((rawLine) => {
+        const line = stripComment(rawLine).trim();
+
+        if (!line || line.startsWith('#')) {
+          return;
+        }
+
+        const match = line.match(assignmentRegex);
+        if (!match) {
+          return;
+        }
+
+        const [, key, valueRaw] = match;
+        let value: string | number | boolean;
+
+        if (/^['"].*['"]$/.test(valueRaw)) {
+          value = valueRaw.replace(/^['"]|['"]$/g, '');
+        } else if (/^(true|false)$/i.test(valueRaw)) {
+          value = valueRaw.toLowerCase() === 'true';
+        } else if (/^[-+]?\d*\.?\d*$/.test(valueRaw) && valueRaw !== '.' && valueRaw !== '') {
+          value = Number(valueRaw);
+        } else {
+          value = valueRaw;
+        }
+
+        extracted[key] = value;
+      });
+
+      return extracted;
     }
 
-    const extracted: Record<string, string | number | boolean> = {};
-    const assignmentRegex = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:<-|=)\s*(.+?)\s*$/;
-
-    parameterCell.source.forEach((rawLine) => {
-      const line = rawLine.trim();
-
-      if (!line || line.startsWith('#')) {
-        return;
-      }
-
-      const match = line.match(assignmentRegex);
-      if (!match) {
-        return;
-      }
-
-      const [, key, valueRaw] = match;
-      let value: string | number | boolean = valueRaw;
-
-      if (/^[-+]?\d+(?:\.\d+)?$/.test(valueRaw)) {
-        value = Number(valueRaw);
-      } else if (/^(true|false)$/i.test(valueRaw)) {
-        value = valueRaw.toLowerCase() === 'true';
-      } else {
-        value = valueRaw.replace(/^['"]|['"]$/g, '');
-      }
-
-      extracted[key] = value;
-    });
-
-    return extracted;
-  }
-
-  async function extractParametersFromNotebook(notebookFile: File): Promise<void> {
+  const extractParametersFromNotebook = useCallback(async (notebookFile: File) => {
     try {
       const text = await readFileAsText(notebookFile);
       const extracted = parseNotebookParameters(text);
 
       if (Object.keys(extracted).length === 0) {
-        setExtractInfo('Notebook loaded, but no tagged parameters cell was found.');
+        setExtractInfo('Notebook loaded, but no valid parameters were found.');
         return;
       }
 
@@ -219,18 +244,25 @@ export const App: React.FC = () => {
     } catch (error) {
       setExtractInfo(`Failed to parse notebook: ${(error as Error).message}`);
     }
-  }
+  }, []);
 
-  async function handleFilesChange(newFiles: File[]): Promise<void> {
+  const handleFilesChange = useCallback(async (newFiles: File[]) => {
+    const notebookFiles = newFiles.filter(file => file.name.toLowerCase().endsWith('.ipynb'));
+    
+    if (notebookFiles.length > 1) {
+      setExtractInfo('Error: Only one notebook (.ipynb) file is allowed. Please remove the extra notebooks.');
+      setFiles([]);
+      return;
+    }
+
     setFiles(newFiles);
 
-    const notebookFile = newFiles.find((file) => file.name.toLowerCase().endsWith('.ipynb'));
-    if (notebookFile) {
-      await extractParametersFromNotebook(notebookFile);
+    if (notebookFiles.length === 1) {
+      await extractParametersFromNotebook(notebookFiles[0]);
     } else {
       setExtractInfo(null);
     }
-  }
+  }, [extractParametersFromNotebook]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -263,9 +295,22 @@ export const App: React.FC = () => {
 
       const formData = new FormData();
 
+      // Mandatory Notebook Check
       const notebookFile = files.find((file) => file.name.toLowerCase().endsWith('.ipynb'));
       if (!notebookFile) {
         setRunError('You must include one .ipynb notebook file.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Mandatory Environment File Check
+      const envFile = files.find((file) => {
+        const ext = file.name.toLowerCase();
+        return ext.endsWith('.yaml') || ext.endsWith('.yml') || ext.endsWith('.txt');
+      });
+      
+      if (!envFile) {
+        setRunError('You must include an environment file (.yaml, .yml, or .txt).');
         setIsSubmitting(false);
         return;
       }
@@ -283,14 +328,27 @@ export const App: React.FC = () => {
       const nonNotebookFiles = files.filter((file) => !file.name.toLowerCase().endsWith('.ipynb'));
       if (nonNotebookFiles.length > 0) {
         const baseName = fileParamName.trim() || 'param_01_input_data_filename';
+        let uploadIndex = 1;
 
-        nonNotebookFiles.forEach((file, index) => {
-          const fieldName = index === 0 ? baseName : `upload_${String(index).padStart(2, '0')}`;
-          formData.append(fieldName, file);
+        nonNotebookFiles.forEach((file) => {
+          const lowerName = file.name.toLowerCase();
+          
+          if (lowerName === 'environment.yaml' || lowerName === 'environment.yml' || lowerName === 'environment.txt') {
+            formData.append('environment', file, file.name);
+          } else {
+            const fieldName = uploadIndex === 1 ? baseName : `upload_${String(uploadIndex).padStart(2, '0')}`;
+            formData.append(fieldName, file);
+            uploadIndex++;
+          }
         });
 
-        if (!(baseName in parsedParams)) {
-          formData.append(baseName, nonNotebookFiles[0].name);
+        const dataFiles = nonNotebookFiles.filter(f => {
+           const n = f.name.toLowerCase();
+           return n !== 'environment.yaml' && n !== 'environment.yml' && n !== 'environment.txt';
+        });
+
+        if (dataFiles.length > 0 && !(baseName in parsedParams)) {
+          formData.append(baseName, dataFiles[0].name);
         }
       }
 
@@ -624,7 +682,7 @@ export const App: React.FC = () => {
                       onChange={(e) => setParamsJson(e.target.value)}
                       rows={5}
                     />
-                    {extractInfo && <div className="form-text text-info">{extractInfo}</div>}
+                    {extractInfo && <div className={`form-text ${extractInfo.includes('Error') ? 'text-danger' : 'text-info'}`}>{extractInfo}</div>}
                   </div>
 
                   <div className="mb-3">
@@ -665,7 +723,7 @@ export const App: React.FC = () => {
                   </div>
 
                   <DropZone
-                    label="Drop one .ipynb notebook and optional data files (.xlsx/.xls)."
+                    label="Drop one mandatory .ipynb notebook, one mandatory environment file (.yaml/.yml/.txt), and optional data files."
                     onFilesChange={handleFilesChange}
                   />
 
