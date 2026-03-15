@@ -1,6 +1,7 @@
 import json
 import boto3
 import os
+from datetime import datetime, timezone
 from handle_cors import response as cors_response
 
 s3 = boto3.client("s3")
@@ -11,57 +12,76 @@ def lambda_handler(event, context):
     try:
         paginator = s3.get_paginator('list_objects_v2')
         jobs_history = []
-        batch_job_ids = []  # IDs used to query Batch
+        job_map = {}
         
+        # Fetch metadata from S3
         for page in paginator.paginate(Bucket=BUCKET, Prefix="jobs/", Delimiter="/"):
             for prefix in page.get('CommonPrefixes', []):
                 job_folder = prefix.get('Prefix')
                 job_id = job_folder.split('/')[1]
                 
-                job_data = {
-                    "job_id": job_id,
-                    "execution_profile": "unknown",
-                    "batch_job_id": "unknown",
-                    "created_at": None,
-                    "status": "UNKNOWN"
+                # Base object mirrors JobHistoryItem interface for frontend
+                ts_item = {
+                    "jobId": job_id,
+                    "submittedAt": "",
+                    "notebookName": "Unknown",
+                    "environmentName": "Unknown",
+                    "executionProfile": "unknown",
+                    "params": {},
+                    "status": "UNKNOWN",
+                    "logs": "",  # Fetch separately in frontend
+                    "artifactUrl": None, # Fetch separately in frontend
+                    "s3Uri": f"s3://{BUCKET}/{job_folder}",
+                    "info": None,
+                    "error": None,
+                    "lastCheckedAt": datetime.now(timezone.utc).isoformat()
                 }
                 
-                # Fetch the meta.json
                 try:
                     meta_obj = s3.get_object(Bucket=BUCKET, Key=f"{job_folder}meta.json")
                     
-                    # Extract Creation Date from S3 metadata
-                    last_modified = meta_obj['LastModified']
-                    job_data['created_at'] = last_modified.isoformat()
-                    
+                    # Extract timestamp from S3 metadata
+                    ts_item["submittedAt"] = meta_obj['LastModified'].isoformat()
                     meta_content = json.loads(meta_obj['Body'].read().decode('utf-8'))
-                    job_data.update(meta_content)
+                    ts_item["executionProfile"] = meta_content.get("execution_profile", "unknown")
+                    ts_item["notebookName"] = meta_content.get("notebook_name", "notebook.ipynb")
+                    ts_item["environmentName"] = meta_content.get("environment_name", "environment.yaml")
+                    ts_item["params"] = meta_content.get("params", {})
                     
-                    # Store the batch ID to query later
-                    if job_data.get("batch_job_id") != "unknown":
-                        batch_job_ids.append(job_data["batch_job_id"])
+                    batch_id = meta_content.get("batch_job_id")
+                    if batch_id:
+                        job_map[batch_id] = ts_item
                         
                 except s3.exceptions.NoSuchKey:
-                    pass # Skip if meta.json is missing
+                    pass # Skip if the JSON is missing
                 
-                jobs_history.append(job_data)
+                jobs_history.append(ts_item)
         
-        # Fetch Status from AWS Batch
-        if batch_job_ids:
-            status_map = {}
-            for i in range(0, len(batch_job_ids), 100):
-                chunk = batch_job_ids[i:i + 100]
+        # Fetch Status from Batch
+        batch_ids = list(job_map.keys())
+        if batch_ids:
+            # describe_jobs has a limit of 100 jobs
+            for i in range(0, len(batch_ids), 100):
+                chunk = batch_ids[i:i + 100]
                 batch_response = batch.describe_jobs(jobs=chunk)
                 
                 for job in batch_response.get('jobs', []):
-                    status_map[job['jobId']] = job['status']
-            
-            for job in jobs_history:
-                if job['batch_job_id'] in status_map:
-                    job['status'] = status_map[job['batch_job_id']]
+                    b_id = job['jobId']
+                    status = job['status']
+                    reason = job.get('statusReason', '')
 
+                    # Update the object in place
+                    mapped_item = job_map[b_id]
+                    mapped_item["status"] = status
+                    
+                    if status == "FAILED":
+                        mapped_item["error"] = reason
+                    elif reason:
+                        mapped_item["info"] = reason
+
+        # Sort Chronologically
         jobs_history.sort(
-            key=lambda x: x.get('created_at') or "1970-01-01T00:00:00+00:00", 
+            key=lambda x: x.get('submittedAt') or "1970-01-01T00:00:00+00:00", 
             reverse=True
         )
 

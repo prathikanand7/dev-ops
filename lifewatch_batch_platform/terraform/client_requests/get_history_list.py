@@ -26,16 +26,13 @@ try:
     jobs = response_json.get("jobs", [])
     
     if not jobs:
-            print("No jobs found in history.")
+        print("No jobs found in history.")
     else:
         print(f"Found {len(jobs)} jobs:\n")
         for i, job in enumerate(jobs, 1):
-            print(f"{i}. Job ID:    {job.get('job_id')}")
-            print(f"   Status:    {job.get('status', 'UNKNOWN')}")
-            print(f"   Created:   {job.get('created_at', 'unknown')}")
-            print(f"   Batch ID:  {job.get('batch_job_id', 'unknown')}")
-            print(f"   Profile:   {job.get('execution_profile', 'unknown')}")
-            print("-" * 50)
+            print(f"[{i}] ==========================================")
+            print(json.dumps(job, indent=4))
+            print()
 
 except requests.HTTPError as e:
     print(f"HTTP error: {e}")
