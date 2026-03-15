@@ -18,7 +18,6 @@ try:
     response = requests.get(API_URL, headers=headers)
     response.raise_for_status()
     response_json = response.json()
-    print(response_json)  # Debug: Print the full response JSON
     
     print("\n=== CLOUD RESPONSE ===")
     print(f"Status Code: {response.status_code}")
@@ -27,14 +26,16 @@ try:
     jobs = response_json.get("jobs", [])
     
     if not jobs:
-        print("No jobs found in history.")
+            print("No jobs found in history.")
     else:
         print(f"Found {len(jobs)} jobs:\n")
         for i, job in enumerate(jobs, 1):
-            print(f"{i}. Job ID: {job.get('job_id')}")
-            print(f"   Batch ID: {job.get('batch_job_id', 'unknown')}")
-            print(f"   Profile:  {job.get('execution_profile', 'unknown')}")
-            print("-" * 40)
+            print(f"{i}. Job ID:    {job.get('job_id')}")
+            print(f"   Status:    {job.get('status', 'UNKNOWN')}")
+            print(f"   Created:   {job.get('created_at', 'unknown')}")
+            print(f"   Batch ID:  {job.get('batch_job_id', 'unknown')}")
+            print(f"   Profile:   {job.get('execution_profile', 'unknown')}")
+            print("-" * 50)
 
 except requests.HTTPError as e:
     print(f"HTTP error: {e}")
