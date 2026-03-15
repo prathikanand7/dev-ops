@@ -1,15 +1,14 @@
 output "s3_endpoint_id" {
-  value = aws_vpc_endpoint.s3.id
+  description = "ID of the S3 gateway endpoint."
+  value       = aws_vpc_endpoint.s3.id
 }
 
-output "ecr_api_endpoint_id" {
-  value = aws_vpc_endpoint.ecr_api.id
+output "ecs_endpoint_id" {
+  description = "ID of the ECS interface endpoint."
+  value       = aws_vpc_endpoint.ecs.id
 }
 
-output "ecr_dkr_endpoint_id" {
-  value = aws_vpc_endpoint.ecr_dkr.id
-}
-
-output "logs_endpoint_id" {
-  value = aws_vpc_endpoint.logs.id
+output "ecs_agent_endpoint_id" {
+  description = "ID of the ECS agent interface endpoint."
+  value       = aws_vpc_endpoint.ecs_agent.id
 }

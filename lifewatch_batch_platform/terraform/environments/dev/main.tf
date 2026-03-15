@@ -72,9 +72,6 @@ module "batch_compute_fargate" {
 
   vpc_endpoint_dependency_ids = [
     module.vpc_endpoints.s3_endpoint_id,
-    module.vpc_endpoints.ecr_dkr_endpoint_id,
-    module.vpc_endpoints.ecr_api_endpoint_id,
-    module.vpc_endpoints.logs_endpoint_id,
   ]
 
   tags = var.tags
