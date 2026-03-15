@@ -1,6 +1,6 @@
 ## Issue
 
-ISSUE > [ISSUE NUMBER](https://github.com/users/prathikanand7/projects/2?pane=issue&itemId=<itemid>)
+ISSUE > [ISSUE NAME](https://github.com/users/prathikanand7/projects/2?pane=issue&itemId=<itemid>)
 ​
 
 ## Description
@@ -34,6 +34,8 @@ Anything you want to flag for reviewers such as areas of uncertainty, known limi
 
 Go through each item before marking the PR as ready for review.
 
+- [ ] I filled in the releated issue link
+- [ ] My PR has the name of the branch
 - [ ] My code follows the project's coding style
 - [ ] I have reviewed my own changes before requesting review
 - [ ] I have added or updated relevant documentation
