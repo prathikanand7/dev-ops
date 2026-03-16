@@ -68,6 +68,41 @@ locals {
 }
 
 ################################
+# Job Profile Validations
+################################
+
+resource "terraform_data" "profile_validation" {
+  for_each = local.job_profiles_data.profiles
+
+  lifecycle {
+    precondition {
+      condition     = try(each.value.max_vcpus, each.value.backend_type == "FARGATE" ? var.fargate_max_vcpus : var.ec2_max_vcpus) > 0
+      error_message = "ERROR: Profile '${each.key}' has max_vcpus <= 0"
+    }
+    precondition {
+      condition     = try(each.value.max_vcpus, each.value.backend_type == "FARGATE" ? var.fargate_max_vcpus : var.ec2_max_vcpus) <= (each.value.backend_type == "FARGATE" ? var.fargate_max_vcpus : var.ec2_max_vcpus)
+      error_message = "ERROR: Profile '${each.key}' has max_vcpus exceeding the environment limit (${each.value.backend_type == "FARGATE" ? var.fargate_max_vcpus : var.ec2_max_vcpus})."
+    }
+    precondition {
+      condition     = each.value.vcpu > 0
+      error_message = "ERROR: Profile '${each.key}' has vcpu <= 0"
+    }
+    precondition {
+      condition     = each.value.vcpu <= try(each.value.max_vcpus, each.value.backend_type == "FARGATE" ? var.fargate_max_vcpus : var.ec2_max_vcpus)
+      error_message = "ERROR: Profile '${each.key}' has vcpu (${each.value.vcpu}) > max_vcpus (${try(each.value.max_vcpus, each.value.backend_type == "FARGATE" ? var.fargate_max_vcpus : var.ec2_max_vcpus)})"
+    }
+    precondition {
+      condition     = each.value.memory_mb >= 512
+      error_message = "ERROR: Profile '${each.key}' has memory_mb < 512"
+    }
+    precondition {
+      condition     = each.value.backend_type == "FARGATE" ? each.value.storage_gb >= 21 : each.value.storage_gb > 0
+      error_message = "ERROR: Profile '${each.key}' has invalid storage_gb. Fargate requires >= 21, EC2 requires > 0."
+    }
+  }
+}
+
+################################
 # Batch - Fargate
 ################################
 
@@ -78,7 +113,7 @@ module "batch_compute_fargate" {
   project_name       = var.project_name
   profile_name       = each.key
   service_role_arn   = module.batch_iam.batch_service_role_arn
-  max_vcpus          = var.fargate_max_vcpus
+  max_vcpus          = try(each.value.max_vcpus, var.fargate_max_vcpus)
   subnet_ids         = module.vpc.private_subnets
   security_group_ids = [module.security_groups.batch_security_group_id]
 
@@ -129,7 +164,7 @@ module "batch_compute_ec2" {
 
   project_name       = var.project_name
   profile_name       = each.key
-  max_vcpus          = var.ec2_max_vcpus
+  max_vcpus          = try(each.value.max_vcpus, var.ec2_max_vcpus)
   instance_types     = var.ec2_instance_types
   ebs_volume_size_gb = try(each.value.storage_gb, var.ec2_ebs_volume_size_gb)
   subnet_ids         = module.vpc.private_subnets
