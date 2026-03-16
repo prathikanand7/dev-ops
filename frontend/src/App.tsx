@@ -3,7 +3,7 @@ import { BsMoon, BsSun } from 'react-icons/bs';
 import {
   FiZap, FiRadio, FiLink, FiPlay, FiSearch, FiFileText,
   FiPackage, FiDownload, FiAlertCircle, FiInfo, FiCheckCircle,
-  FiClock, FiChevronDown, FiChevronRight, FiRefreshCw, FiExternalLink,
+  FiClock, FiRefreshCw, FiExternalLink, FiCopy,
 } from 'react-icons/fi';
 import { DropZone } from './components/DropZone';
 
@@ -19,6 +19,13 @@ type AppPage           = 'submission' | 'history';
 type ParamType  = 'number' | 'boolean' | 'string';
 type ParamEntry = { value: string; type: ParamType; };
 type FormParams = Record<string, ParamEntry>;
+
+type SubmissionDraft = {
+  formParams: FormParams;
+  notebookLoaded: boolean;
+  extractInfo: string | null;
+  executionProfile: 'standard' | 'ec2_200gb';
+};
 
 type JobHistoryItem = {
   jobId: string;
@@ -36,7 +43,12 @@ type JobHistoryItem = {
   lastCheckedAt: string | null;
 };
 
+type JobHistoryListResponse = {
+  jobs: JobHistoryItem[];
+};
+
 const JOB_HISTORY_KEY = 'nop-job-history';
+const SUBMISSION_DRAFT_KEY = 'nop-submission-draft';
 
 function detectType(v: string | number | boolean): ParamType {
   if (typeof v === 'number') return 'number';
@@ -57,6 +69,61 @@ function safeLoadJobHistory(): JobHistoryItem[] {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+function normalizeHistoryItem(raw: Partial<JobHistoryItem> & Record<string, unknown>): JobHistoryItem {
+  const paramsRaw = raw.params;
+  const params: Record<string, string> = {};
+  if (paramsRaw && typeof paramsRaw === 'object' && !Array.isArray(paramsRaw)) {
+    Object.entries(paramsRaw as Record<string, unknown>).forEach(([k, v]) => {
+      params[k] = String(v ?? '');
+    });
+  }
+
+  return {
+    jobId: String(raw.jobId || ''),
+    submittedAt: String(raw.submittedAt || ''),
+    notebookName: String(raw.notebookName || 'Unknown'),
+    environmentName: String(raw.environmentName || 'Unknown'),
+    executionProfile: String(raw.executionProfile || 'unknown'),
+    params,
+    status: String(raw.status || 'UNKNOWN'),
+    logs: String(raw.logs || ''),
+    artifactUrl: typeof raw.artifactUrl === 'string' ? raw.artifactUrl : null,
+    s3Uri: typeof raw.s3Uri === 'string' ? raw.s3Uri : null,
+    info: typeof raw.info === 'string' ? raw.info : null,
+    error: typeof raw.error === 'string' ? raw.error : null,
+    lastCheckedAt: typeof raw.lastCheckedAt === 'string' ? raw.lastCheckedAt : null,
+  };
+}
+
+function safeLoadSubmissionDraft(): SubmissionDraft {
+  try {
+    const raw = window.localStorage.getItem(SUBMISSION_DRAFT_KEY);
+    if (!raw) {
+      return {
+        formParams: {},
+        notebookLoaded: false,
+        extractInfo: null,
+        executionProfile: 'standard',
+      };
+    }
+    const parsed = JSON.parse(raw) as Partial<SubmissionDraft>;
+    const executionProfile = parsed.executionProfile === 'ec2_200gb' ? 'ec2_200gb' : 'standard';
+    return {
+      formParams: parsed.formParams && typeof parsed.formParams === 'object' ? parsed.formParams : {},
+      notebookLoaded: !!parsed.notebookLoaded,
+      extractInfo: typeof parsed.extractInfo === 'string' ? parsed.extractInfo : null,
+      executionProfile,
+    };
+  } catch {
+    return {
+      formParams: {},
+      notebookLoaded: false,
+      extractInfo: null,
+      executionProfile: 'standard',
+    };
   }
 }
 
@@ -82,6 +149,7 @@ function deriveS3Uri(downloadUrl: string): string | null {
 
 export const App: React.FC = () => {
   const [activePage, setActivePage] = useState<AppPage>('submission');
+  const submissionDraftRef = useRef<SubmissionDraft>(safeLoadSubmissionDraft());
 
   /* Theme */
   const [theme, setTheme] = useState<ThemeMode>(() => {
@@ -95,12 +163,12 @@ export const App: React.FC = () => {
   const [apiKey,  setApiKey]  = useState('');
 
   /* Param form */
-  const [formParams,      setFormParams]      = useState<FormParams>({});
-  const [notebookLoaded,  setNotebookLoaded]  = useState(false);
-  const [extractInfo,     setExtractInfo]     = useState<string | null>(null);
+  const [formParams,      setFormParams]      = useState<FormParams>(() => submissionDraftRef.current.formParams);
+  const [notebookLoaded,  setNotebookLoaded]  = useState(() => submissionDraftRef.current.notebookLoaded);
+  const [extractInfo,     setExtractInfo]     = useState<string | null>(() => submissionDraftRef.current.extractInfo);
 
   /* Job submission */
-  const [executionProfile, setExecutionProfile] = useState<'standard' | 'ec2_200gb'>('standard');
+  const [executionProfile, setExecutionProfile] = useState<'standard' | 'ec2_200gb'>(() => submissionDraftRef.current.executionProfile);
   /* FIX #5: files held in a ref as well so the submit button reads the latest value
      without needing a re-render cycle from the DropZone callback */
   const [files,        setFiles]        = useState<File[]>([]);
@@ -126,12 +194,18 @@ export const App: React.FC = () => {
 
   /* Job history */
   const [jobHistory, setJobHistory] = useState<JobHistoryItem[]>(() => safeLoadJobHistory());
-  const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({});
   const [historyLoadingIds, setHistoryLoadingIds] = useState<Record<string, boolean>>({});
+  const [historyListLoading, setHistoryListLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [logsLoadingJobIds, setLogsLoadingJobIds] = useState<Record<string, boolean>>({});
+  const [artifactHydratingJobIds, setArtifactHydratingJobIds] = useState<Record<string, boolean>>({});
+  const [activeLogsJobId, setActiveLogsJobId] = useState<string | null>(null);
+  const [activeParamsJobId, setActiveParamsJobId] = useState<string | null>(null);
 
   const pollRef      = useRef<number | null>(null);
   const autoFetchRef = useRef<string | null>(null);
+  const ignoreNextEmptyFilesSyncRef = useRef(false);
+  const hasSubmissionDraftRef = useRef(false);
 
   const normalizedBaseUrl  = useMemo(() => baseUrl.replace(/\/$/, ''), [baseUrl]);
   const currentJobStatus   = jobStatus?.status || '';
@@ -139,6 +213,14 @@ export const App: React.FC = () => {
   const canFetchLogsNow    = logsReadyStatuses.includes(currentJobStatus);
   const canFetchResultsNow = currentJobStatus === 'SUCCEEDED';
   const hasParams          = Object.keys(formParams).length > 0;
+  const activeLogsItem     = useMemo(
+    () => jobHistory.find((item) => item.jobId === activeLogsJobId) || null,
+    [jobHistory, activeLogsJobId],
+  );
+  const activeParamsItem   = useMemo(
+    () => jobHistory.find((item) => item.jobId === activeParamsJobId) || null,
+    [jobHistory, activeParamsJobId],
+  );
 
   /* Derive disabled reason so we can show the user exactly what's missing */
   const hasNotebook = files.some((f) => f.name.toLowerCase().endsWith('.ipynb'));
@@ -161,6 +243,40 @@ export const App: React.FC = () => {
   }, [theme]);
 
   useEffect(() => {
+    const draft: SubmissionDraft = {
+      formParams,
+      notebookLoaded,
+      extractInfo,
+      executionProfile,
+    };
+    window.localStorage.setItem(SUBMISSION_DRAFT_KEY, JSON.stringify(draft));
+    hasSubmissionDraftRef.current = draft.notebookLoaded && Object.keys(draft.formParams).length > 0;
+  }, [formParams, notebookLoaded, extractInfo, executionProfile]);
+
+  /* When returning to submission page, set guard to ignore empty file sync from DropZone remount */
+  useEffect(() => {
+    if (activePage === 'submission') {
+      ignoreNextEmptyFilesSyncRef.current = true;
+    }
+  }, [activePage]);
+
+  /* When returning to submission page with empty files state but filesRef has content,
+     restore files after a brief delay to allow DropZone to fully re-initialize */
+  useEffect(() => {
+    if (activePage !== 'submission') return;
+    if (files.length > 0) return; // Already have files
+    if (!filesRef.current || filesRef.current.length === 0) return; // No files to restore
+    
+    const restoreTimer = window.setTimeout(() => {
+      if (files.length === 0 && filesRef.current && filesRef.current.length > 0) {
+        setFiles([...filesRef.current]);
+      }
+    }, 100);
+    
+    return () => window.clearTimeout(restoreTimer);
+  }, [activePage, files.length]);
+
+  useEffect(() => {
     window.localStorage.setItem(JOB_HISTORY_KEY, JSON.stringify(jobHistory.slice(0, 200)));
   }, [jobHistory]);
 
@@ -172,6 +288,38 @@ export const App: React.FC = () => {
     autoFetchRef.current = jobId;
     void handleFetchResults();
   }, [jobId, apiKey, jobStatus?.status, resultsDownloadUrl, isFetchingResults]);
+
+  useEffect(() => {
+    if (activePage !== 'history') return;
+    if (!apiKey) return;
+    void fetchHistoryList();
+  }, [activePage, apiKey, normalizedBaseUrl]);
+
+  useEffect(() => {
+    if (!activeParamsJobId) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setActiveParamsJobId(null);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeParamsJobId]);
+
+  useEffect(() => {
+    if (!activeLogsJobId) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setActiveLogsJobId(null);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeLogsJobId]);
 
   /* ── utils ──────────────────────────────────────────────── */
   function decodeApiBody<T>(raw: unknown): T {
@@ -190,6 +338,35 @@ export const App: React.FC = () => {
 
   function sleep(ms: number) { return new Promise<void>((r) => window.setTimeout(r, ms)); }
 
+  async function copyTextToClipboard(text: string): Promise<boolean> {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function copyHistoryJobId(jobIdToCopy: string): Promise<void> {
+    const copied = await copyTextToClipboard(jobIdToCopy);
+    patchHistoryItem(jobIdToCopy, {
+      info: copied ? 'Job ID copied to clipboard.' : null,
+      error: copied ? null : 'Failed to copy Job ID.',
+    });
+  }
+
   function upsertHistoryItem(item: JobHistoryItem) {
     setJobHistory((prev) => [item, ...prev.filter((h) => h.jobId !== item.jobId)].slice(0, 200));
   }
@@ -200,10 +377,94 @@ export const App: React.FC = () => {
     )));
   }
 
+  async function hydrateHistoryArtifacts(items: JobHistoryItem[]): Promise<void> {
+    const candidates = items.filter((item) => item.status === 'SUCCEEDED' && !item.artifactUrl);
+    if (candidates.length === 0) return;
+
+    setArtifactHydratingJobIds((prev) => {
+      const next = { ...prev };
+      candidates.forEach((item) => {
+        next[item.jobId] = true;
+      });
+      return next;
+    });
+
+    try {
+      const results = await Promise.all(candidates.map(async (item) => {
+        try {
+          const res = await fetch(`${normalizedBaseUrl}/batch/jobs/${item.jobId}/results`, {
+            headers: { 'x-api-key': apiKey },
+          });
+          if (!res.ok) return null;
+          const data = decodeApiBody<JobResultsResponse>((await res.json()) as unknown);
+          if (!data.download_url) return null;
+          return {
+            jobId: item.jobId,
+            artifactUrl: data.download_url,
+            s3Uri: deriveS3Uri(data.download_url),
+          };
+        } catch {
+          return null;
+        }
+      }));
+
+      const patches = results.filter((result): result is { jobId: string; artifactUrl: string; s3Uri: string | null } => !!result);
+      if (patches.length === 0) return;
+
+      const patchMap = new Map(patches.map((patch) => [patch.jobId, patch]));
+      setJobHistory((prev) => prev.map((item) => {
+        const patch = patchMap.get(item.jobId);
+        if (!patch) return item;
+        return {
+          ...item,
+          artifactUrl: patch.artifactUrl,
+          s3Uri: patch.s3Uri,
+        };
+      }));
+    } finally {
+      setArtifactHydratingJobIds((prev) => {
+        const next = { ...prev };
+        candidates.forEach((item) => {
+          delete next[item.jobId];
+        });
+        return next;
+      });
+    }
+  }
+
+  async function fetchHistoryList(): Promise<void> {
+    if (!apiKey) return;
+    setHistoryListLoading(true);
+    setHistoryError(null);
+    try {
+      const res = await fetch(`${normalizedBaseUrl}/batch/jobs/history_list`, {
+        headers: { 'x-api-key': apiKey },
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        setHistoryError(`History list failed (${res.status}): ${t}`);
+        return;
+      }
+      const body = decodeApiBody<JobHistoryListResponse>((await res.json()) as unknown);
+      const mapped = (body.jobs || [])
+        .map((item) => normalizeHistoryItem(item as Partial<JobHistoryItem> & Record<string, unknown>))
+        .filter((item) => item.jobId);
+      setJobHistory(mapped);
+      void hydrateHistoryArtifacts(mapped);
+    } catch (err) {
+      setHistoryError((err as Error).message);
+    } finally {
+      setHistoryListLoading(false);
+    }
+  }
+
   async function refreshHistoryItem(targetJobId: string, includeLogs: boolean): Promise<void> {
     if (!targetJobId.trim()) return;
     setHistoryError(null);
     setHistoryLoadingIds((prev) => ({ ...prev, [targetJobId]: true }));
+    if (includeLogs) {
+      setLogsLoadingJobIds((prev) => ({ ...prev, [targetJobId]: true }));
+    }
 
     try {
       const statusRes = await fetch(`${normalizedBaseUrl}/batch/jobs/${targetJobId}`, {
@@ -226,15 +487,27 @@ export const App: React.FC = () => {
         if (!logsReadyStatuses.includes(statusData.status)) {
           patch.logs = 'Logs available once status is RUNNING.';
         } else {
-          const logsRes = await fetch(`${normalizedBaseUrl}/batch/jobs/${targetJobId}/logs`, {
-            headers: { 'x-api-key': apiKey },
-          });
-          if (logsRes.ok) {
-            const logsData = decodeApiBody<JobLogsResponse>((await logsRes.json()) as unknown);
-            patch.logs = (logsData.logs || []).join('\n');
-          } else {
-            const t = await logsRes.text();
-            patch.error = `Logs failed (${logsRes.status}): ${t}`;
+          try {
+            const logsRes = await fetch(`${normalizedBaseUrl}/batch/jobs/${targetJobId}/logs`, {
+              headers: { 'x-api-key': apiKey },
+            });
+            if (logsRes.ok) {
+              const logsData = decodeApiBody<JobLogsResponse>((await logsRes.json()) as unknown);
+              patch.logs = (logsData.logs || []).join('\n');
+              patch.info = null;
+              patch.error = null;
+            } else {
+              const t = await logsRes.text();
+              if (logsRes.status === 500 && /log stream does not exist/i.test(t)) {
+                patch.logs = 'Log stream not ready yet. Try again shortly.';
+              } else {
+                patch.logs = '';
+                patch.error = `Logs failed (${logsRes.status}): ${t}`;
+              }
+            }
+          } catch (err) {
+            patch.logs = '';
+            patch.error = `Error fetching logs: ${(err as Error).message}`;
           }
         }
       }
@@ -261,16 +534,19 @@ export const App: React.FC = () => {
         delete next[targetJobId];
         return next;
       });
+      if (includeLogs) {
+        setLogsLoadingJobIds((prev) => {
+          const next = { ...prev };
+          delete next[targetJobId];
+          return next;
+        });
+      }
     }
   }
 
   async function refreshAllHistoryItems(): Promise<void> {
-    if (!apiKey || jobHistory.length === 0) return;
-    for (const item of jobHistory) {
-      // Sequential refresh is gentler on API Gateway and CloudWatch APIs.
-      // eslint-disable-next-line no-await-in-loop
-      await refreshHistoryItem(item.jobId, false);
-    }
+    if (!apiKey) return;
+    await fetchHistoryList();
   }
 
   /* ── notebook param extraction ──────────────────────────── */
@@ -356,9 +632,21 @@ export const App: React.FC = () => {
     }
   }
 
-  /* FIX #5: useCallback so DropZone's useEffect([files, onFilesChange])
+  /* FIX: useCallback so DropZone's useEffect([files, onFilesChange])
      does NOT re-fire every time App re-renders, which would reset files state */
   const handleFilesChange = useCallback(async (newFiles: File[]): Promise<void> => {
+    /* If we're ignoring empty files sync (page switch back to submission),
+       only skip if files are empty AND we previously had files */
+    if (
+      ignoreNextEmptyFilesSyncRef.current
+      && newFiles.length === 0
+      && filesRef.current.length > 0
+    ) {
+      ignoreNextEmptyFilesSyncRef.current = false;
+      return; // Ignore this empty sync, don't update state
+    }
+    ignoreNextEmptyFilesSyncRef.current = false;
+
     /* Keep ref in sync for immediate reads (e.g. submit button) */
     filesRef.current = newFiles;
     setFiles(newFiles);
@@ -585,6 +873,8 @@ export const App: React.FC = () => {
             value={entry.value}
             onChange={(e) => updateParam(key, e.target.value)}
             step={entry.type === 'number' ? 'any' : undefined}
+            inputMode={entry.type === 'number' ? 'decimal' : undefined}
+            lang={entry.type === 'number' ? 'en-US' : undefined}
           />
         )}
       </div>
@@ -698,6 +988,17 @@ export const App: React.FC = () => {
                     {extractInfo && (
                       <p className="extract-info" style={{ marginTop: '0.55rem' }}>
                         <FiInfo size={11} />{extractInfo}
+                      </p>
+                    )}
+                    {/* Show retained files indicator when DropZone appears empty but files exist in memory */}
+                    {files.length === 0 && filesRef.current && filesRef.current.length > 0 && (
+                      <p className="extract-info" style={{ marginTop: '0.55rem', color: 'var(--accent)' }}>
+                        <FiCheckCircle size={11} />
+                        {filesRef.current.length} file{filesRef.current.length !== 1 ? 's' : ''} retained ({filesRef.current
+                          .slice(0, 2)
+                          .map((f) => f.name)
+                          .join(', ')}
+                        {filesRef.current.length > 2 ? `, +${filesRef.current.length - 2} more` : ''})
                       </p>
                     )}
                   </div>
@@ -848,7 +1149,19 @@ export const App: React.FC = () => {
 
                       {jobLogs.length > 0 && (
                         <>
-                          <p style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-muted)', marginBottom: 0 }}>Logs</p>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem' }}>
+                            <p style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-muted)', marginBottom: 0 }}>Logs</p>
+                            <button
+                              type="button"
+                              className="btn-neon btn-ghost-neon btn-action-compact"
+                              onClick={async () => {
+                                const copied = await copyTextToClipboard(jobLogs.join('\n'));
+                                setJobInfo(copied ? 'Logs copied to clipboard.' : 'Failed to copy logs.');
+                              }}
+                            >
+                              <FiCopy size={12} />Copy Logs
+                            </button>
+                          </div>
                           <pre className="logs-terminal">{jobLogs.join('\n')}</pre>
                         </>
                       )}
@@ -897,15 +1210,15 @@ export const App: React.FC = () => {
                 <div className="card-body-inner">
                   <div className="history-actions-row">
                     <p className="form-hint" style={{ margin: 0 }}>
-                      Scroll, expand, and inspect historical runs with parameters, logs, and artifact links.
+                      Condensed runs list from cloud history. Use action buttons to inspect logs or parameters.
                     </p>
                     <button
                       type="button"
                       className="btn-neon btn-ghost-neon"
                       onClick={() => void refreshAllHistoryItems()}
-                      disabled={!apiKey || Object.keys(historyLoadingIds).length > 0 || jobHistory.length === 0}
+                      disabled={!apiKey || historyListLoading || Object.keys(historyLoadingIds).length > 0}
                     >
-                      <FiRefreshCw size={13} />Refresh All
+                      <FiRefreshCw size={13} />{historyListLoading ? 'Refreshing…' : 'Refresh List'}
                     </button>
                   </div>
 
@@ -916,114 +1229,213 @@ export const App: React.FC = () => {
                   {jobHistory.length === 0 ? (
                     <div className="param-pending" style={{ marginTop: '0.95rem' }}>
                       <FiInfo size={14} />
-                      <span>No jobs in history yet. Submit a job from Job Submission and it will appear here.</span>
+                      <span>No jobs found in cloud history.</span>
                     </div>
                   ) : (
-                    <div className="history-scroll-list">
-                      {jobHistory.map((item) => {
-                        const isExpanded = !!expandedHistory[item.jobId];
-                        const isLoading = !!historyLoadingIds[item.jobId];
-                        const hasParamsForItem = Object.keys(item.params || {}).length > 0;
-                        return (
-                          <div key={item.jobId} className="history-item-card">
-                            <div className="history-item-top">
-                              <div>
-                                <p className="history-item-jobid">{item.jobId}</p>
-                                <p className="history-item-meta">
-                                  Submitted {new Date(item.submittedAt).toLocaleString()}
-                                  {item.lastCheckedAt ? ` • Checked ${new Date(item.lastCheckedAt).toLocaleString()}` : ''}
-                                </p>
-                              </div>
+                    <>
+                      <div className="history-scroll-list">
+                        <div className="history-table history-table-head">
+                          <span>Job ID</span>
+                          <span>Notebook</span>
+                          <span>Status</span>
+                          <span>Created</span>
+                          <span>Actions</span>
+                        </div>
 
-                              <div className="history-item-top-right">
-                                <span className={`status-pill ${getStatusClass(item.status)}`}>{item.status}</span>
+                        {jobHistory.map((item) => {
+                          const createdText = item.submittedAt ? new Date(item.submittedAt).toLocaleString() : '-';
+                          const isArtifactHydrating = !!artifactHydratingJobIds[item.jobId];
+
+                          return (
+                            <div key={item.jobId} className="history-row-wrapper">
+                              <div className="history-table history-table-row">
                                 <button
                                   type="button"
-                                  className="btn-neon btn-ghost-neon"
-                                  onClick={() => void refreshHistoryItem(item.jobId, isExpanded)}
-                                  disabled={!apiKey || isLoading}
+                                  data-label="Job ID"
+                                  className="history-cell-jobid history-jobid-button"
+                                  title={`Copy ${item.jobId}`}
+                                  onClick={() => void copyHistoryJobId(item.jobId)}
                                 >
-                                  <FiRefreshCw size={13} />{isLoading ? 'Refreshing…' : 'Refresh'}
+                                  {item.jobId}
                                 </button>
-                                <button
-                                  type="button"
-                                  className="btn-neon btn-secondary-neon"
-                                  onClick={() => {
-                                    setExpandedHistory((prev) => ({ ...prev, [item.jobId]: !isExpanded }));
-                                    if (!isExpanded) void refreshHistoryItem(item.jobId, true);
-                                  }}
-                                >
-                                  {isExpanded ? <FiChevronDown size={13} /> : <FiChevronRight size={13} />}
-                                  {isExpanded ? 'Collapse' : 'Expand'}
-                                </button>
+                                <span data-label="Notebook" className="history-cell-notebook" title={item.notebookName}>{item.notebookName || '-'}</span>
+                                <span data-label="Status"><span className={`status-pill ${getStatusClass(item.status)}`}>{item.status}</span></span>
+                                <span data-label="Created" className="history-cell-created" title={createdText}>{createdText}</span>
+                                <span data-label="Actions" className="history-actions-cell">
+                                  <button
+                                    type="button"
+                                    className="btn-neon btn-secondary-neon btn-action-compact"
+                                    onClick={() => {
+                                      const nextActiveJobId = activeLogsJobId === item.jobId ? null : item.jobId;
+                                      setActiveLogsJobId(nextActiveJobId);
+                                      setActiveParamsJobId(null);
+                                      if (nextActiveJobId) void refreshHistoryItem(item.jobId, true);
+                                    }}
+                                    disabled={!apiKey || logsLoadingJobIds[item.jobId]}
+                                  >
+                                    <FiFileText size={12} />{logsLoadingJobIds[item.jobId] ? 'Loading' : 'Logs'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-neon btn-secondary-neon btn-action-compact"
+                                    onClick={() => {
+                                      setActiveLogsJobId(null);
+                                      setActiveParamsJobId(item.jobId);
+                                    }}
+                                  >
+                                    <FiPackage size={12} />Params
+                                  </button>
+                                  {item.artifactUrl && (
+                                    <a
+                                      href={item.artifactUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="btn-neon btn-success-neon btn-action-compact"
+                                      style={{ textDecoration: 'none', display: 'inline-flex' }}
+                                    >
+                                      <FiDownload size={12} />Artifacts
+                                    </a>
+                                  )}
+                                  {!item.artifactUrl && item.status === 'SUCCEEDED' && isArtifactHydrating && (
+                                    <button
+                                      type="button"
+                                      className="btn-neon btn-success-neon btn-action-compact"
+                                      disabled
+                                    >
+                                      <span className="btn-loading-dot" aria-hidden="true" />Artifacts
+                                    </button>
+                                  )}
+                                </span>
                               </div>
                             </div>
-
-                            {isExpanded && (
-                              <div className="history-item-expanded">
-                                <div className="history-kv-grid">
-                                  <div className="history-kv-box">
-                                    <span className="history-kv-label">Notebook</span>
-                                    <span className="history-kv-value">{item.notebookName || '-'}</span>
-                                  </div>
-                                  <div className="history-kv-box">
-                                    <span className="history-kv-label">Environment</span>
-                                    <span className="history-kv-value">{item.environmentName || '-'}</span>
-                                  </div>
-                                  <div className="history-kv-box">
-                                    <span className="history-kv-label">Profile</span>
-                                    <span className="history-kv-value">{item.executionProfile || '-'}</span>
-                                  </div>
-                                  <div className="history-kv-box">
-                                    <span className="history-kv-label">S3 Prefix</span>
-                                    <span className="history-kv-value">jobs/{item.jobId}/</span>
-                                  </div>
-                                </div>
-
-                                {item.artifactUrl && (
-                                  <div className="history-artifact-row">
-                                    <a className="btn-neon btn-success-neon" href={item.artifactUrl} target="_blank" rel="noreferrer">
-                                      <FiExternalLink size={13} />Open Artifact Link
-                                    </a>
-                                    {item.s3Uri && <span className="history-s3-link">{item.s3Uri}</span>}
-                                  </div>
-                                )}
-
-                                <div style={{ marginTop: '0.8rem' }}>
-                                  <p className="history-subtitle">Parameters</p>
-                                  {!hasParamsForItem ? (
-                                    <p className="form-hint" style={{ marginTop: 0 }}>No parameters captured for this run.</p>
-                                  ) : (
-                                    <div className="history-params-grid">
-                                      {Object.entries(item.params).map(([paramKey, paramValue]) => (
-                                        <div key={paramKey} className="history-param-row">
-                                          <span className="history-param-key">{paramKey}</span>
-                                          <span className="history-param-value">{paramValue}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div style={{ marginTop: '0.8rem' }}>
-                                  <p className="history-subtitle">Logs</p>
-                                  <pre className="logs-terminal history-logs-terminal">{item.logs || 'No logs loaded yet. Click Refresh.'}</pre>
-                                </div>
-
-                                {(item.info || item.error) && (
-                                  <div className={`alert-neon ${item.error ? 'alert-danger-neon' : 'alert-info-neon'}`} style={{ marginTop: '0.8rem' }}>
-                                    {item.error || item.info}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeParamsItem && (
+          <div className="history-modal-backdrop" onClick={() => setActiveParamsJobId(null)} role="presentation">
+            <div
+              className="history-modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="history-params-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="history-modal-header">
+                <div>
+                  <p className="history-modal-eyebrow">Run Parameters</p>
+                  <h6 id="history-params-title" className="history-modal-title">{activeParamsItem.notebookName || 'Notebook Run'}</h6>
+                  <p className="history-modal-meta">{activeParamsItem.jobId}</p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-neon btn-ghost-neon btn-action-compact"
+                  onClick={() => setActiveParamsJobId(null)}
+                >
+                  Close
+                </button>
+              </div>
+
+              {Object.keys(activeParamsItem.params || {}).length === 0 ? (
+                <p className="form-hint" style={{ marginTop: 0 }}>No parameters captured for this run.</p>
+              ) : (
+                <div className="history-params-table-shell history-params-modal-table-popup">
+                  <table className="history-params-table-header">
+                    <colgroup>
+                      <col style={{ width: '42%' }} />
+                      <col style={{ width: '58%' }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>Parameter Name</th>
+                        <th>Value</th>
+                      </tr>
+                    </thead>
+                  </table>
+
+                  <div className="history-params-modal-table history-params-table-body-scroll">
+                    <table>
+                      <colgroup>
+                        <col style={{ width: '42%' }} />
+                        <col style={{ width: '58%' }} />
+                      </colgroup>
+                      <tbody>
+                        {Object.entries(activeParamsItem.params).map(([paramKey, paramValue]) => (
+                          <tr key={paramKey}>
+                            <td className="param-name-cell">{paramKey}</td>
+                            <td className="param-value-cell">{String(paramValue)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeLogsItem && (
+          <div className="history-modal-backdrop" onClick={() => setActiveLogsJobId(null)} role="presentation">
+            <div
+              className="history-modal-card history-modal-card-logs"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="history-logs-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="history-modal-header">
+                <div>
+                  <p className="history-modal-eyebrow">Run Logs</p>
+                  <h6 id="history-logs-title" className="history-modal-title">{activeLogsItem.notebookName || 'Notebook Run'}</h6>
+                  <p className="history-modal-meta">{activeLogsItem.jobId}</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  {!logsLoadingJobIds[activeLogsItem.jobId] && activeLogsItem.logs && (
+                    <button
+                      type="button"
+                      className="btn-neon btn-ghost-neon btn-action-compact"
+                      onClick={async () => {
+                        const copied = await copyTextToClipboard(activeLogsItem.logs || '');
+                        patchHistoryItem(activeLogsItem.jobId, {
+                          info: copied ? 'Logs copied to clipboard.' : null,
+                          error: copied ? null : 'Failed to copy logs.',
+                        });
+                      }}
+                    >
+                      <FiCopy size={12} />Copy Logs
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-neon btn-ghost-neon btn-action-compact"
+                    onClick={() => setActiveLogsJobId(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              {logsLoadingJobIds[activeLogsItem.jobId] ? (
+                <div className="logs-terminal history-logs-terminal history-logs-modal-terminal" style={{ color: 'var(--ink-muted)', fontStyle: 'italic' }}>
+                  Fetching logs from the cluster...
+                </div>
+              ) : (
+                <pre className="logs-terminal history-logs-terminal history-logs-modal-terminal">{activeLogsItem.logs || 'No logs available.'}</pre>
+              )}
+
+              {(activeLogsItem.info || activeLogsItem.error) && !logsLoadingJobIds[activeLogsItem.jobId] && (
+                <div className={`alert-neon ${activeLogsItem.error ? 'alert-danger-neon' : 'alert-info-neon'}`} style={{ marginTop: '0.7rem' }}>
+                  {activeLogsItem.error || activeLogsItem.info}
+                </div>
+              )}
             </div>
           </div>
         )}

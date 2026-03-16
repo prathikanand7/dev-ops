@@ -7,9 +7,9 @@
 ###
 ### ============================================================
 
-@baseUrl = https://sbyau0082g.execute-api.eu-west-1.amazonaws.com/dev
-@apiKey = your_api_gateway_key_here
-@jobId = your_job_id_here
+@baseUrl = https://9eso77xea9.execute-api.eu-west-1.amazonaws.com/dev
+@apiKey = JHmIS1YHxB3MMvXTj9Jqh3IBNa9X5pUNXWLfip9i
+@jobId = d05f1f3e-eed0-4ef6-85f8-e0dc38220403
 
 ### ============================================================
 ### 1. Submit Job (POST /batch/jobs)
@@ -98,7 +98,14 @@ GET {{baseUrl}}/batch/jobs/{{jobId}}/results
 x-api-key: {{apiKey}}
 
 ### ============================================================
-### 5. Optional CORS preflight check (if enabled in API Gateway)
+### 5. Job History List (GET /batch/jobs/history_list)
+### ============================================================
+
+GET {{baseUrl}}/batch/jobs/history_list
+x-api-key: {{apiKey}}
+
+### ============================================================
+### 6. Optional CORS preflight check (if enabled in API Gateway)
 ### ============================================================
 
 OPTIONS {{baseUrl}}/batch/jobs
