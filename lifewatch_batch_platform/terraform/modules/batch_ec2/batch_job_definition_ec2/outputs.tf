@@ -10,5 +10,5 @@ output "job_definition_name" {
 
 output "job_role_arn" {
   description = "ARN of the IAM role assumed by the EC2 job task."
-  value       = aws_iam_role.batch_job_role.arn
+  value       = var.job_role_arn
 }

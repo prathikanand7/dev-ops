@@ -3,7 +3,7 @@
 ################################
 
 resource "aws_batch_job_queue" "ec2" {
-  name     = "${var.project_name}-ec2-job-queue"
+  name     = "${var.project_name}-${var.profile_name}-job-queue"
   state    = "ENABLED"
   priority = var.priority
 
@@ -20,6 +20,6 @@ resource "aws_batch_job_queue" "ec2" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-ec2-job-queue"
+    Name = "${var.project_name}-${var.profile_name}-job-queue"
   })
 }

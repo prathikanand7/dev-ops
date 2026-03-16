@@ -12,11 +12,8 @@ resource "aws_lambda_function" "batch_trigger" {
 
   environment {
     variables = {
-      BUCKET                  = var.s3_bucket_name
-      STANDARD_JOB_QUEUE      = var.standard_job_queue_name
-      STANDARD_JOB_DEFINITION = var.standard_job_definition_name
-      EC2_200GB_JOB_QUEUE     = var.ec2_job_queue_name
-      EC2_200GB_JOB_DEFINITION = var.ec2_job_definition_name
+      BUCKET              = var.s3_bucket_name
+      JOB_PROFILES_CONFIG = var.job_profiles_config_json
     }
   }
 }

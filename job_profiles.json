@@ -1,0 +1,29 @@
+{
+  "global_settings": {
+    "currency": "USD"
+  },
+  "profiles": {
+    "standard": {
+      "display_name": "Standard Compute (Fargate)",
+      "description": "Serverless Fargate compute for general tasks.",
+      "backend_type": "FARGATE",
+      "vcpu": 1,
+      "max_vcpus": 256,
+      "memory_mb": 8192,
+      "storage_gb": 21,
+      "pricing_per_hour": 0.05,
+      "is_default": true
+    },
+    "ec2_200gb": {
+      "display_name": "High Storage Compute (EC2)",
+      "description": "Dedicated EC2 instance with 200GB attached EBS volume.",
+      "backend_type": "EC2",
+      "vcpu": 2,
+      "max_vcpus": 256,
+      "memory_mb": 16384,
+      "storage_gb": 200,
+      "pricing_per_hour": 0.15,
+      "is_default": false
+    }
+  }
+}
