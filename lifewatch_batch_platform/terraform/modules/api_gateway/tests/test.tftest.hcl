@@ -6,7 +6,6 @@ variables {
   project_name = "test-project"
   stage_name   = "test"
 
-  # Stub ARNs — the module only checks they're passed through correctly
   batch_trigger_lambda_arn    = "arn:aws:apigateway:eu-west-1:lambda:path/2015-03-31/functions/arn:aws:lambda:eu-west-1:123456789012:function:stub-batch/invocations"
   job_status_lambda_arn       = "arn:aws:apigateway:eu-west-1:lambda:path/2015-03-31/functions/arn:aws:lambda:eu-west-1:123456789012:function:stub-status/invocations"
   job_logs_lambda_arn         = "arn:aws:apigateway:eu-west-1:lambda:path/2015-03-31/functions/arn:aws:lambda:eu-west-1:123456789012:function:stub-logs/invocations"
