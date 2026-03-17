@@ -10,12 +10,12 @@ output "compute_environment_name" {
 
 output "batch_service_role_arn" {
   description = "ARN of the Batch service IAM role."
-  value       = aws_iam_role.batch_service_role.arn
+  value       = var.service_role_arn
 }
 
 output "ec2_instance_profile_arn" {
   description = "ARN of the EC2 instance profile used by Batch."
-  value       = aws_iam_instance_profile.ec2_instance_profile.arn
+  value       = var.instance_profile_arn
 }
 
 output "launch_template_id" {

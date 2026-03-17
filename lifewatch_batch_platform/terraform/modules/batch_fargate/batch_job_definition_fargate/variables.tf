@@ -47,3 +47,11 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "profile_name" {
+  type = string
+}
+
+variable "job_role_arn" {
+  type = string
+}

@@ -12,39 +12,26 @@ s3 = boto3.client("s3")
 batch = boto3.client("batch")
 
 BUCKET = os.environ["BUCKET"]
-STANDARD_JOB_QUEUE = os.environ.get("STANDARD_JOB_QUEUE") or os.environ.get("JOB_QUEUE")
-STANDARD_JOB_DEFINITION = os.environ.get("STANDARD_JOB_DEFINITION") or os.environ.get("JOB_DEFINITION")
-EC2_200GB_JOB_QUEUE = os.environ.get("EC2_200GB_JOB_QUEUE")
-EC2_200GB_JOB_DEFINITION = os.environ.get("EC2_200GB_JOB_DEFINITION")
 
-PROFILE_ALIASES = {
-    "standard": "standard",
-    "fargate": "standard",
-    "default": "standard",
-    "ec2_200gb": "ec2_200gb",
-    "ec2-200gb": "ec2_200gb",
-    "ec2_200": "ec2_200gb",
-    "high-storage": "ec2_200gb"
-}
-
+JOB_PROFILES_CONFIG = json.loads(os.environ.get("JOB_PROFILES_CONFIG", "{}"))
 
 def normalize_execution_profile(raw_profile):
     normalized_key = (raw_profile or "standard").strip().lower()
-    return PROFILE_ALIASES.get(normalized_key)
-
+    for profile_key, profile_data in JOB_PROFILES_CONFIG.items():
+        if normalized_key == profile_key:
+            return profile_key
+        # Check if the requested profile name matches aliases or the profile itself
+        if normalized_key in profile_key.lower().replace("_", "-"):
+            return profile_key
+    # Default to 'standard'
+    return "standard"
 
 def resolve_batch_target(execution_profile):
-    if execution_profile == "standard":
-        if not STANDARD_JOB_QUEUE or not STANDARD_JOB_DEFINITION:
-            raise RuntimeError("Missing STANDARD_JOB_QUEUE or STANDARD_JOB_DEFINITION configuration.")
-        return STANDARD_JOB_QUEUE, STANDARD_JOB_DEFINITION
-
-    if execution_profile == "ec2_200gb":
-        if not EC2_200GB_JOB_QUEUE or not EC2_200GB_JOB_DEFINITION:
-            raise RuntimeError("Missing EC2_200GB_JOB_QUEUE or EC2_200GB_JOB_DEFINITION configuration.")
-        return EC2_200GB_JOB_QUEUE, EC2_200GB_JOB_DEFINITION
-
-    raise ValueError(f"Unsupported execution profile: {execution_profile}")
+    if execution_profile not in JOB_PROFILES_CONFIG:
+        raise ValueError(f"Unsupported execution profile: {execution_profile}")
+    
+    config = JOB_PROFILES_CONFIG[execution_profile]
+    return config["queue"], config["definition"]
 
 def lambda_handler(event, context):
     try:

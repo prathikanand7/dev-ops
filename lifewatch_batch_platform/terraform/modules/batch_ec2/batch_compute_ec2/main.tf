@@ -1,67 +1,9 @@
 ################################
-# IAM - Batch Service Role
-################################
-
-resource "aws_iam_role" "batch_service_role" {
-  name = "${var.project_name}-batch-service-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = "batch.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "batch_service_role" {
-  role       = aws_iam_role.batch_service_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole"
-}
-
-################################
-# IAM - EC2 Instance Role
-################################
-
-resource "aws_iam_role" "ec2_instance_role" {
-  name = "${var.project_name}-batch-ec2-instance-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = "ec2.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "ec2_instance_ecs" {
-  role       = aws_iam_role.ec2_instance_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
-}
-
-resource "aws_iam_role_policy_attachment" "ec2_instance_ecr_readonly" {
-  role       = aws_iam_role.ec2_instance_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-}
-
-resource "aws_iam_instance_profile" "ec2_instance_profile" {
-  name = "${var.project_name}-batch-ec2-instance-profile"
-  role = aws_iam_role.ec2_instance_role.name
-}
-
-################################
 # Launch Template
 ################################
 
 resource "aws_launch_template" "batch_ec2" {
-  name_prefix            = "${var.project_name}-batch-ec2-"
+  name_prefix            = "${var.project_name}-${var.profile_name}-batch-ec2-"
   update_default_version = true
 
   block_device_mappings {
@@ -85,7 +27,7 @@ resource "aws_launch_template" "batch_ec2" {
   tag_specifications {
     resource_type = "instance"
     tags = merge(var.tags, {
-      Name = "${var.project_name}-batch-ec2"
+      Name = "${var.project_name}-${var.profile_name}-batch-ec2"
     })
   }
 }
@@ -95,10 +37,10 @@ resource "aws_launch_template" "batch_ec2" {
 ################################
 
 resource "aws_batch_compute_environment" "ec2" {
-  name         = "${var.project_name}-ec2-environment"
+  name         = "${var.project_name}-${var.profile_name}-environment"
   type         = "MANAGED"
   state        = "ENABLED"
-  service_role = aws_iam_role.batch_service_role.arn
+  service_role = var.service_role_arn
 
   compute_resources {
     type                = "EC2"
@@ -106,7 +48,7 @@ resource "aws_batch_compute_environment" "ec2" {
     desired_vcpus       = 0
     min_vcpus           = 0
     max_vcpus           = var.max_vcpus
-    instance_role       = aws_iam_instance_profile.ec2_instance_profile.arn
+    instance_role       = var.instance_profile_arn
     instance_type       = var.instance_types
     subnets             = var.subnet_ids
     security_group_ids  = var.security_group_ids
@@ -121,22 +63,15 @@ resource "aws_batch_compute_environment" "ec2" {
     }
 
     tags = merge(var.tags, {
-      Name = "${var.project_name}-ec2-batch"
+      Name = "${var.project_name}-${var.profile_name}-batch"
     })
-  }
-
-  depends_on = [
-    aws_iam_role_policy_attachment.batch_service_role,
-    aws_iam_role_policy_attachment.ec2_instance_ecs,
-    aws_iam_role_policy_attachment.ec2_instance_ecr_readonly,
-  ]
-
-  # Batch auto-scales desired_vcpus while jobs are running; ignore drift.
+  }# Batch auto-scales desired_vcpus while jobs are running; ignore drift.
   lifecycle {
     ignore_changes = [compute_resources[0].desired_vcpus]
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-ec2-environment"
+    Name = "${var.project_name}-${var.profile_name}-environment"
   })
 }
+
