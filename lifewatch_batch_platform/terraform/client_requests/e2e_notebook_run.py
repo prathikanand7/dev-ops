@@ -6,6 +6,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 
@@ -29,7 +30,7 @@ def parse_args():
     parser.add_argument("--timeout-seconds", type=int, default=3600, help="Overall timeout in seconds")
     parser.add_argument(
         "--output-dir",
-        default="terraform/environments/batch-dev/e2e_outputs",
+        default="lifewatch_batch_platform/terraform/environments/dev/e2e_outputs",
         help="Folder where downloaded outputs and logs are stored",
     )
     parser.add_argument(
@@ -124,68 +125,119 @@ def submit_job(args, headers):
             retry_on_statuses={403, 429, 500, 502, 503, 504},
         )
 
-    batch_job_id = payload.get("batch_job_id")
+    # New AWS Lambda flow returns only job_id.
+    # Older backend flow returned both job_id and batch_job_id.
     notebook_job_id = payload.get("job_id")
-    if not batch_job_id or not notebook_job_id:
-        raise RuntimeError(f"Submit response missing IDs: {payload}")
+    batch_job_id = payload.get("batch_job_id")
+    if not notebook_job_id:
+        raise RuntimeError(f"Submit response missing job_id: {payload}")
 
-    print(f"Submitted OK. notebook_job_id={notebook_job_id} batch_job_id={batch_job_id}")
+    if batch_job_id:
+        print(f"Submitted OK. notebook_job_id={notebook_job_id} batch_job_id={batch_job_id}")
+    else:
+        print(f"Submitted OK. notebook_job_id={notebook_job_id}")
     return payload, notebook_job_id, batch_job_id
 
 
-def poll_batch_status(api_base_url, headers, batch_job_id, poll_interval, timeout_seconds):
-    status_url = f"{api_base_url.rstrip('/')}/batch/jobs/{batch_job_id}"
+def _fetch_with_candidate_ids(api_base_url, headers, endpoint_suffix, candidate_ids):
+    last_error = None
+    for candidate_id in candidate_ids:
+        url = f"{api_base_url.rstrip('/')}/batch/jobs/{candidate_id}{endpoint_suffix}"
+        try:
+            payload = request_json("GET", url, headers)
+            return candidate_id, payload
+        except RuntimeError as exc:
+            # Try the next candidate when an endpoint cannot resolve the ID.
+            if "(404)" in str(exc):
+                last_error = exc
+                continue
+            raise
+    if last_error:
+        raise last_error
+    raise RuntimeError("No candidate IDs available for endpoint lookup.")
+
+
+def poll_batch_status(api_base_url, headers, candidate_ids, poll_interval, timeout_seconds):
+    active_status_id = None
     deadline = time.time() + timeout_seconds
     last_status = None
     status_payload = {}
 
     print("Polling batch status ...")
     while time.time() < deadline:
-        status_payload = request_json("GET", status_url, headers)
+        if active_status_id:
+            status_url = f"{api_base_url.rstrip('/')}/batch/jobs/{active_status_id}"
+            status_payload = request_json("GET", status_url, headers)
+        else:
+            active_status_id, status_payload = _fetch_with_candidate_ids(
+                api_base_url, headers, "", candidate_ids
+            )
+
         status = status_payload.get("status", "UNKNOWN")
         if status != last_status:
             print(f"Current batch status: {status}")
             last_status = status
 
         if status in {"SUCCEEDED", "FAILED"}:
-            return status_payload
+            return status_payload, active_status_id
 
         time.sleep(poll_interval)
 
-    raise TimeoutError(f"Timed out after {timeout_seconds}s waiting for batch job {batch_job_id}")
+    raise TimeoutError(
+        f"Timed out after {timeout_seconds}s waiting for batch job status. tried_ids={candidate_ids}"
+    )
 
 
-def get_logs(api_base_url, headers, batch_job_id):
-    logs_url = f"{api_base_url.rstrip('/')}/batch/jobs/{batch_job_id}/logs"
-    logs_payload = request_json("GET", logs_url, headers)
+def get_logs(api_base_url, headers, candidate_ids):
+    _, logs_payload = _fetch_with_candidate_ids(api_base_url, headers, "/logs", candidate_ids)
     raw_logs = logs_payload.get("logs", "")
     if isinstance(raw_logs, list):
         return "\n".join(str(line) for line in raw_logs)
     return str(raw_logs)
 
 
-def download_results(api_base_url, headers, notebook_job_id, output_dir):
-    results_url = f"{api_base_url.rstrip('/')}/batch/jobs/{notebook_job_id}/results"
-    results_payload = request_json("GET", results_url, headers)
-    results = results_payload.get("results", [])
-
-    if not results:
-        raise RuntimeError(f"No output files returned for notebook_job_id={notebook_job_id}")
-
+def download_results(api_base_url, headers, candidate_ids, output_dir):
+    result_lookup_id, results_payload = _fetch_with_candidate_ids(
+        api_base_url, headers, "/results", candidate_ids
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     written_files = []
-    for entry in results:
-        filename = entry.get("filename")
-        content_base64 = entry.get("content_base64")
-        if not filename or not content_base64:
-            raise RuntimeError(f"Malformed result entry: {entry}")
 
-        file_path = output_dir / filename
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_bytes = base64.b64decode(content_base64)
-        file_path.write_bytes(file_bytes)
-        written_files.append(str(file_path))
-        print(f"Wrote result file: {file_path}")
+    # Legacy flow: base64-embedded files.
+    results = results_payload.get("results")
+    if isinstance(results, list) and results:
+        for entry in results:
+            filename = entry.get("filename")
+            content_base64 = entry.get("content_base64")
+            if not filename or not content_base64:
+                raise RuntimeError(f"Malformed result entry: {entry}")
+
+            file_path = output_dir / filename
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_bytes = base64.b64decode(content_base64)
+            file_path.write_bytes(file_bytes)
+            written_files.append(str(file_path))
+            print(f"Wrote result file: {file_path}")
+        return results_payload, written_files
+
+    # Current AWS Lambda flow: pre-signed download URL to outputs.zip.
+    download_url = results_payload.get("download_url")
+    if not download_url:
+        raise RuntimeError(
+            f"No downloadable results found for lookup_id={result_lookup_id}. payload={results_payload}"
+        )
+
+    parsed = urlparse(download_url)
+    inferred_name = os.path.basename(parsed.path) or f"{result_lookup_id}_outputs.zip"
+    archive_path = output_dir / inferred_name
+    download_response = requests.get(download_url, timeout=300)
+    if download_response.status_code >= 400:
+        raise RuntimeError(
+            f"Failed to download results archive ({download_response.status_code}) from {download_url}"
+        )
+    archive_path.write_bytes(download_response.content)
+    written_files.append(str(archive_path))
+    print(f"Wrote result archive: {archive_path}")
 
     return results_payload, written_files
 
@@ -205,10 +257,11 @@ def main():
     base_output = Path(args.output_dir)
 
     submit_payload, notebook_job_id, batch_job_id = submit_job(args, headers)
-    status_payload = poll_batch_status(
+    status_candidate_ids = [id_ for id_ in [notebook_job_id, batch_job_id] if id_]
+    status_payload, status_lookup_id = poll_batch_status(
         args.api_base_url,
         headers,
-        batch_job_id,
+        status_candidate_ids,
         args.poll_interval_seconds,
         args.timeout_seconds,
     )
@@ -217,7 +270,8 @@ def main():
     job_output_dir = base_output / notebook_job_id
     job_output_dir.mkdir(parents=True, exist_ok=True)
 
-    logs_text = get_logs(args.api_base_url, headers, batch_job_id)
+    logs_candidate_ids = [id_ for id_ in [status_lookup_id, notebook_job_id, batch_job_id] if id_]
+    logs_text = get_logs(args.api_base_url, headers, logs_candidate_ids)
     (job_output_dir / "batch_logs.txt").write_text(logs_text, encoding="utf-8")
     print(f"Saved logs to {job_output_dir / 'batch_logs.txt'}")
 
@@ -230,7 +284,7 @@ def main():
     results_payload, written_files = download_results(
         args.api_base_url,
         headers,
-        notebook_job_id,
+        [id_ for id_ in [notebook_job_id, status_lookup_id, batch_job_id] if id_],
         job_output_dir / "results",
     )
 
