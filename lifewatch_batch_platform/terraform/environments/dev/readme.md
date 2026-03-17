@@ -10,7 +10,8 @@ API Gateway (REST)
     ├── POST /batch/jobs              → lambda_batch_trigger  ──► AWS Batch
     ├── GET  /batch/jobs/{id}         → lambda_job_status     ──► AWS Batch
     ├── GET  /batch/jobs/{id}/logs    → lambda_job_logs       ──► CloudWatch
-    └── GET  /batch/jobs/{id}/results → lambda_job_results    ──► S3
+    ├── GET  /batch/jobs/{id}/results → lambda_job_results    ──► S3
+    └── GET  /batch/jobs/history_list → lambda_job_history_list
                                                                     ▲
                                                              Batch workers
                                                           (Fargate or EC2)
@@ -60,12 +61,13 @@ Each Lambda function expects a ZIP file to exist at the path configured in `terr
 
 | Variable | Default path | Handler |
 |---|---|---|
-| `lambda_trigger_filename` | `lambda.zip` | `lambda_function.lambda_handler` |
-| `lambda_status_filename` | `status_lambda.zip` | `status.lambda_handler` |
-| `lambda_logs_filename` | `logs_lambda.zip` | `logs.lambda_handler` |
-| `lambda_results_filename` | `results_lambda.zip` | `results.lambda_handler` |
+| `lambda_trigger_filename` | `../../backend_lambda_artifacts/lambda.zip` | `lambda_function.lambda_handler` |
+| `lambda_status_filename` | `../../backend_lambda_artifacts/status_lambda.zip` | `status.lambda_handler` |
+| `lambda_logs_filename` | `../../backend_lambda_artifacts/logs_lambda.zip` | `logs.lambda_handler` |
+| `lambda_results_filename` | `../../backend_lambda_artifacts/results_lambda.zip` | `results.lambda_handler` |
+| `lambda_history_list_filename` | `../../backend_lambda_artifacts/history_list_lambda.zip` | `history_list.lambda_handler` |
 
-Paths are relative to the `environments/dev/` directory. If your ZIPs live elsewhere, update the paths in `terraform.tfvars` accordingly (e.g. `"../../lambdas/lambda.zip"`).
+Paths are relative to the `environments/dev/` directory.
 
 ---
 
@@ -81,7 +83,8 @@ vpc
       │    │    ├── lambda_batch_trigger
       │    │    ├── lambda_job_status
       │    │    ├── lambda_job_logs
-      │    │    └── lambda_job_results
+      │    │    ├── lambda_job_results
+      │    │    └── lambda_job_history_list
       │    ├── batch_job_definition_fargate
       │    └── batch_job_definition_ec2
       │
@@ -100,6 +103,7 @@ api_gateway ──► lambda_batch_trigger
             ──► lambda_job_status
             ──► lambda_job_logs
             ──► lambda_job_results
+            ──► lambda_job_history_list
 
 api_key_usage_plan ──► api_gateway
 ```
@@ -125,6 +129,7 @@ api_key_usage_plan ──► api_gateway
 | `lambda_job_status` | `modules/lambda/lambda_job_status` | Handles GET /batch/jobs/{id} |
 | `lambda_job_logs` | `modules/lambda/lambda_job_logs` | Handles GET /batch/jobs/{id}/logs |
 | `lambda_job_results` | `modules/lambda/lambda_job_results` | Handles GET /batch/jobs/{id}/results |
+| `lambda_job_history_list` | `modules/lambda/lambda_job_history_list` | Handles GET /batch/jobs/history_list |
 | `api_gateway` | `modules/api_gateway` | REST API with all routes, Lambda integrations, CORS, and auto-redeployment trigger |
 | `api_key_usage_plan` | `modules/api_key_usage_plan` | API key and usage plan with throttling and optional quota |
 

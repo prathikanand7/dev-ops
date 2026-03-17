@@ -1,3 +1,10 @@
+"""Lambda handler for POST /batch/jobs.
+
+Accepts multipart form-data, injects notebook parameters, stores job payloads
+in S3, submits an AWS Batch job, and stores metadata for downstream status,
+logs, results, and history endpoints.
+"""
+
 import json
 import boto3
 import uuid

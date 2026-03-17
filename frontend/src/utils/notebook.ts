@@ -30,6 +30,7 @@ export function parseNotebookParameters(text: string): Record<string, string | n
   let cell = nb.cells?.find(
     (c) => c.cell_type === 'code' && Array.isArray(c.metadata?.tags) && c.metadata!.tags!.includes('parameters'),
   );
+  // Backwards-compatible fallback for notebooks without tagged parameters cells.
   if (!cell) {
     cell = nb.cells?.find(
       (c) => c.cell_type === 'code' && c.source?.some((line) => fallbackCellRegex.test(stripComment(line))),
@@ -64,6 +65,7 @@ export function parseNotebookParameters(text: string): Record<string, string | n
 }
 
 export function downloadResultFile(filename: string, b64: string): void {
+  // Browser-only decode and download for inline base64 result payloads.
   const bytes = window.atob(b64);
   const arr   = new Uint8Array(bytes.length);
   for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);

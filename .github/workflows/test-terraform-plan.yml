@@ -19,6 +19,7 @@ permissions:
   contents: read
 
 env:
+  # Centralised so CI can target the active Terraform environment path without code changes.
   TERRAFORM_ENV_DIR: ${{ secrets.TERRAFORM_ENV_DIR }}
 
 jobs:

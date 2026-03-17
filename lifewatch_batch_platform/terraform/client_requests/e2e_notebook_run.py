@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""Notebook API end-to-end runner used by CI.
+
+The script submits a notebook job, polls until completion, downloads logs and
+results, and writes a structured summary for CI artefacts.
+"""
+
 import argparse
 import base64
 import json

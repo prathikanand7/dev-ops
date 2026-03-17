@@ -1,3 +1,5 @@
+"""Manual client script for GET /batch/jobs/history_list."""
+
 import requests
 import json
 from fetch_api_key import fetch_api_key

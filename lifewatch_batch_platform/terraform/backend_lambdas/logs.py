@@ -1,3 +1,9 @@
+"""Lambda handler for GET /batch/jobs/{job_id}/logs.
+
+Resolves the AWS Batch job from S3 metadata and reads CloudWatch log events
+from the configured Batch log group.
+"""
+
 import boto3
 import json
 import os

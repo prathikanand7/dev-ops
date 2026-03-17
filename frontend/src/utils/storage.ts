@@ -42,6 +42,7 @@ export function normalizeHistoryItem(raw: Partial<JobHistoryItem> & Record<strin
 
 export function safeLoadSubmissionDraft(): SubmissionDraft {
   try {
+    // Keep frontend resilient to stale or malformed localStorage values.
     const raw = window.localStorage.getItem(SUBMISSION_DRAFT_KEY);
     if (!raw) {
       return { formParams: {}, notebookLoaded: false, extractInfo: null, executionProfile: DEFAULT_EXECUTION_PROFILE };

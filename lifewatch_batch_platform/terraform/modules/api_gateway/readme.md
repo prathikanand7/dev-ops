@@ -9,8 +9,8 @@ Provisions an AWS API Gateway REST API with Lambda integrations, CORS preflight 
 | Resource | Description |
 |---|---|
 | `aws_api_gateway_rest_api` | The REST API with multipart/form-data binary support |
-| `aws_api_gateway_resource` | Routes: `/batch`, `/batch/jobs`, `/batch/jobs/{job_id}`, `/batch/jobs/{job_id}/logs`, `/batch/jobs/{job_id}/results` |
-| `aws_api_gateway_method` | `POST /batch/jobs`, `GET` on status/logs/results, `OPTIONS` on all routes |
+| `aws_api_gateway_resource` | Routes: `/batch`, `/batch/jobs`, `/batch/jobs/{job_id}`, `/batch/jobs/{job_id}/logs`, `/batch/jobs/{job_id}/results`, `/batch/jobs/history_list` |
+| `aws_api_gateway_method` | `POST /batch/jobs`, `GET` on status/logs/results/history_list, `OPTIONS` on all routes |
 | `aws_api_gateway_integration` | `AWS_PROXY` Lambda integrations for all functional routes; `MOCK` integrations for CORS preflight |
 | `aws_api_gateway_method_response` | `200` responses declaring CORS headers on all OPTIONS routes |
 | `aws_api_gateway_integration_response` | Injects `Access-Control-Allow-*` headers into preflight responses |

@@ -1,4 +1,5 @@
-$SourceDir = ".\lifewatch_batch_platform\terraform\backend_lambdas"
+# Package each Lambda handler with the shared CORS helper for Terraform deployment.
+$SourceDir = ".\lifewatch_batch_platform\terraform\backend_lamdas"
 $TargetDir = ".\lifewatch_batch_platform\terraform\backend_lambda_artifacts"
 
 New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
