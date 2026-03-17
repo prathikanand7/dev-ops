@@ -609,7 +609,6 @@ select.form-control-styled {
   isolation: isolate;
 }
 
-/* Border-only ring — mask-composite cuts out interior */
 .btn-neon::before {
   content: '';
   position: absolute;
