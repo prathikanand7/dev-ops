@@ -2,10 +2,6 @@ name: Smoke Test Worker Containerization
 # This workflow builds the worker and runs a smoke test to verify that the containerization is working correctly. 
 
 on:
-  push:
-    paths:
-      - "worker/**"
-      - ".github/workflows/smoke-test-worker-containerization.yml"
   pull_request:
     paths:
       - "worker/**"
