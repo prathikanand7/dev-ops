@@ -587,7 +587,6 @@ export const App: React.FC = () => {
   }
 
   /* ── param field renderer ───────────────────────────────── */
-  /* FIX #4: fields are fully controlled — onChange calls updateParam */
   function renderParamField(key: string, entry: ParamEntry) {
     return (
       <div key={key} className="form-group" style={{ marginBottom: 0 }}>
