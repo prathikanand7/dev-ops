@@ -76,10 +76,10 @@ jobs:
         id: find
         run: |
           BASE="lifewatch_batch_platform/terraform/modules"
-          # Find all directories containing at least one .tftest.hcl file
-          # Output a JSON array of paths relative to the modules/ dir
+          # Find test files, then normalize test/tests dirs back to module roots.
           modules=$(find "$BASE" -name "*.tftest.hcl" -printf '%h\n' \
-            | sed "s|$BASE/||" \
+            | sed -E 's#/(tests?)$##' \
+            | sed "s|^$BASE/||" \
             | sort -u \
             | jq -R -s -c 'split("\n") | map(select(length > 0))')
           echo "modules=$modules" >> "$GITHUB_OUTPUT"
@@ -87,7 +87,7 @@ jobs:
 
   test-modules:
     name: "Test ${{ matrix.module }}"
-    needs: discover-modules
+    needs: [terraform, discover-modules]
     if: needs.discover-modules.outputs.modules != '[]'
     runs-on: ubuntu-latest
     strategy:
