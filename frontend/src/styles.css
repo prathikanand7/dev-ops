@@ -7,7 +7,7 @@
   inherits: false;
 }
 
-/* ─── Design tokens — GoQuant green palette ─────────────────── */
+/* ─── Design tokens — green palette ─────────────────── */
 :root {
   --bg:             #050c06;
   --bg2:            #070f08;
@@ -1032,6 +1032,7 @@ select.form-control-styled {
   margin-top: 1rem;
   max-height: 70vh;
   overflow-y: auto;
+  overflow-x: auto;
   padding-right: 0.45rem;
   display: flex;
   flex-direction: column;
@@ -1060,13 +1061,14 @@ select.form-control-styled {
 
 .history-table {
   display: grid;
-  grid-template-columns: minmax(170px, 1fr) minmax(190px, 1.1fr) minmax(110px, 0.7fr) minmax(170px, 0.9fr) minmax(190px, 1fr);
+  grid-template-columns: 310px 150px 130px 160px auto;
   gap: 0.6rem;
   align-items: center;
+  min-width: 760px;
 }
 
 .history-table-head {
-  padding: 0.45rem 0.7rem;
+  padding: 0.65rem 1rem;
   border: 1px solid var(--border);
   border-radius: 0.55rem;
   background: rgba(74, 222, 128, 0.06);
@@ -1081,7 +1083,8 @@ select.form-control-styled {
   border: 1px solid var(--border);
   border-radius: 0.7rem;
   background: rgba(74, 222, 128, 0.02);
-  overflow: hidden;
+  overflow: visible;
+  min-width: 760px;
 }
 
 .history-table-row {
@@ -1130,11 +1133,25 @@ select.form-control-styled {
 }
 
 .history-actions-cell {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: flex-start;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.history-actions-cell::-webkit-scrollbar {
+  height: 4px;
+}
+
+.history-actions-cell::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.history-actions-cell::-webkit-scrollbar-thumb {
+  background: rgba(74, 222, 128, 0.2);
+  border-radius: 999px;
 }
 
 .history-detail-panel {
@@ -1812,4 +1829,3 @@ html[data-theme='light'] select.form-control-styled option:focus {
     transition-duration: 0.01ms !important;
   }
 }
-
