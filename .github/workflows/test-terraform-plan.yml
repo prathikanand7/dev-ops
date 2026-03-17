@@ -2,6 +2,8 @@ name: "Terraform CI"
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'lifewatch_batch_platform/terraform/**'
       - '.github/workflows/test-terraform-plan.yml'
@@ -10,8 +12,8 @@ on:
       - 'lifewatch_batch_platform/terraform/**'
       - '.github/workflows/test-terraform-plan.yml'
 concurrency:
-  group: terraform-batch-dev-state
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
