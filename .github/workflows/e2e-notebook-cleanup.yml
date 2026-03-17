@@ -1,4 +1,5 @@
 name: Notebook E2E EC2 Cleanup
+# Catch any lingering EC2 in edge case of early termination of E2E notebook deploy and run
 
 on:
   workflow_run:

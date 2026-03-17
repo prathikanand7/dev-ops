@@ -1,9 +1,7 @@
 name: Notebook E2E Deploy and Run
+# Deploy the entire infrastructure and execute a notebook end-to-end to verify everything works together as expected. 
 
 on:
-  push:
-    branches:
-      - "feature/endtoend-test"
   workflow_run:
     workflows: ["Deploy Worker Image to ECR"]
     types: [completed]
