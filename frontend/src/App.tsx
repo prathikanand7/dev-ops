@@ -395,7 +395,6 @@ export const App: React.FC = () => {
       const fp: FormParams = {};
       Object.entries(extracted).forEach(([k, v]) => { fp[k] = { value: String(v), type: detectType(v) }; });
       setFormParams(fp);
-      setExtractInfo(`${Object.keys(fp).length} parameter${Object.keys(fp).length !== 1 ? 's' : ''} extracted from notebook.`);
     } catch (err) {
       setNotebookLoaded(true);
       setFormParams({});
