@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FiAlertCircle, FiCheckCircle, FiInfo, FiPlay, FiZap } from 'react-icons/fi';
 import { DropZone } from '../DropZone';
 import type { ExecutionProfileDefinition, FormParams, ParamEntry, RunResponse } from '../../types';
@@ -46,6 +46,7 @@ export const SubmitJobCard: React.FC<SubmitJobCardProps> = ({
   runError,
   runResult,
 }) => {
+  const [isParamsModalOpen, setIsParamsModalOpen] = useState(false);
   const priceFormatter = new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency,
@@ -95,11 +96,50 @@ export const SubmitJobCard: React.FC<SubmitJobCardProps> = ({
                   <span>No tagged parameters cell found in this notebook.</span>
                 </div>
               ) : (
-                <div className="param-form-grid">
-                  {Object.entries(formParams).map(([key, entry]) => renderParamField(key, entry))}
+                <div className="param-modal-trigger-row">
+                  <p className="form-hint" style={{ margin: 0 }}>
+                    {Object.keys(formParams).length} parameter{Object.keys(formParams).length !== 1 ? 's' : ''} extracted and ready to edit.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-neon btn-secondary-neon"
+                    onClick={() => setIsParamsModalOpen(true)}
+                  >
+                    Edit Parameters
+                  </button>
                 </div>
               )}
             </div>
+
+            {isParamsModalOpen && hasParams && (
+              <div className="params-editor-modal-backdrop" role="presentation">
+                <div className="params-editor-modal-card" role="dialog" aria-modal="true" aria-label="Edit Parameters">
+                  <div className="history-modal-header">
+                    <div>
+                      <p className="history-modal-eyebrow">Notebook Parameters</p>
+                      <h6 className="history-modal-title">Edit Parameters</h6>
+                      <p className="history-modal-meta">Adjust values before submitting the job.</p>
+                    </div>
+                  </div>
+
+                  <div className="params-editor-modal-body">
+                    <div className="param-form-grid">
+                      {Object.entries(formParams).map(([key, entry]) => renderParamField(key, entry))}
+                    </div>
+                  </div>
+
+                  <div className="params-editor-modal-actions">
+                    <button
+                      type="button"
+                      className="btn-neon btn-primary-neon"
+                      onClick={() => setIsParamsModalOpen(false)}
+                    >
+                      Save and Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="form-group">
               <label className="form-label-styled" htmlFor="execution-profile">Execution Profile</label>

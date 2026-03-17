@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FiDownload, FiFileText, FiInfo, FiPackage, FiRefreshCw, FiClock } from 'react-icons/fi';
 import type { JobHistoryItem } from '../../types';
 
@@ -31,6 +31,13 @@ export const JobHistoryTable: React.FC<JobHistoryTableProps> = ({
   onOpenParams,
   getStatusClass,
 }) => {
+  const [copyNotification, setCopyNotification] = useState(false);
+
+  const handleCopyJobId = async (jobId: string) => {
+    await onCopyJobId(jobId);
+    setCopyNotification(true);
+    setTimeout(() => setCopyNotification(false), 1000);
+  };
   return (
     <div className="row-grid">
       <div className="glass-card">
@@ -53,6 +60,12 @@ export const JobHistoryTable: React.FC<JobHistoryTableProps> = ({
                 <FiRefreshCw size={13} />{historyListLoading ? 'Refreshing…' : 'Refresh List'}
               </button>
             </div>
+
+            {copyNotification && (
+              <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '0.5rem', padding: '0.4rem 0.6rem', backgroundColor: 'rgba(74, 222, 128, 0.08)', borderRadius: '0.4rem', border: '1px solid var(--border)' }}>
+                job id is copied!
+              </div>
+            )}
 
             {historyError && (
               <div className="alert-neon alert-warning-neon" style={{ marginTop: '0.9rem' }}>{historyError}</div>
@@ -91,7 +104,7 @@ export const JobHistoryTable: React.FC<JobHistoryTableProps> = ({
                             data-label="Job ID"
                             className="history-cell-jobid history-jobid-button"
                             title={`Copy ${item.jobId}`}
-                            onClick={() => void onCopyJobId(item.jobId)}
+                            onClick={() => void handleCopyJobId(item.jobId)}
                           >
                             {item.jobId}
                           </button>

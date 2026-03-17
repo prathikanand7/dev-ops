@@ -27,7 +27,8 @@ Features:
 - Required environment file: `.yaml`, `.yml`, or `.txt`
 - Optional extra upload files such as `.xlsx` or `.xls`
 - Automatic notebook parameter extraction from a tagged parameters cell
-- Editable parameter fields with inferred types: `string`, `number`, and `boolean`
+- `Edit Parameters` button opens a popup editor for extracted fields
+- Popup parameter editor with inferred types: `string`, `number`, and `boolean`
 - Execution profile selector driven by the shared backend profile catalog
 - Per-profile compute details: backend type, vCPU, memory, and storage
 - Indicative hourly cost estimate for the selected execution profile
@@ -44,6 +45,7 @@ Features:
 - Refreshes cloud history from the backend `history_list` route
 - Shows job ID, notebook name, status, created timestamp, and actions
 - Lets users copy a job ID directly from the table
+- Shows a brief confirmation toast when a job ID is copied
 - Opens logs in a dedicated modal
 - Opens captured run parameters in a dedicated modal
 - Shows artifact download links for completed jobs when available
@@ -58,8 +60,9 @@ flowchart TD
     B --> C[Job Submission page]
     C --> D[Upload notebook and environment file]
     D --> E[Parse notebook parameters in browser]
-    E --> F[Edit parameter fields]
-    F --> G[Submit job]
+    E --> F[Open Edit Parameters popup]
+    F --> F1[Save and Close]
+    F1 --> G[Submit job]
     G --> H[POST /batch/jobs]
     H --> I[Receive job_id]
     I --> J[Job Status panel]
