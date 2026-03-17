@@ -162,15 +162,12 @@ html[data-theme='light'] .app-bg-corner-br { opacity: 0.35; }
   50%       { opacity: 0.65; transform: scale(1.08); }
 }
 
-/* ─── 4 — BOUNCING LIGHT ORB ─────────────────────────────────
-   A focused radial light source that travels around the page
-   in a looping path with organic easing — like a light bulb
-   swinging, bouncing off invisible walls, never the same twice.
-   Two separate layers give it depth:
+/*  — BOUNCING LIGHT ORB ─────────────────────────────────
+   Two separate layers give depth:
      .app-bg-bulb       = outer bloom (large, soft)
      .app-bg-bulb-core  = inner hot spot (small, bright)
    Both share the same path animation.
-──────────────────────────────────────────────────────────────── */
+─────────────────────────────────────────────────── */
 .app-bg-bulb {
   position: absolute;
   width: 420px; height: 420px;
