@@ -1,9 +1,8 @@
 # LifeWatch Notebook Platform DevOps
 
 Infrastructure, CI/CD, and validation assets for running notebooks through AWS Batch behind an API Gateway and Lambda control plane.
-<!-- Maintainer note: keep this README aligned with active workflow filenames in .github/workflows. -->
 
-## Scope
+## Components
 
 - Terraform infrastructure for the `dev` environment.
 - Lambda handlers and API request client scripts.
@@ -12,7 +11,7 @@ Infrastructure, CI/CD, and validation assets for running notebooks through AWS B
 - Frontend operator UI for job submission and history.
 - Demo notebook fixtures, including lightweight examples.
 
-## Critical Operating Policy
+## Setup decisions
 
 The `dev` environment is shared by teammates.
 
@@ -44,7 +43,7 @@ dev-ops/
 
 ## Documentation Index
 
-- [Notebook E2E Runbook](docs/e2e-notebook-testing.md)
+- [Notebook E2E Runbook](.github/workflows/e2e-notebook-testing.md)
 - [Lightweight Notebook Fixtures](demo_input/lightweight-notebooks/README.md)
 - [Terraform `dev` Environment](lifewatch_batch_platform/terraform/environments/dev/readme.md)
 - [Frontend Guide](frontend/README.md)
@@ -69,4 +68,4 @@ For detailed infrastructure inputs, outputs, and module dependencies, use:
 - Never commit API keys, AWS keys, or Terraform state.
 - Required credentials must be injected via GitHub Actions secrets.
 - E2E API authentication is validated through both positive and negative tests.
-<!-- Policy reminder: do not document full stack teardown for shared environments. -->
+- For Terraform, we used secrets in a local file and called it like `terraform apply -var-file secrets.tfvars`. This could also be handled in other ways, e.g. environment variables.

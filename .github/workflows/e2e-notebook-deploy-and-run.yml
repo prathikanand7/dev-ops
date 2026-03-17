@@ -1,6 +1,6 @@
 name: Notebook E2E Deploy and Run
 # Deploy/update the shared dev infrastructure and execute notebook E2E validation.
-# Important: this workflow must preserve Terraform-managed shared resources.
+# Preserves Terraform-managed shared resources after test.
 
 on:
   workflow_run:

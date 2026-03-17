@@ -1,6 +1,7 @@
 # Terraform Bootstrap
 
 Bootstrap stack for shared Terraform remote state resources.
+This configuration allows us to store Terraform state on AWS S3, which in turn allows us to collaborate more easily, as there is a single point of truth for the state of the infrastructure.
 
 ## Purpose
 
@@ -45,4 +46,3 @@ terraform {
 
 - Terraform state can contain sensitive values; treat bucket access as privileged.
 - Use distinct backend `key` values per environment (for example `dev`, `staging`, `prod`).
-- Keep the `terraform_users` list reviewed and up to date.

@@ -1,7 +1,7 @@
 """Batch worker entrypoint.
 
 This script is executed inside the worker container by AWS Batch. It pulls job
-inputs from S3, optionally creates an isolated conda environment from the
+inputs from S3, creates a conda environment from the
 uploaded environment file, executes the notebook with Papermill, and uploads
 the produced artefacts back to S3.
 """

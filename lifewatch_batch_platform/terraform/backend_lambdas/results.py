@@ -1,7 +1,6 @@
 """Lambda handler for GET /batch/jobs/{job_id}/results.
 
-Locates outputs in S3 and returns a short-lived pre-signed download URL for the
-result archive.
+Returns an S3 presigned URL for the result .zip file.
 """
 
 import os

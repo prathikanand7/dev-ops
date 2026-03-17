@@ -1,6 +1,6 @@
 """Manual client script for POST /batch/jobs.
 
-Useful for ad-hoc API verification outside GitHub Actions.
+This is used to create jobs manually. Use the returned Job ID as input for the other manual scripts.
 """
 
 import requests

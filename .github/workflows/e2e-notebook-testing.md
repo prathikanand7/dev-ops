@@ -1,7 +1,6 @@
 # Notebook E2E Testing Runbook
 
 This runbook defines how notebook end-to-end validation is executed in AWS and what cleanup scope is allowed in the shared `dev` environment.
-<!-- Maintainer note: this runbook must mirror .github/workflows/e2e-notebook-deploy-and-run.yml. -->
 
 ## Workflow
 
