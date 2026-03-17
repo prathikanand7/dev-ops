@@ -57,6 +57,11 @@ jobs:
         with:
           terraform_version: 1.14.7
 
+      - name: Compress Lambdas
+        run: |
+          chmod +x ./compress_lambdas.sh
+          ./compress_lambdas.sh
+
       - name: Terraform Init
         working-directory: ./lifewatch_batch_platform/terraform/environments/dev
         run: terraform init -input=false
