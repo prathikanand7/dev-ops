@@ -4,11 +4,11 @@ name: Lambda Unit Tests
 on:
   push:
     paths:
-      - "lifewatch_batch_platform/terraform/backend_lamdas/**"
+      - "lifewatch_batch_platform/terraform/backend_lambdas/**"
       - ".github/workflows/lambda-unit-tests.yml"
   pull_request:
     paths:
-      - "lifewatch_batch_platform/terraform/backend_lamdas/**"
+      - "lifewatch_batch_platform/terraform/backend_lambdas/**"
       - ".github/workflows/lambda-unit-tests.yml"
   workflow_dispatch:
 
@@ -31,6 +31,6 @@ jobs:
       - name: Run Lambda Unit Tests
         run: |
           python -m unittest discover \
-            -s lifewatch_batch_platform/terraform/backend_lamdas/tests \
+            -s lifewatch_batch_platform/terraform/backend_lambdas/tests \
             -p "test_*.py" \
             -v

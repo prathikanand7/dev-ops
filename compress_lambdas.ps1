@@ -1,4 +1,4 @@
-$SourceDir = ".\lifewatch_batch_platform\terraform\backend_lamdas"
+$SourceDir = ".\lifewatch_batch_platform\terraform\backend_lambdas"
 $TargetDir = ".\lifewatch_batch_platform\terraform\backend_lambda_artifacts"
 
 New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
