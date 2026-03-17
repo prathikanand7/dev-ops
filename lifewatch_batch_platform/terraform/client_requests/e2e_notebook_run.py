@@ -10,6 +10,8 @@ from urllib.parse import urlparse
 
 import requests
 
+TRANSIENT_API_STATUSES = {403, 429, 500, 502, 503, 504}
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -144,7 +146,14 @@ def _fetch_with_candidate_ids(api_base_url, headers, endpoint_suffix, candidate_
     for candidate_id in candidate_ids:
         url = f"{api_base_url.rstrip('/')}/batch/jobs/{candidate_id}{endpoint_suffix}"
         try:
-            payload = request_json("GET", url, headers)
+            payload = request_json(
+                "GET",
+                url,
+                headers,
+                retries=12,
+                retry_delay_seconds=10,
+                retry_on_statuses=TRANSIENT_API_STATUSES,
+            )
             return candidate_id, payload
         except RuntimeError as exc:
             # Try the next candidate when an endpoint cannot resolve the ID.
@@ -167,7 +176,14 @@ def poll_batch_status(api_base_url, headers, candidate_ids, poll_interval, timeo
     while time.time() < deadline:
         if active_status_id:
             status_url = f"{api_base_url.rstrip('/')}/batch/jobs/{active_status_id}"
-            status_payload = request_json("GET", status_url, headers)
+            status_payload = request_json(
+                "GET",
+                status_url,
+                headers,
+                retries=12,
+                retry_delay_seconds=10,
+                retry_on_statuses=TRANSIENT_API_STATUSES,
+            )
         else:
             active_status_id, status_payload = _fetch_with_candidate_ids(
                 api_base_url, headers, "", candidate_ids
