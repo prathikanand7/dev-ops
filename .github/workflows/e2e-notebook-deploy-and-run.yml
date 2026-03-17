@@ -1,5 +1,6 @@
 name: Notebook E2E Deploy and Run
-# Deploy the entire infrastructure and execute a notebook end-to-end to verify everything works together as expected. 
+# Deploy/update the shared dev infrastructure and execute notebook E2E validation.
+# Important: this workflow must preserve Terraform-managed shared resources.
 
 on:
   workflow_run:
@@ -152,6 +153,8 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
+          # Cleanup policy: terminate transient Batch EC2 workers only.
+          # Do not tear down shared Terraform-managed infrastructure here.
           for attempt in $(seq 1 36); do
             INSTANCE_IDS_RAW=$(aws ec2 describe-instances \
               --region "${AWS_REGION}" \
