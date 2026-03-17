@@ -1,6 +1,10 @@
 output "batch_service_role_arn" {
   description = "ARN of the Batch service role."
   value       = aws_iam_role.batch_service_role.arn
+  depends_on = [
+    aws_iam_role_policy_attachment.batch_service_role,
+    aws_iam_role_policy.batch_service_custom_policy
+  ]
 }
 
 output "ec2_instance_profile_arn" {
