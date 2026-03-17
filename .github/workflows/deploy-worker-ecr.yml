@@ -1,9 +1,12 @@
 name: Deploy Worker Image to ECR
 
 on:
-  workflow_run:
-    workflows: ["Docker Build & Test"]
-    types: [completed]
+  push:
+    branches:
+      - main
+    paths:
+      - 'worker/**'
+      - '.github/workflows/deploy-worker-ecr.yml'
   workflow_dispatch:
 
 permissions:
@@ -20,29 +23,17 @@ concurrency:
 jobs:
   deploy-worker:
     name: Build and Push Worker Image
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_branch == 'main')
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
       - name: Resolve deployment metadata
         id: meta
         run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            echo "checkout_ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-            echo "image_tag=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "checkout_ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-            echo "image_tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-          fi
+          echo "image_tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.meta.outputs.checkout_ref }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
