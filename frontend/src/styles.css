@@ -586,8 +586,7 @@ select.form-control-styled {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   BUTTONS  —  revolving perimeter border, no interior glow
-   Same mask-composite technique as cards.
+   BUTTONS 
    ══════════════════════════════════════════════════════════════ */
 .btn-neon {
   position: relative;
