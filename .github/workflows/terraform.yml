@@ -56,6 +56,13 @@ jobs:
             -var="container_image=${{ secrets.CONTAINER_IMAGE }}" \
             -var="batch_execution_role_arn=${{ secrets.BATCH_EXECUTION_ROLE_ARN }}"
 
-      - name: Terraform Test
-        if: ${{ hashFiles('terraform/environments/batch-dev/**/*.tftest.hcl') != '' }}
-        run: terraform test
+      - name: Run Terraform Tests for All Modules
+        run: |
+          # Find all module test directories
+          find ./modules -type d -name tests | while read testdir; do
+            echo "Running terraform tests in $testdir"
+            cd "$testdir"
+            terraform init -input=false
+            terraform test || exit 1
+            cd -
+          done
