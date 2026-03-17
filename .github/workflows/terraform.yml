@@ -58,11 +58,7 @@ jobs:
 
       - name: Run Terraform Tests for All Modules
         run: |
-          # Find all module test directories
-          find ./modules -type d -name tests | while read testdir; do
+          find ../../modules -type d -name tests | while read testdir; do
             echo "Running terraform tests in $testdir"
-            cd "$testdir"
-            terraform init -input=false
-            terraform test || exit 1
-            cd -
+            (cd "$testdir" && terraform init -input=false && terraform test) || exit 1
           done
