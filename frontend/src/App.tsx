@@ -418,7 +418,6 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  /* FIX #4: update a single param value (user edits an auto-filled field) */
   function updateParam(key: string, value: string) {
     setFormParams((prev) => ({ ...prev, [key]: { ...prev[key], value } }));
   }
@@ -445,7 +444,6 @@ export const App: React.FC = () => {
       formData.append('notebook', nb, nb.name);
       formData.append('environment', envFile, envFile.name);
 
-      /* FIX #4: use current formParams values (whatever the user has edited) */
       Object.entries(formParams).forEach(([key, entry]) => {
         if (key.trim()) formData.append(key, entry.value);
       });
