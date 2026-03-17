@@ -225,9 +225,6 @@ html[data-theme='light'] .app-bg-bulb-core {
   );
 }
 
-/*  The path: 8 waypoints that feel like bouncing off walls.
-    The orb starts center, visits all four screen regions,
-    with different easing per segment giving a swinging feel. */
 @keyframes bulb-travel {
   0%   { transform: translate(  0vw,    0vh ); }
   10%  { transform: translate( 32vw,  -26vh ); }
