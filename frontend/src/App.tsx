@@ -1,139 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { BsMoon, BsSun } from 'react-icons/bs';
-import {
-  FiZap, FiRadio, FiLink, FiPlay, FiSearch, FiFileText,
-  FiPackage, FiDownload, FiAlertCircle, FiInfo, FiCheckCircle,
-  FiClock, FiRefreshCw, FiExternalLink, FiCopy,
-} from 'react-icons/fi';
-import { DropZone } from './components/DropZone';
-
-/* ─── API types ─────────────────────────────────────────────── */
-type RunResponse       = { message: string; job_id: string; execution_profile?: string; };
-type JobStatusResponse = { job_id: string; job_name?: string; status: string; createdAt?: number; startedAt?: number; stoppedAt?: number; error?: string; };
-type JobLogsResponse   = { job_id: string; logs: string[]; };
-type JobResultsResponse = { job_id: string; status?: string; download_url?: string; results: Array<{ filename: string; content_base64: string; }>; };
-type ThemeMode         = 'dark' | 'light';
-type AppPage           = 'submission' | 'history';
-
-/* ─── Param form types ──────────────────────────────────────── */
-type ParamType  = 'number' | 'boolean' | 'string';
-type ParamEntry = { value: string; type: ParamType; };
-type FormParams = Record<string, ParamEntry>;
-
-type SubmissionDraft = {
-  formParams: FormParams;
-  notebookLoaded: boolean;
-  extractInfo: string | null;
-  executionProfile: 'standard' | 'ec2_200gb';
-};
-
-type JobHistoryItem = {
-  jobId: string;
-  submittedAt: string;
-  notebookName: string;
-  environmentName: string;
-  executionProfile: string;
-  params: Record<string, string>;
-  status: string;
-  logs: string;
-  artifactUrl: string | null;
-  s3Uri: string | null;
-  info: string | null;
-  error: string | null;
-  lastCheckedAt: string | null;
-};
-
-type JobHistoryListResponse = {
-  jobs: JobHistoryItem[];
-};
-
-const SUBMISSION_DRAFT_KEY = 'nop-submission-draft';
-
-function detectType(v: string | number | boolean): ParamType {
-  if (typeof v === 'number') return 'number';
-  if (typeof v === 'boolean') return 'boolean';
-  return 'string';
-}
-
-function isEnvironmentFile(file: File): boolean {
-  const name = file.name.toLowerCase();
-  return name.endsWith('.yaml') || name.endsWith('.yml') || name.endsWith('.txt');
-}
-
-function normalizeHistoryItem(raw: Partial<JobHistoryItem> & Record<string, unknown>): JobHistoryItem {
-  const paramsRaw = raw.params;
-  const params: Record<string, string> = {};
-  if (paramsRaw && typeof paramsRaw === 'object' && !Array.isArray(paramsRaw)) {
-    Object.entries(paramsRaw as Record<string, unknown>).forEach(([k, v]) => {
-      params[k] = String(v ?? '');
-    });
-  }
-
-  return {
-    jobId: String(raw.jobId || ''),
-    submittedAt: String(raw.submittedAt || ''),
-    notebookName: String(raw.notebookName || 'Unknown'),
-    environmentName: String(raw.environmentName || 'Unknown'),
-    executionProfile: String(raw.executionProfile || 'unknown'),
-    params,
-    status: String(raw.status || 'UNKNOWN'),
-    logs: String(raw.logs || ''),
-    artifactUrl: typeof raw.artifactUrl === 'string' ? raw.artifactUrl : null,
-    s3Uri: typeof raw.s3Uri === 'string' ? raw.s3Uri : null,
-    info: typeof raw.info === 'string' ? raw.info : null,
-    error: typeof raw.error === 'string' ? raw.error : null,
-    lastCheckedAt: typeof raw.lastCheckedAt === 'string' ? raw.lastCheckedAt : null,
-  };
-}
-
-function safeLoadSubmissionDraft(): SubmissionDraft {
-  try {
-    const raw = window.localStorage.getItem(SUBMISSION_DRAFT_KEY);
-    if (!raw) {
-      return {
-        formParams: {},
-        notebookLoaded: false,
-        extractInfo: null,
-        executionProfile: 'standard',
-      };
-    }
-    const parsed = JSON.parse(raw) as Partial<SubmissionDraft>;
-    const executionProfile = parsed.executionProfile === 'ec2_200gb' ? 'ec2_200gb' : 'standard';
-    return {
-      formParams: parsed.formParams && typeof parsed.formParams === 'object' ? parsed.formParams : {},
-      notebookLoaded: !!parsed.notebookLoaded,
-      extractInfo: typeof parsed.extractInfo === 'string' ? parsed.extractInfo : null,
-      executionProfile,
-    };
-  } catch {
-    return {
-      formParams: {},
-      notebookLoaded: false,
-      extractInfo: null,
-      executionProfile: 'standard',
-    };
-  }
-}
-
-function deriveS3Uri(downloadUrl: string): string | null {
-  try {
-    const parsed = new URL(downloadUrl);
-    const host = parsed.hostname;
-    const path = decodeURIComponent(parsed.pathname).replace(/^\/+/, '');
-    if (!path) return null;
-
-    const hostParts = host.split('.');
-    if (hostParts.length > 0 && hostParts[0] && hostParts[0] !== 's3') {
-      return `s3://${hostParts[0]}/${path}`;
-    }
-
-    const [bucket, ...rest] = path.split('/');
-    if (!bucket || rest.length === 0) return null;
-    return `s3://${bucket}/${rest.join('/')}`;
-  } catch {
-    return null;
-  }
-}
+import { ParamsModal } from './components/job_history/ParamsModal';
+import { LogsModal } from './components/job_history/LogsModal';
+import { ApiConnectionCard } from './components/job_submission/ApiConnectionCard';
+import { SubmitJobCard } from './components/job_submission/SubmitJobCard';
+import { JobStatusCard } from './components/job_submission/JobStatusCard';
+import { JobHistoryTable } from './components/job_history/JobHistoryTable';
+import type {
+  RunResponse, JobStatusResponse, JobLogsResponse, JobResultsResponse,
+  ThemeMode, AppPage, ParamEntry, FormParams, SubmissionDraft,
+  JobHistoryItem, JobHistoryListResponse,
+} from './types';
+import { SUBMISSION_DRAFT_KEY, detectType, isEnvironmentFile, normalizeHistoryItem, safeLoadSubmissionDraft } from './utils/storage';
+import { decodeApiBody, deriveS3Uri } from './utils/api';
+import { readFileAsText, parseNotebookParameters, downloadResultFile } from './utils/notebook';
 
 export const App: React.FC = () => {
   const [activePage, setActivePage] = useState<AppPage>('submission');
@@ -281,20 +161,6 @@ export const App: React.FC = () => {
   }, [activeLogsJobId]);
 
   /* ── utils ──────────────────────────────────────────────── */
-  function decodeApiBody<T>(raw: unknown): T {
-    if (typeof raw === 'string') { try { return JSON.parse(raw) as T; } catch { throw new Error(`Non-JSON: ${raw}`); } }
-    return raw as T;
-  }
-
-  function readFileAsText(file: File): Promise<string> {
-    return new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload  = () => { if (typeof r.result !== 'string') { rej(new Error('Not text')); return; } res(r.result); };
-      r.onerror = () => rej(r.error || new Error('Read failed'));
-      r.readAsText(file);
-    });
-  }
-
   function sleep(ms: number) { return new Promise<void>((r) => window.setTimeout(r, ms)); }
 
   async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -509,67 +375,6 @@ export const App: React.FC = () => {
   }
 
   /* ── notebook param extraction ──────────────────────────── */
-  function parseNotebookParameters(text: string): Record<string, string | number | boolean> {
-    const nb = JSON.parse(text) as {
-      cells?: Array<{ cell_type?: string; metadata?: { tags?: string[] }; source?: string[] }>;
-    };
-    const fallbackCellRegex = /^\s*((?:param_|conf_)[A-Za-z0-9_]*)\s*(?:<-|=)\s*(.+?)\s*$/;
-    function stripComment(line: string): string {
-      let inString: string | null = null;
-      for (let index = 0; index < line.length; index += 1) {
-        const char = line[index];
-        if (inString) {
-          if (char === inString) inString = null;
-          continue;
-        }
-        if (char === '"' || char === "'") {
-          inString = char;
-          continue;
-        }
-        if (char === '#') {
-          return line.slice(0, index).trimEnd();
-        }
-      }
-      return line;
-    }
-
-    let cell = nb.cells?.find(
-      (c) => c.cell_type === 'code' && Array.isArray(c.metadata?.tags) && c.metadata!.tags!.includes('parameters'),
-    );
-    if (!cell) {
-      cell = nb.cells?.find(
-        (c) => c.cell_type === 'code' && c.source?.some((line) => fallbackCellRegex.test(stripComment(line))),
-      );
-    }
-    if (!cell?.source?.length) return {};
-    const out: Record<string, string | number | boolean> = {};
-    const re  = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:<-|=)\s*(.+?)\s*$/;
-    cell.source.forEach((raw) => {
-      const line = stripComment(raw).trim();
-      if (!line || line.startsWith('#')) return;
-      const m = line.match(re);
-      if (!m) return;
-      const [, key, vRaw] = m;
-      let v: string | number | boolean = vRaw;
-      if (/^[-+]?\d+(?:\.\d+)?$/.test(vRaw)) {
-        v = Number(vRaw);
-      } else if (/^(true|false)$/i.test(vRaw)) {
-        // unquoted: true / false / True / False
-        v = vRaw.toLowerCase() === 'true';
-      } else {
-        // strip surrounding quotes first, then re-check for boolean
-        const stripped = vRaw.replace(/^['"]|['"]$/g, '');
-        if (/^(true|false)$/i.test(stripped)) {
-          v = stripped.toLowerCase() === 'true';
-        } else {
-          v = stripped;
-        }
-      }
-      out[key] = v;
-    });
-    return out;
-  }
-
   async function extractParametersFromNotebook(file: File): Promise<void> {
     try {
       const text      = await readFileAsText(file);
@@ -764,18 +569,6 @@ export const App: React.FC = () => {
     } catch (err) { setResultsError((err as Error).message); }
     finally { setIsFetchingResults(false); }
   }
-
-  function downloadResultFile(filename: string, b64: string) {
-    const bytes = window.atob(b64);
-    const arr   = new Uint8Array(bytes.length);
-    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-    const url = URL.createObjectURL(new Blob([arr]));
-    const a   = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
-  }
-
   function toggleTheme() { setTheme((p) => (p === 'dark' ? 'light' : 'dark')); }
 
   function getStatusClass(s: string) {
@@ -877,508 +670,107 @@ export const App: React.FC = () => {
       <div className="page-container">
         {activePage === 'submission' ? (
           <>
+            <ApiConnectionCard
+              baseUrl={baseUrl}
+              apiKey={apiKey}
+              setBaseUrl={setBaseUrl}
+              setApiKey={setApiKey}
+            />
 
-        {/* API Connection */}
-        <div className="row-grid row-grid-center mb-section">
-          <div className="glass-card">
-            <div className="card-inner">
-              <div className="card-head">
-                <div className="card-head-icon"><FiLink size={14} /></div>
-                <h4>API Connection</h4>
-              </div>
-              <div className="card-body-inner">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label className="form-label-styled" htmlFor="base-url">Base URL</label>
-                    <input id="base-url" type="text" className="form-control-styled" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-                  </div>
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label className="form-label-styled" htmlFor="api-key">API Key</label>
-                    <input id="api-key" type="password" className="form-control-styled" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Paste your API Gateway key" />
-                    <p className="form-hint">Sent as <code>x-api-key</code> header on all Lambda API Gateway routes.</p>
-                  </div>
-                </div>
-              </div>
+            <div className="row-grid row-grid-2">
+              <SubmitJobCard
+                files={files}
+                setFiles={setFiles}
+                handleFilesChange={handleFilesChange}
+                extractInfo={extractInfo}
+                notebookLoaded={notebookLoaded}
+                hasParams={hasParams}
+                formParams={formParams}
+                renderParamField={renderParamField}
+                executionProfile={executionProfile}
+                setExecutionProfile={setExecutionProfile}
+                handleSubmit={handleSubmit}
+                canSubmit={canSubmit}
+                isSubmitting={isSubmitting}
+                submitHint={submitHint}
+                runError={runError}
+                runResult={runResult}
+              />
+
+              <JobStatusCard
+                handleCheckStatus={handleCheckStatus}
+                jobId={jobId}
+                setJobId={setJobId}
+                runResult={runResult}
+                isChecking={isChecking}
+                apiKey={apiKey}
+                isFetchingLogs={isFetchingLogs}
+                handleFetchLogs={handleFetchLogs}
+                canFetchLogsNow={canFetchLogsNow}
+                isFetchingResults={isFetchingResults}
+                handleFetchResults={handleFetchResults}
+                canFetchResultsNow={canFetchResultsNow}
+                jobError={jobError}
+                jobInfo={jobInfo}
+                resultsInfo={resultsInfo}
+                jobStatus={jobStatus}
+                statusUpdatedAt={statusUpdatedAt}
+                getStatusClass={getStatusClass}
+                jobLogs={jobLogs}
+                copyCurrentLogs={async () => {
+                  const copied = await copyTextToClipboard(jobLogs.join('\n'));
+                  setJobInfo(copied ? 'Logs copied to clipboard.' : 'Failed to copy logs.');
+                }}
+                resultsError={resultsError}
+                resultsDownloadUrl={resultsDownloadUrl}
+                jobResults={jobResults}
+                downloadResultFile={downloadResultFile}
+              />
             </div>
-          </div>
-        </div>
-
-        {/* Two columns — FIX #1: align-items: start prevents forced equal heights */}
-        <div className="row-grid row-grid-2">
-
-          {/* ── Submit Job ── */}
-          <div className="glass-card">
-            <div className="card-inner">
-              <div className="card-head">
-                <div className="card-head-icon"><FiZap size={14} /></div>
-                <h5>Trigger Notebook Run</h5>
-              </div>
-              <div className="card-body-inner">
-                <form onSubmit={handleSubmit}>
-
-                  {/* Drop zone */}
-                  <div className="form-group">
-                    <DropZone
-                      label="Upload Files"
-                      files={files}
-                      setFiles={setFiles}
-                      onFilesChange={handleFilesChange}
-                    />
-                    <p className="submit-hint">
-                      <FiInfo size={15} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                      One .ipynb notebook & one environment file (.yaml/.yml/.txt) are needed. Data files (.xlsx/.xls) are optional.
-                    </p>
-                    {extractInfo && (
-                      <p className="extract-info" style={{ marginTop: '0.55rem' }}>
-                        <FiInfo size={11} />{extractInfo}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Parameters */}
-                  <div className="form-group">
-                    <label className="form-label-styled">Parameters</label>
-
-                    {/* FIX #2: info row instead of dashed dropzone box */}
-                    {!notebookLoaded ? (
-                      <div className="param-pending">
-                        <FiInfo size={14} />
-                        <span>Drop a notebook above, parameters will be auto-extracted and shown here as editable fields.</span>
-                      </div>
-                    ) : !hasParams ? (
-                      <div className="param-no-params">
-                        <FiInfo size={14} />
-                        <span>No tagged parameters cell found in this notebook.</span>
-                      </div>
-                    ) : (
-                      /* FIX #4: fully controlled inputs — changes go to formParams state */
-                      <div className="param-form-grid">
-                        {Object.entries(formParams).map(([key, entry]) => renderParamField(key, entry))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Execution profile — FIX #3: option colours set via CSS */}
-                  <div className="form-group">
-                    <label className="form-label-styled" htmlFor="execution-profile">Execution Profile</label>
-                    <select
-                      id="execution-profile"
-                      className="form-control-styled"
-                      value={executionProfile}
-                      onChange={(e) => setExecutionProfile(e.target.value as 'standard' | 'ec2_200gb')}
-                    >
-                      <option value="standard">Standard</option>
-                      <option value="ec2_200gb">Large EC2 (200 GB)</option>
-                    </select>
-                    <p className="form-hint">
-                      <FiInfo size={15} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                      Use <code>ec2_200gb</code> for high-storage workloads.
-                    </p>
-                  </div>
-
-                  {/* FIX #5: button enabled as soon as notebook + apiKey present */}
-                  <div className="btn-row">
-                    <button
-                      type="submit"
-                      className="btn-neon btn-primary-neon"
-                      disabled={!canSubmit}
-                    >
-                      <FiPlay size={13} />
-                      {isSubmitting ? 'Submitting…' : 'Submit Job'}
-                    </button>
-                  </div>
-
-                  {/* Show the user exactly why the button is disabled */}
-                  {submitHint && (
-                    <p className="submit-hint">
-                      <FiInfo size={12} />
-                      {submitHint}
-                    </p>
-                  )}
-
-                  {runError && (
-                    <div className="alert-neon alert-danger-neon">
-                      <h6><FiAlertCircle size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />Error</h6>
-                      {runError}
-                    </div>
-                  )}
-
-                  {runResult && (
-                    <div className="alert-neon alert-success-neon">
-                      <h6><FiCheckCircle size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />Job Queued</h6>
-                      <div className="kv-row"><span className="kv-label">Job ID</span><span className="kv-value">{runResult.job_id}</span></div>
-                      <div className="kv-row"><span className="kv-label">Profile</span><span className="kv-value">{runResult.execution_profile || executionProfile}</span></div>
-                      {runResult.message && <div className="kv-row"><span className="kv-label">Message</span><span className="kv-value">{runResult.message}</span></div>}
-                    </div>
-                  )}
-                </form>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Job Status ── */}
-          <div className="glass-card">
-            <div className="card-inner">
-              <div className="card-head">
-                <div className="card-head-icon"><FiRadio size={14} /></div>
-                <h5>Job Status</h5>
-              </div>
-              <div className="card-body-inner">
-                <form onSubmit={handleCheckStatus}>
-
-                  <div className="form-group">
-                    <label className="form-label-styled" htmlFor="job-id">Job ID (UUID)</label>
-                    <input
-                      id="job-id"
-                      type="text"
-                      className="form-control-styled"
-                      value={jobId}
-                      onChange={(e) => setJobId(e.target.value)}
-                      placeholder="Paste Job ID from the left panel"
-                      required
-                    />
-                    {runResult && (
-                      <p className="form-hint">Auto-filled from submission: <code>{runResult.job_id.substring(0, 8)}…</code></p>
-                    )}
-                  </div>
-
-                  <div className="btn-row">
-                    <button type="submit" className="btn-neon btn-secondary-neon" disabled={isChecking || !apiKey || !jobId}>
-                      <FiSearch size={13} />{isChecking ? 'Checking…' : 'Check Status'}
-                    </button>
-                    <button type="button" className="btn-neon btn-ghost-neon" onClick={handleFetchLogs} disabled={isFetchingLogs || !apiKey || !jobId}>
-                      <FiFileText size={13} />
-                      {isFetchingLogs ? 'Loading…' : !canFetchLogsNow && !!jobId ? 'Wait for RUNNING' : 'Fetch Logs'}
-                    </button>
-                    <button type="button" className="btn-neon btn-ghost-neon" onClick={handleFetchResults} disabled={isFetchingResults || !apiKey || !jobId}>
-                      <FiPackage size={13} />
-                      {isFetchingResults ? 'Waiting for ZIP…' : !canFetchResultsNow && !!jobId ? 'Wait for SUCCEEDED' : 'Fetch Results'}
-                    </button>
-                  </div>
-
-                  {jobError && (
-                    <div className="alert-neon alert-danger-neon">
-                      <h6><FiAlertCircle size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />Error</h6>
-                      {jobError}
-                    </div>
-                  )}
-
-                  {/* Fix 1: single info area — shows jobInfo OR resultsInfo, whichever is active */}
-                  {(jobInfo || resultsInfo) && (
-                    <div className="alert-neon alert-info-neon" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                      <FiInfo size={13} style={{ flexShrink: 0, marginTop: 2 }} />
-                      <span>{resultsInfo || jobInfo}</span>
-                    </div>
-                  )}
-
-                  {jobStatus && (
-                    <div className="status-section">
-                      {statusUpdatedAt && <p className="status-timestamp">Last updated: {statusUpdatedAt.toLocaleString()}</p>}
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                        <span style={{ fontSize: '0.78rem', color: 'var(--ink-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Status</span>
-                        <span className={`status-pill ${getStatusClass(jobStatus.status)}`}>{jobStatus.status}</span>
-                      </div>
-
-                      {jobStatus.error && <p className="status-error-text"><strong>Error:</strong> {jobStatus.error}</p>}
-
-                      {jobLogs.length > 0 && (
-                        <>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem' }}>
-                            <p style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-muted)', marginBottom: 0 }}>Logs</p>
-                            <button
-                              type="button"
-                              className="btn-neon btn-ghost-neon btn-action-compact"
-                              onClick={async () => {
-                                const copied = await copyTextToClipboard(jobLogs.join('\n'));
-                                setJobInfo(copied ? 'Logs copied to clipboard.' : 'Failed to copy logs.');
-                              }}
-                            >
-                              <FiCopy size={12} />Copy Logs
-                            </button>
-                          </div>
-                          <pre className="logs-terminal">{jobLogs.join('\n')}</pre>
-                        </>
-                      )}
-
-                      {resultsError && <div className="alert-neon alert-warning-neon">{resultsError}</div>}
-
-                      {resultsDownloadUrl && (
-                        <div style={{ marginTop: '1rem' }}>
-                          <a className="btn-neon btn-success-neon" href={resultsDownloadUrl} target="_blank" rel="noreferrer">
-                            <FiDownload size={13} />Download Results ZIP
-                          </a>
-                        </div>
-                      )}
-
-                      {jobResults.length > 0 && (
-                        <div style={{ marginTop: '1rem' }}>
-                          <p style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-muted)', marginBottom: '0.6rem' }}>Result Files</p>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {jobResults.map((r) => (
-                              <button key={r.filename} type="button" className="btn-neon btn-success-neon"
-                                style={{ justifyContent: 'flex-start' }}
-                                onClick={() => downloadResultFile(r.filename, r.content_base64)}>
-                                <FiDownload size={13} />{r.filename}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </form>
-              </div>
-            </div>
-          </div>
-
-        </div>
           </>
         ) : (
-          <div className="row-grid">
-            <div className="glass-card">
-              <div className="card-inner">
-                <div className="card-head">
-                  <div className="card-head-icon"><FiClock size={14} /></div>
-                  <h5>Job History</h5>
-                </div>
-                <div className="card-body-inner">
-                  <div className="history-actions-row">
-                    <p className="form-hint" style={{ margin: 0 }}>
-                      Condensed runs list from cloud history. Use action buttons to inspect logs or parameters.
-                    </p>
-                    <button
-                      type="button"
-                      className="btn-neon btn-ghost-neon"
-                      onClick={() => void refreshAllHistoryItems()}
-                      disabled={!apiKey || historyListLoading || Object.keys(historyLoadingIds).length > 0}
-                    >
-                      <FiRefreshCw size={13} />{historyListLoading ? 'Refreshing…' : 'Refresh List'}
-                    </button>
-                  </div>
-
-                  {historyError && (
-                    <div className="alert-neon alert-warning-neon" style={{ marginTop: '0.9rem' }}>{historyError}</div>
-                  )}
-
-                  {!apiKey ? (
-                    <div className="param-pending" style={{ marginTop: '0.95rem' }}>
-                      <FiInfo size={14} />
-                      <span>Enter API key in Job Submission tab to load cloud history.</span>
-                    </div>
-                  ) : jobHistory.length === 0 ? (
-                    <div className="param-pending" style={{ marginTop: '0.95rem' }}>
-                      <FiInfo size={14} />
-                      <span>No jobs found in cloud history.</span>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="history-scroll-list">
-                        <div className="history-table history-table-head">
-                          <span>Job ID</span>
-                          <span>Notebook</span>
-                          <span>Status</span>
-                          <span>Created</span>
-                          <span>Actions</span>
-                        </div>
-
-                        {jobHistory.map((item) => {
-                          const createdText = item.submittedAt ? new Date(item.submittedAt).toLocaleString() : '-';
-                          const isArtifactHydrating = !!artifactHydratingJobIds[item.jobId];
-
-                          return (
-                            <div key={item.jobId} className="history-row-wrapper">
-                              <div className="history-table history-table-row">
-                                <button
-                                  type="button"
-                                  data-label="Job ID"
-                                  className="history-cell-jobid history-jobid-button"
-                                  title={`Copy ${item.jobId}`}
-                                  onClick={() => void copyHistoryJobId(item.jobId)}
-                                >
-                                  {item.jobId}
-                                </button>
-                                <span data-label="Notebook" className="history-cell-notebook" title={item.notebookName}>{item.notebookName || '-'}</span>
-                                <span data-label="Status"><span className={`status-pill ${getStatusClass(item.status)}`}>{item.status}</span></span>
-                                <span data-label="Created" className="history-cell-created" title={createdText}>{createdText}</span>
-                                <span data-label="Actions" className="history-actions-cell">
-                                  <button
-                                    type="button"
-                                    className="btn-neon btn-secondary-neon btn-action-compact"
-                                    onClick={() => {
-                                      const nextActiveJobId = activeLogsJobId === item.jobId ? null : item.jobId;
-                                      setActiveLogsJobId(nextActiveJobId);
-                                      setActiveParamsJobId(null);
-                                      if (nextActiveJobId) void refreshHistoryItem(item.jobId, true);
-                                    }}
-                                    disabled={!apiKey || logsLoadingJobIds[item.jobId]}
-                                  >
-                                    <FiFileText size={12} />{logsLoadingJobIds[item.jobId] ? 'Loading' : 'Logs'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn-neon btn-secondary-neon btn-action-compact"
-                                    onClick={() => {
-                                      setActiveLogsJobId(null);
-                                      setActiveParamsJobId(item.jobId);
-                                    }}
-                                  >
-                                    <FiPackage size={12} />Params
-                                  </button>
-                                  {item.artifactUrl && (
-                                    <a
-                                      href={item.artifactUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="btn-neon btn-success-neon btn-action-compact"
-                                      style={{ textDecoration: 'none', display: 'inline-flex' }}
-                                    >
-                                      <FiDownload size={12} />Artifacts
-                                    </a>
-                                  )}
-                                  {!item.artifactUrl && item.status === 'SUCCEEDED' && isArtifactHydrating && (
-                                    <button
-                                      type="button"
-                                      className="btn-neon btn-success-neon btn-action-compact"
-                                      disabled
-                                    >
-                                      <span className="btn-loading-dot" aria-hidden="true" />Artifacts
-                                    </button>
-                                  )}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+          <JobHistoryTable
+            apiKey={apiKey}
+            historyListLoading={historyListLoading}
+            historyLoadingIds={historyLoadingIds}
+            historyError={historyError}
+            jobHistory={jobHistory}
+            artifactHydratingJobIds={artifactHydratingJobIds}
+            logsLoadingJobIds={logsLoadingJobIds}
+            onRefreshList={refreshAllHistoryItems}
+            onCopyJobId={copyHistoryJobId}
+            onOpenLogs={(jobIdToOpen) => {
+              const nextActiveJobId = activeLogsJobId === jobIdToOpen ? null : jobIdToOpen;
+              setActiveLogsJobId(nextActiveJobId);
+              setActiveParamsJobId(null);
+              if (nextActiveJobId) void refreshHistoryItem(jobIdToOpen, true);
+            }}
+            onOpenParams={(jobIdToOpen) => {
+              setActiveLogsJobId(null);
+              setActiveParamsJobId(jobIdToOpen);
+            }}
+            getStatusClass={getStatusClass}
+          />
         )}
 
-        {activeParamsItem && (
-          <div className="history-modal-backdrop" onClick={() => setActiveParamsJobId(null)} role="presentation">
-            <div
-              className="history-modal-card"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="history-params-title"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="history-modal-header">
-                <div>
-                  <p className="history-modal-eyebrow">Run Parameters</p>
-                  <h6 id="history-params-title" className="history-modal-title">{activeParamsItem.notebookName || 'Notebook Run'}</h6>
-                  <p className="history-modal-meta">{activeParamsItem.jobId}</p>
-                </div>
-                <button
-                  type="button"
-                  className="btn-neon btn-ghost-neon btn-action-compact"
-                  onClick={() => setActiveParamsJobId(null)}
-                >
-                  Close
-                </button>
-              </div>
+        <ParamsModal
+          item={activeParamsItem}
+          onClose={() => setActiveParamsJobId(null)}
+        />
 
-              {Object.keys(activeParamsItem.params || {}).length === 0 ? (
-                <p className="form-hint" style={{ marginTop: 0 }}>No parameters captured for this run.</p>
-              ) : (
-                <div className="history-params-table-shell history-params-modal-table-popup">
-                  <table className="history-params-table-header">
-                    <colgroup>
-                      <col style={{ width: '42%' }} />
-                      <col style={{ width: '58%' }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th>Parameter Name</th>
-                        <th>Value</th>
-                      </tr>
-                    </thead>
-                  </table>
-
-                  <div className="history-params-modal-table history-params-table-body-scroll">
-                    <table>
-                      <colgroup>
-                        <col style={{ width: '42%' }} />
-                        <col style={{ width: '58%' }} />
-                      </colgroup>
-                      <tbody>
-                        {Object.entries(activeParamsItem.params).map(([paramKey, paramValue]) => (
-                          <tr key={paramKey}>
-                            <td className="param-name-cell">{paramKey}</td>
-                            <td className="param-value-cell">{String(paramValue)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeLogsItem && (
-          <div className="history-modal-backdrop" onClick={() => setActiveLogsJobId(null)} role="presentation">
-            <div
-              className="history-modal-card history-modal-card-logs"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="history-logs-title"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="history-modal-header">
-                <div>
-                  <p className="history-modal-eyebrow">Run Logs</p>
-                  <h6 id="history-logs-title" className="history-modal-title">{activeLogsItem.notebookName || 'Notebook Run'}</h6>
-                  <p className="history-modal-meta">{activeLogsItem.jobId}</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  {!logsLoadingJobIds[activeLogsItem.jobId] && activeLogsItem.logs && (
-                    <button
-                      type="button"
-                      className="btn-neon btn-ghost-neon btn-action-compact"
-                      onClick={async () => {
-                        const copied = await copyTextToClipboard(activeLogsItem.logs || '');
-                        patchHistoryItem(activeLogsItem.jobId, {
-                          info: copied ? 'Logs copied to clipboard.' : null,
-                          error: copied ? null : 'Failed to copy logs.',
-                        });
-                      }}
-                    >
-                      <FiCopy size={12} />Copy Logs
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="btn-neon btn-ghost-neon btn-action-compact"
-                    onClick={() => setActiveLogsJobId(null)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-
-              {logsLoadingJobIds[activeLogsItem.jobId] ? (
-                <div className="logs-terminal history-logs-terminal history-logs-modal-terminal" style={{ color: 'var(--ink-muted)', fontStyle: 'italic' }}>
-                  Fetching logs from the cluster...
-                </div>
-              ) : (
-                <pre className="logs-terminal history-logs-terminal history-logs-modal-terminal">{activeLogsItem.logs || 'No logs available.'}</pre>
-              )}
-
-              {(activeLogsItem.info || activeLogsItem.error) && !logsLoadingJobIds[activeLogsItem.jobId] && (
-                <div className={`alert-neon ${activeLogsItem.error ? 'alert-danger-neon' : 'alert-info-neon'}`} style={{ marginTop: '0.7rem' }}>
-                  {activeLogsItem.error || activeLogsItem.info}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <LogsModal
+          item={activeLogsItem}
+          isLoading={!!(activeLogsItem && logsLoadingJobIds[activeLogsItem.jobId])}
+          onClose={() => setActiveLogsJobId(null)}
+          onCopyLogs={async () => {
+            if (!activeLogsItem) return;
+            const copied = await copyTextToClipboard(activeLogsItem.logs || '');
+            patchHistoryItem(activeLogsItem.jobId, {
+              info: copied ? 'Logs copied to clipboard.' : null,
+              error: copied ? null : 'Failed to copy logs.',
+            });
+          }}
+        />
       </div>
     </div>
   );
