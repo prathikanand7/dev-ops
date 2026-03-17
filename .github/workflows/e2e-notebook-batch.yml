@@ -85,7 +85,7 @@ jobs:
       - name: Install E2E Test Dependencies
         run: python -m pip install --upgrade pip requests
 
-      - name: Run Notebook E2E Test
+      - name: Run Notebook E2E Test (EC2 200GB)
         run: |
           python lifewatch_batch_platform/terraform/client_requests/e2e_notebook_run.py \
             --api-base-url "${E2E_API_BASE_URL}" \
@@ -96,7 +96,45 @@ jobs:
             --execution-profile "ec2_200gb" \
             --poll-interval-seconds 20 \
             --timeout-seconds 3600 \
-            --output-dir "lifewatch_batch_platform/terraform/environments/dev/e2e_outputs"
+            --output-dir "lifewatch_batch_platform/terraform/environments/dev/e2e_outputs/ec2_200gb"
+
+      - name: Run Notebook E2E Test (Standard)
+        run: |
+          python lifewatch_batch_platform/terraform/client_requests/e2e_notebook_run.py \
+            --api-base-url "${E2E_API_BASE_URL}" \
+            --api-key "${E2E_API_KEY}" \
+            --notebook-path "demo_input/Data_cleaning.ipynb" \
+            --data-file-path "demo_input/Template_MBO_Example_raw_v3.xlsx" \
+            --environment-path "demo_input/environment.yaml" \
+            --execution-profile "standard" \
+            --poll-interval-seconds 20 \
+            --timeout-seconds 3600 \
+            --output-dir "lifewatch_batch_platform/terraform/environments/dev/e2e_outputs/standard"
+
+      - name: Run Negative API Key E2E Check
+        run: |
+          set -euo pipefail
+          mkdir -p lifewatch_batch_platform/terraform/environments/dev/e2e_outputs/negative
+
+          status_code=$(
+            curl -sS -o /tmp/e2e_negative_auth_response.json -w "%{http_code}" \
+              -X POST "${E2E_API_BASE_URL}/batch/jobs" \
+              -H "x-api-key: invalid-e2e-key" \
+              -F "notebook=@demo_input/Data_cleaning.ipynb;type=application/x-ipynb+json" \
+              -F "execution_profile=ec2_200gb"
+          )
+
+          cat /tmp/e2e_negative_auth_response.json \
+            > lifewatch_batch_platform/terraform/environments/dev/e2e_outputs/negative/invalid_api_key_response.json
+
+          if [ "${status_code}" != "401" ] && [ "${status_code}" != "403" ]; then
+            echo "Expected auth rejection (401/403), got ${status_code}."
+            cat /tmp/e2e_negative_auth_response.json
+            exit 1
+          fi
+
+          printf "Negative auth check passed with status %s\n" "${status_code}" \
+            > lifewatch_batch_platform/terraform/environments/dev/e2e_outputs/negative/assertion.txt
 
       - name: Upload E2E Artifacts
         if: always()
