@@ -1,47 +1,34 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useDropzone, type FileRejection, type DropzoneOptions, type FileError } from 'react-dropzone';
+import { FiUploadCloud, FiCheckCircle, FiXCircle, FiFolder } from 'react-icons/fi';
 import FilePreview from './FilePreview';
-
-export interface FileWithPreview extends File {
-  preview: string;
-}
 
 interface DropZoneProps {
   label?: string;
+  files: File[];
+  setFiles: React.Dispatch<React.SetStateAction<File[]>>;
   onFilesChange?: (files: File[]) => void;
 }
 
-export const DropZone: React.FC<DropZoneProps> = ({ label, onFilesChange }) => {
-  const [files, setFiles] = useState<FileWithPreview[]>([]);
+export const DropZone: React.FC<DropZoneProps> = ({ label, files, setFiles, onFilesChange }) => {
   const [rejected, setRejected] = useState<FileRejection[]>([]);
 
   const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
     if (acceptedFiles.length) {
-      const mappedFiles = acceptedFiles.map((file) =>
-        Object.assign(file, {
-          preview: URL.createObjectURL(file),
-        }),
-      );
-
-      setFiles((prev: FileWithPreview[]) => [...prev, ...mappedFiles]);
+      setFiles((prev) => {
+        const next = [...prev, ...acceptedFiles];
+        if (onFilesChange) onFilesChange(next);
+        return next;
+      });
     }
-
-    if (rejectedFiles.length) {
-      setRejected((prev) => [...rejectedFiles]);
-    }
-  }, []);
+    if (rejectedFiles.length) setRejected(() => [...rejectedFiles]);
+  }, [onFilesChange, setFiles]);
 
   const duplicateValidator = useCallback(
     (file: File): FileError | null => {
-      const isDuplicate = files.some((existing) => existing.name === file.name);
-
-      if (isDuplicate) {
-        return {
-          code: 'duplicate-file',
-          message: 'Duplicate file detected. Multiple files with the same name are not allowed.',
-        };
+      if (files.some((f) => f.name === file.name)) {
+        return { code: 'duplicate-file', message: 'Duplicate file detected. Multiple files with the same name are not allowed.' };
       }
-
       return null;
     },
     [files],
@@ -54,6 +41,9 @@ export const DropZone: React.FC<DropZoneProps> = ({ label, onFilesChange }) => {
       'application/vnd.ms-excel': ['.xls'],
       'application/x-ipynb+json': ['.ipynb'],
       'application/json': ['.ipynb'],
+      'text/yaml': ['.yaml', '.yml'],
+      'application/x-yaml': ['.yaml', '.yml'],
+      'text/plain': ['.txt'],
     },
     multiple: true,
     validator: duplicateValidator,
@@ -62,141 +52,91 @@ export const DropZone: React.FC<DropZoneProps> = ({ label, onFilesChange }) => {
   const { getRootProps, getInputProps, isFocused, isDragAccept, isDragReject, isDragActive } =
     useDropzone(dropzoneOptions);
 
-  useEffect(() => {
-    return () => {
-      files.forEach((file) => URL.revokeObjectURL(file.preview));
-    };
-  }, [files]);
-
-  useEffect(() => {
-    if (onFilesChange) {
-      onFilesChange(files);
-    }
-  }, [files, onFilesChange]);
-
-  const removeFile = (name: string): void => {
-    setFiles((prev) => prev.filter((file) => file.name !== name));
+  const removeFile = (name: string) => {
+    setFiles((prev) => {
+      const next = prev.filter((f) => f.name !== name);
+      if (onFilesChange) onFilesChange(next);
+      return next;
+    });
   };
-
-  const removeRejected = (name: string): void => {
-    setRejected((prev) => prev.filter(({ file }) => file.name !== name));
-  };
-
-  const removeAll = (): void => {
-    setFiles([]);
+  const removeRejected = (name: string) => setRejected((p) => p.filter(({ file }) => file.name !== name));
+  const removeAll = () => {
+    setFiles(() => {
+      if (onFilesChange) onFilesChange([]);
+      return [];
+    });
     setRejected([]);
   };
 
   const dropMessage = useMemo(() => {
-    if (isDragReject) {
-      return 'Files will be rejected (only .xlsx, .xls and .ipynb allowed)';
-    }
-
-    if (isDragAccept) {
-      return 'All files look good – drop them here';
-    }
-
-    if (isDragActive) {
-      return 'Drop the files here…';
-    }
-
-    return 'Drag & drop .xlsx / .ipynb files here, or click to select';
+    if (isDragReject) return 'Files will be rejected — only .xlsx, .xls, .ipynb, .yaml, .yml, and .txt allowed';
+    if (isDragAccept) return 'All files look good — drop them here';
+    if (isDragActive) return 'Drop the files here…';
+    return 'Drag & drop only (.xlsx / .xls / .ipynb / .yaml / .txt) files here, or click to select';
   }, [isDragActive, isDragAccept, isDragReject]);
 
-  const baseStyle: React.CSSProperties = {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '18px',
-    borderWidth: 2,
-    borderRadius: 10,
-    borderColor: '#1f2937',
-    borderStyle: 'dashed',
-    backgroundColor: '#b9bcc1',
-    color: ' #000000',
-    outline: 'none',
-    transition: 'border .24s ease-in-out, background-color .24s ease-in-out',
-  };
+  const dropIcon = useMemo(() => {
+    if (isDragAccept) return <FiCheckCircle size={22} style={{ color: 'var(--accent)' }} />;
+    if (isDragReject) return <FiXCircle size={22} style={{ color: 'var(--red)' }} />;
+    if (isDragActive) return <FiFolder size={22} />;
+    return <FiUploadCloud size={22} />;
+  }, [isDragActive, isDragAccept, isDragReject]);
 
-  const style = useMemo<React.CSSProperties>(
-    () => ({
-      ...baseStyle,
-      ...(isFocused ? { borderColor: '#38bdf8' } : {}),
-      ...(isDragAccept ? { borderColor: '#22c55e', backgroundColor: '#022c22' } : {}),
-      ...(isDragReject ? { borderColor: '#f97373', backgroundColor: '#3b0f0f' } : {}),
-    }),
-    [isFocused, isDragAccept, isDragReject],
-  );
+  const zoneClass = ['dz-zone', isFocused ? 'dz-zone-focused' : '', isDragAccept ? 'dz-zone-accept' : '', isDragReject ? 'dz-zone-reject' : ''].filter(Boolean).join(' ');
 
   return (
     <div className="dz-root">
-      {label && <p className="dz-label">{label}</p>}
+      {label && <span className="dz-label-styled">{label}</span>}
 
-      <div {...getRootProps({ style })}>
+      <div {...getRootProps({ className: zoneClass })}>
         <input {...getInputProps()} />
-        <span className="dz-message">{dropMessage}</span>
+        <div className="dz-icon">{dropIcon}</div>
+        <span className="dz-message-text">{dropMessage}</span>
       </div>
 
       {(files.length > 0 || rejected.length > 0) && (
         <div className="dz-lists">
           {files.length > 0 && (
-            <div className="dz-list">
-              <h4>Selected files</h4>
-              <ul>
+            <div>
+              <p className="dz-list-title">Selected files</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 {files.map((file) => (
-                  <li key={file.name}>
-                    <div className="dz-file-row">
-                      <div>
-                        <div className="dz-file-name">{file.name}</div>
-                        <div className="dz-file-size">{file.size} bytes</div>
-                        <FilePreview file={file} />
-                      </div>
-                      <button type="button" onClick={() => removeFile(file.name)} className="dz-remove-btn">
-                        Remove
-                      </button>
+                  <div key={file.name} className="dz-file-row">
+                    <div>
+                      <div className="dz-file-name">{file.name}</div>
+                      <div className="dz-file-size">{(file.size / 1024).toFixed(1)} KB</div>
+                      <FilePreview file={file} />
                     </div>
-                  </li>
+                    <button type="button" onClick={() => removeFile(file.name)} className="dz-remove-btn">Remove</button>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
 
           {rejected.length > 0 && (
-            <div className="dz-list dz-list-rejected">
-              <h4>Rejected files</h4>
-              <ul>
+            <div>
+              <p className="dz-list-title" style={{ color: 'var(--red)' }}>Rejected files</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 {rejected.map(({ file, errors }) => (
-                  <li key={file.name}>
-                    <div className="dz-file-row">
-                      <div>
-                        <div className="dz-file-name">{file.name}</div>
-                        <div className="dz-file-size">{file.size} bytes</div>
-                        <ul className="dz-errors">
-                          {errors.map((error) => (
-                            <li key={error.code}>{error.message}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <button type="button" onClick={() => removeRejected(file.name)} className="dz-remove-btn">
-                        Dismiss
-                      </button>
+                  <div key={file.name} className="dz-file-row" style={{ borderColor: 'rgba(255,85,119,0.2)' }}>
+                    <div>
+                      <div className="dz-file-name">{file.name}</div>
+                      <div className="dz-file-size">{(file.size / 1024).toFixed(1)} KB</div>
+                      <ul className="dz-errors">{errors.map((err) => <li key={err.code}>{err.message}</li>)}</ul>
                     </div>
-                  </li>
+                    <button type="button" onClick={() => removeRejected(file.name)} className="dz-remove-btn">Dismiss</button>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
 
           {(files.length > 0 || rejected.length > 0) && (
-            <button type="button" onClick={removeAll} className="dz-remove-all-btn">
-              Clear all
-            </button>
+            <button type="button" onClick={removeAll} className="dz-remove-all-btn">Clear all</button>
           )}
         </div>
       )}
     </div>
   );
 };
-
