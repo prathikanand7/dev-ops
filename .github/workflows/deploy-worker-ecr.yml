@@ -1,12 +1,12 @@
 name: Deploy Worker Image to ECR
+# This workflow builds the worker image and pushes it to ECR.
+# Triggered after successful completion of the smoke test workflow, or manually via workflow_dispatch.
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'worker/**'
-      - '.github/workflows/deploy-worker-ecr.yml'
+  workflow_run:
+    workflows: ["Smoke Test Worker Containerisation"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
