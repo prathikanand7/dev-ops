@@ -65,7 +65,7 @@ resource "aws_batch_compute_environment" "ec2" {
     tags = merge(var.tags, {
       Name = "${var.project_name}-${var.profile_name}-batch"
     })
-  }# Batch auto-scales desired_vcpus while jobs are running; ignore drift.
+  }
   lifecycle {
     ignore_changes = [compute_resources[0].desired_vcpus]
   }

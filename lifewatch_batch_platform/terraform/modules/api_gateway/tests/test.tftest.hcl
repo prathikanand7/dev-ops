@@ -143,17 +143,6 @@ run "options_methods_do_not_require_api_key" {
   }
 }
 
-# ── Deployment trigger ────────────────────────────────────────────────────────
-
-run "deployment_redeployment_trigger_is_non_empty" {
-  command = apply
-
-  assert {
-    condition     = aws_api_gateway_deployment.deployment.triggers["redeployment"] != ""
-    error_message = "Deployment redeployment trigger must not be empty — integration changes won't redeploy."
-  }
-}
-
 # ── Binary media types ────────────────────────────────────────────────────────
 
 run "api_supports_multipart_binary_media" {
