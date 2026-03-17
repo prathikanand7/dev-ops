@@ -1,0 +1,42 @@
+name: Lambda Unit Tests
+# Runs Python unit tests for backend lambdas.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "lifewatch_batch_platform/terraform/backend_lambdas/**"
+      - ".github/workflows/lambda-unit-tests.yml"
+  pull_request:
+    paths:
+      - "lifewatch_batch_platform/terraform/backend_lambdas/**"
+      - ".github/workflows/lambda-unit-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-lambda-handlers:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run Lambda Unit Tests
+        run: |
+          python -m unittest discover \
+            -s lifewatch_batch_platform/terraform/backend_lambdas/tests \
+            -p "test_*.py" \
+            -v
