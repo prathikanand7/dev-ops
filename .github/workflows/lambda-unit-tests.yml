@@ -3,6 +3,8 @@ name: Lambda Unit Tests
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "lifewatch_batch_platform/terraform/backend_lambdas/**"
       - ".github/workflows/lambda-unit-tests.yml"
@@ -14,6 +16,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test-lambda-handlers:

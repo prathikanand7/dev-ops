@@ -2,6 +2,12 @@ name: Smoke Test Worker Containerization
 # This workflow builds the worker and runs a smoke test to verify that the containerization is working correctly. 
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "worker/**"
+      - ".github/workflows/smoke-test-worker-containerization.yml"
   pull_request:
     paths:
       - "worker/**"
@@ -10,6 +16,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify-worker-pod:
