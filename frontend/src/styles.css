@@ -1739,7 +1739,7 @@ select.form-control-styled {
   background-repeat: no-repeat;
   background-position: right 0.9rem center;
   padding-right: 2.5rem;
-  /* Ensures browser uses our colours for the popup list */
+  /* Force our colours for the popup list */
   color-scheme: dark;
 }
 
