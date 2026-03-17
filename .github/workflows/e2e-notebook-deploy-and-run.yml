@@ -12,6 +12,7 @@ permissions:
 
 env:
   AWS_REGION: eu-west-1
+  TERRAFORM_ENV_DIR: ${{ secrets.TERRAFORM_ENV_DIR }}
 
 concurrency:
   group: terraform-batch-dev-state
@@ -61,11 +62,11 @@ jobs:
           ./compress_lambdas.sh
 
       - name: Terraform Init
-        working-directory: ./lifewatch_batch_platform/terraform/environments/dev
+        working-directory: ${{ env.TERRAFORM_ENV_DIR }}
         run: terraform init -input=false
 
       - name: Terraform Apply
-        working-directory: ./lifewatch_batch_platform/terraform/environments/dev
+        working-directory: ${{ env.TERRAFORM_ENV_DIR }}
         run: |
           terraform apply \
             -lock-timeout=20m \
@@ -75,7 +76,7 @@ jobs:
             -var="batch_execution_role_arn=${{ secrets.BATCH_EXECUTION_ROLE_ARN }}"
 
       - name: Capture API Outputs
-        working-directory: ./lifewatch_batch_platform/terraform/environments/dev
+        working-directory: ${{ env.TERRAFORM_ENV_DIR }}
         run: |
           echo "E2E_API_BASE_URL=$(terraform output -raw api_gateway_url)" >> "$GITHUB_ENV"
           echo "E2E_API_KEY=$(terraform output -raw api_key)" >> "$GITHUB_ENV"
@@ -99,7 +100,7 @@ jobs:
             --execution-profile "ec2_200gb" \
             --poll-interval-seconds 20 \
             --timeout-seconds 3600 \
-            --output-dir "lifewatch_batch_platform/terraform/environments/dev/e2e_outputs/ec2_200gb"
+            --output-dir "${TERRAFORM_ENV_DIR}/e2e_outputs/ec2_200gb"
 
       - name: Run Notebook E2E Test (Standard)
         run: |
@@ -112,12 +113,12 @@ jobs:
             --execution-profile "standard" \
             --poll-interval-seconds 20 \
             --timeout-seconds 3600 \
-            --output-dir "lifewatch_batch_platform/terraform/environments/dev/e2e_outputs/standard"
+            --output-dir "${TERRAFORM_ENV_DIR}/e2e_outputs/standard"
 
       - name: Run Negative API Key E2E Check
         run: |
           set -euo pipefail
-          mkdir -p lifewatch_batch_platform/terraform/environments/dev/e2e_outputs/negative
+          mkdir -p "${TERRAFORM_ENV_DIR}/e2e_outputs/negative"
 
           status_code=$(
             curl -sS -o /tmp/e2e_negative_auth_response.json -w "%{http_code}" \
@@ -128,7 +129,7 @@ jobs:
           )
 
           cat /tmp/e2e_negative_auth_response.json \
-            > lifewatch_batch_platform/terraform/environments/dev/e2e_outputs/negative/invalid_api_key_response.json
+            > "${TERRAFORM_ENV_DIR}/e2e_outputs/negative/invalid_api_key_response.json"
 
           if [ "${status_code}" != "401" ] && [ "${status_code}" != "403" ]; then
             echo "Expected auth rejection (401/403), got ${status_code}."
@@ -137,14 +138,14 @@ jobs:
           fi
 
           printf "Negative auth check passed with status %s\n" "${status_code}" \
-            > lifewatch_batch_platform/terraform/environments/dev/e2e_outputs/negative/assertion.txt
+            > "${TERRAFORM_ENV_DIR}/e2e_outputs/negative/assertion.txt"
 
       - name: Upload E2E Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: notebook-e2e-artifacts
-          path: lifewatch_batch_platform/terraform/environments/dev/e2e_outputs
+          path: ${{ env.TERRAFORM_ENV_DIR }}/e2e_outputs
           if-no-files-found: warn
 
       - name: Terminate and Verify No Batch EC2 Instances Remain
