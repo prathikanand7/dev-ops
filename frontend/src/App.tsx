@@ -47,7 +47,6 @@ type JobHistoryListResponse = {
   jobs: JobHistoryItem[];
 };
 
-const JOB_HISTORY_KEY = 'nop-job-history';
 const SUBMISSION_DRAFT_KEY = 'nop-submission-draft';
 
 function detectType(v: string | number | boolean): ParamType {
@@ -59,17 +58,6 @@ function detectType(v: string | number | boolean): ParamType {
 function isEnvironmentFile(file: File): boolean {
   const name = file.name.toLowerCase();
   return name.endsWith('.yaml') || name.endsWith('.yml') || name.endsWith('.txt');
-}
-
-function safeLoadJobHistory(): JobHistoryItem[] {
-  try {
-    const raw = window.localStorage.getItem(JOB_HISTORY_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as JobHistoryItem[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
 }
 
 function normalizeHistoryItem(raw: Partial<JobHistoryItem> & Record<string, unknown>): JobHistoryItem {
@@ -163,16 +151,13 @@ export const App: React.FC = () => {
   const [apiKey,  setApiKey]  = useState('');
 
   /* Param form */
-  const [formParams,      setFormParams]      = useState<FormParams>(() => submissionDraftRef.current.formParams);
-  const [notebookLoaded,  setNotebookLoaded]  = useState(() => submissionDraftRef.current.notebookLoaded);
-  const [extractInfo,     setExtractInfo]     = useState<string | null>(() => submissionDraftRef.current.extractInfo);
+  const [formParams,      setFormParams]      = useState<FormParams>({});
+  const [notebookLoaded,  setNotebookLoaded]  = useState(false);
+  const [extractInfo,     setExtractInfo]     = useState<string | null>(null);
 
   /* Job submission */
   const [executionProfile, setExecutionProfile] = useState<'standard' | 'ec2_200gb'>(() => submissionDraftRef.current.executionProfile);
-  /* FIX #5: files held in a ref as well so the submit button reads the latest value
-     without needing a re-render cycle from the DropZone callback */
   const [files,        setFiles]        = useState<File[]>([]);
-  const filesRef                        = useRef<File[]>([]);
   const [runResult,    setRunResult]    = useState<RunResponse | null>(null);
   const [runError,     setRunError]     = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -193,7 +178,7 @@ export const App: React.FC = () => {
   const [resultsInfo,        setResultsInfo]        = useState<string | null>(null);
 
   /* Job history */
-  const [jobHistory, setJobHistory] = useState<JobHistoryItem[]>(() => safeLoadJobHistory());
+  const [jobHistory, setJobHistory] = useState<JobHistoryItem[]>([]);
   const [historyLoadingIds, setHistoryLoadingIds] = useState<Record<string, boolean>>({});
   const [historyListLoading, setHistoryListLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -204,8 +189,6 @@ export const App: React.FC = () => {
 
   const pollRef      = useRef<number | null>(null);
   const autoFetchRef = useRef<string | null>(null);
-  const ignoreNextEmptyFilesSyncRef = useRef(false);
-  const hasSubmissionDraftRef = useRef(false);
 
   const normalizedBaseUrl  = useMemo(() => baseUrl.replace(/\/$/, ''), [baseUrl]);
   const currentJobStatus   = jobStatus?.status || '';
@@ -250,35 +233,7 @@ export const App: React.FC = () => {
       executionProfile,
     };
     window.localStorage.setItem(SUBMISSION_DRAFT_KEY, JSON.stringify(draft));
-    hasSubmissionDraftRef.current = draft.notebookLoaded && Object.keys(draft.formParams).length > 0;
   }, [formParams, notebookLoaded, extractInfo, executionProfile]);
-
-  /* When returning to submission page, set guard to ignore empty file sync from DropZone remount */
-  useEffect(() => {
-    if (activePage === 'submission') {
-      ignoreNextEmptyFilesSyncRef.current = true;
-    }
-  }, [activePage]);
-
-  /* When returning to submission page with empty files state but filesRef has content,
-     restore files after a brief delay to allow DropZone to fully re-initialize */
-  useEffect(() => {
-    if (activePage !== 'submission') return;
-    if (files.length > 0) return; // Already have files
-    if (!filesRef.current || filesRef.current.length === 0) return; // No files to restore
-    
-    const restoreTimer = window.setTimeout(() => {
-      if (files.length === 0 && filesRef.current && filesRef.current.length > 0) {
-        setFiles([...filesRef.current]);
-      }
-    }, 100);
-    
-    return () => window.clearTimeout(restoreTimer);
-  }, [activePage, files.length]);
-
-  useEffect(() => {
-    window.localStorage.setItem(JOB_HISTORY_KEY, JSON.stringify(jobHistory.slice(0, 200)));
-  }, [jobHistory]);
 
   useEffect(() => {
     if (!jobId || !apiKey) return;
@@ -291,7 +246,11 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     if (activePage !== 'history') return;
-    if (!apiKey) return;
+    if (!apiKey) {
+      setJobHistory([]);
+      setHistoryError(null);
+      return;
+    }
     void fetchHistoryList();
   }, [activePage, apiKey, normalizedBaseUrl]);
 
@@ -632,23 +591,7 @@ export const App: React.FC = () => {
     }
   }
 
-  /* FIX: useCallback so DropZone's useEffect([files, onFilesChange])
-     does NOT re-fire every time App re-renders, which would reset files state */
   const handleFilesChange = useCallback(async (newFiles: File[]): Promise<void> => {
-    /* If we're ignoring empty files sync (page switch back to submission),
-       only skip if files are empty AND we previously had files */
-    if (
-      ignoreNextEmptyFilesSyncRef.current
-      && newFiles.length === 0
-      && filesRef.current.length > 0
-    ) {
-      ignoreNextEmptyFilesSyncRef.current = false;
-      return; // Ignore this empty sync, don't update state
-    }
-    ignoreNextEmptyFilesSyncRef.current = false;
-
-    /* Keep ref in sync for immediate reads (e.g. submit button) */
-    filesRef.current = newFiles;
     setFiles(newFiles);
     const nb = newFiles.find((f) => f.name.toLowerCase().endsWith('.ipynb'));
     if (nb) {
@@ -658,8 +601,7 @@ export const App: React.FC = () => {
       setFormParams({});
       setExtractInfo(null);
     }
-  /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, []); // intentionally empty — extractParametersFromNotebook uses no captured state
+  }, []);
 
   /* FIX #4: update a single param value (user edits an auto-filled field) */
   function updateParam(key: string, value: string) {
@@ -669,8 +611,7 @@ export const App: React.FC = () => {
   /* ── submit ─────────────────────────────────────────────── */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    /* Read from ref to get latest file list regardless of render cycle */
-    const currentFiles = filesRef.current;
+    const currentFiles = files;
 
     setRunError(null); setRunResult(null); setJobError(null); setJobInfo(null);
     setJobStatus(null); setJobLogs([]); setJobResults([]);
@@ -979,6 +920,8 @@ export const App: React.FC = () => {
                   <div className="form-group">
                     <DropZone
                       label="Upload Files"
+                      files={files}
+                      setFiles={setFiles}
                       onFilesChange={handleFilesChange}
                     />
                     <p className="submit-hint">
@@ -988,17 +931,6 @@ export const App: React.FC = () => {
                     {extractInfo && (
                       <p className="extract-info" style={{ marginTop: '0.55rem' }}>
                         <FiInfo size={11} />{extractInfo}
-                      </p>
-                    )}
-                    {/* Show retained files indicator when DropZone appears empty but files exist in memory */}
-                    {files.length === 0 && filesRef.current && filesRef.current.length > 0 && (
-                      <p className="extract-info" style={{ marginTop: '0.55rem', color: 'var(--accent)' }}>
-                        <FiCheckCircle size={11} />
-                        {filesRef.current.length} file{filesRef.current.length !== 1 ? 's' : ''} retained ({filesRef.current
-                          .slice(0, 2)
-                          .map((f) => f.name)
-                          .join(', ')}
-                        {filesRef.current.length > 2 ? `, +${filesRef.current.length - 2} more` : ''})
                       </p>
                     )}
                   </div>
@@ -1038,7 +970,10 @@ export const App: React.FC = () => {
                       <option value="standard">Standard</option>
                       <option value="ec2_200gb">Large EC2 (200 GB)</option>
                     </select>
-                    <p className="form-hint">Use <code>ec2_200gb</code> for high-storage workloads.</p>
+                    <p className="form-hint">
+                      <FiInfo size={15} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                      Use <code>ec2_200gb</code> for high-storage workloads.
+                    </p>
                   </div>
 
                   {/* FIX #5: button enabled as soon as notebook + apiKey present */}
@@ -1226,7 +1161,12 @@ export const App: React.FC = () => {
                     <div className="alert-neon alert-warning-neon" style={{ marginTop: '0.9rem' }}>{historyError}</div>
                   )}
 
-                  {jobHistory.length === 0 ? (
+                  {!apiKey ? (
+                    <div className="param-pending" style={{ marginTop: '0.95rem' }}>
+                      <FiInfo size={14} />
+                      <span>Enter API key in Job Submission tab to load cloud history.</span>
+                    </div>
+                  ) : jobHistory.length === 0 ? (
                     <div className="param-pending" style={{ marginTop: '0.95rem' }}>
                       <FiInfo size={14} />
                       <span>No jobs found in cloud history.</span>

@@ -1,28 +1,28 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useDropzone, type FileRejection, type DropzoneOptions, type FileError } from 'react-dropzone';
 import { FiUploadCloud, FiCheckCircle, FiXCircle, FiFolder } from 'react-icons/fi';
 import FilePreview from './FilePreview';
 
-export interface FileWithPreview extends File {
-  preview: string;
-}
-
 interface DropZoneProps {
   label?: string;
+  files: File[];
+  setFiles: React.Dispatch<React.SetStateAction<File[]>>;
   onFilesChange?: (files: File[]) => void;
 }
 
-export const DropZone: React.FC<DropZoneProps> = ({ label, onFilesChange }) => {
-  const [files, setFiles] = useState<FileWithPreview[]>([]);
+export const DropZone: React.FC<DropZoneProps> = ({ label, files, setFiles, onFilesChange }) => {
   const [rejected, setRejected] = useState<FileRejection[]>([]);
 
   const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
     if (acceptedFiles.length) {
-      const mapped = acceptedFiles.map((file) => Object.assign(file, { preview: URL.createObjectURL(file) }));
-      setFiles((prev) => [...prev, ...mapped]);
+      setFiles((prev) => {
+        const next = [...prev, ...acceptedFiles];
+        if (onFilesChange) onFilesChange(next);
+        return next;
+      });
     }
     if (rejectedFiles.length) setRejected(() => [...rejectedFiles]);
-  }, []);
+  }, [onFilesChange, setFiles]);
 
   const duplicateValidator = useCallback(
     (file: File): FileError | null => {
@@ -52,12 +52,21 @@ export const DropZone: React.FC<DropZoneProps> = ({ label, onFilesChange }) => {
   const { getRootProps, getInputProps, isFocused, isDragAccept, isDragReject, isDragActive } =
     useDropzone(dropzoneOptions);
 
-  useEffect(() => { return () => { files.forEach((f) => URL.revokeObjectURL(f.preview)); }; }, [files]);
-  useEffect(() => { if (onFilesChange) onFilesChange(files); }, [files, onFilesChange]);
-
-  const removeFile = (name: string) => setFiles((p) => p.filter((f) => f.name !== name));
+  const removeFile = (name: string) => {
+    setFiles((prev) => {
+      const next = prev.filter((f) => f.name !== name);
+      if (onFilesChange) onFilesChange(next);
+      return next;
+    });
+  };
   const removeRejected = (name: string) => setRejected((p) => p.filter(({ file }) => file.name !== name));
-  const removeAll = () => { setFiles([]); setRejected([]); };
+  const removeAll = () => {
+    setFiles(() => {
+      if (onFilesChange) onFilesChange([]);
+      return [];
+    });
+    setRejected([]);
+  };
 
   const dropMessage = useMemo(() => {
     if (isDragReject) return 'Files will be rejected — only .xlsx, .xls, .ipynb, .yaml, .yml, and .txt allowed';
