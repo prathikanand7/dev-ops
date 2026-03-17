@@ -20,17 +20,14 @@ import type {
 import { SUBMISSION_DRAFT_KEY, detectType, isEnvironmentFile, normalizeHistoryItem, safeLoadSubmissionDraft } from './utils/storage';
 import { decodeApiBody, deriveS3Uri } from './utils/api';
 import { readFileAsText, parseNotebookParameters, downloadResultFile } from './utils/notebook';
+import lifeWatchLogo from './images/logoLW_eric_outline2-01.svg';
 
 export const App: React.FC = () => {
   const [activePage, setActivePage] = useState<AppPage>('submission');
   const submissionDraftRef = useRef<SubmissionDraft>(safeLoadSubmissionDraft());
 
   /* Theme */
-  const [theme, setTheme] = useState<ThemeMode>(() => {
-    const s = window.localStorage.getItem('nop-theme');
-    if (s === 'dark' || s === 'light') return s;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
+  const [theme, setTheme] = useState<ThemeMode>('light');
 
   /* Connection */
   const [baseUrl, setBaseUrl] = useState('https://n69rb6bzvl.execute-api.eu-west-1.amazonaws.com/dev');
@@ -640,8 +637,8 @@ export const App: React.FC = () => {
       <nav className="app-navbar">
         <div className="navbar-inner">
           <div className="navbar-brand-area">
-            <div className="navbar-logo-dot" aria-hidden="true" />
-            <span className="navbar-brand">Notebook<span>Ops</span></span>
+            <img src={lifeWatchLogo} alt="LifeWatch" className="navbar-logo-image" />
+            <span className="navbar-brand">LifeWatch NaaVRE Cloud-<span>Ops Platform</span></span>
           </div>
 
           <div className="navbar-tabs" role="tablist" aria-label="Page navigation">

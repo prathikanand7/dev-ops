@@ -7,26 +7,33 @@
   inherits: false;
 }
 
-/* ─── Design tokens — green palette ─────────────────── */
+/* ─── Design tokens — green palette ───────────── */
 :root {
-  --bg:             #050c06;
-  --bg2:            #070f08;
-  --surface:        rgba(7, 16, 9, 0.82);
-  --surface-raised: rgba(9, 22, 12, 0.90);
-  --border:         rgba(74, 222, 128, 0.1);
-  --border-hover:   rgba(74, 222, 128, 0.35);
-  --ink:            #e4f0e8;
-  --ink-muted:      #4d7a58;
-  --ink-dim:        #1e3d24;
-  --accent:         #4ade80;        /* bright green     */
-  --accent2:        #22c55e;        /* mid green        */
-  --accent3:        #86efac;        /* soft mint        */
-  --red:            #ff5577;
-  --amber:          #f5a623;
-  --purple:         #a78bfa;
-  --glow-accent:    0 0 20px rgba(74, 222, 128, 0.3), 0 0 55px rgba(74, 222, 128, 0.12);
-  --glow-accent-strong: 0 0 28px rgba(74, 222, 128, 0.55), 0 0 80px rgba(74, 222, 128, 0.2);
-  --shadow-deep:    0 24px 64px rgba(0, 0, 0, 0.75), 0 8px 24px rgba(0, 0, 0, 0.55);
+  /* Background: dark charcoal-green, not pitch black */
+  --bg:             #0d1a0f;
+  --bg2:            #0f1d11;
+  /* Surfaces: slightly more opaque so cards read clearly */
+  --surface:        rgba(15, 26, 17, 0.78);
+  --surface-raised: rgba(18, 32, 20, 0.88);
+  /* Borders: faint but visible */
+  --border:         rgba(74, 222, 128, 0.12);
+  --border-hover:   rgba(74, 222, 128, 0.30);
+  /* Text */
+  --ink:            #cce8d4;
+  --ink-muted:      #5e8a6a;        /* lifted so hints are readable */
+  --ink-dim:        #2a4a33;
+  /* Accents: same hue, toned down ~20% */
+  --accent:         #3dca72;
+  --accent2:        #28b057;
+  --accent3:        #72d99a;
+  --red:            #e8445f;
+  --amber:          #e09820;
+  --purple:         #9b7ef0;
+  /* Glows: much quieter — ambience not spotlight */
+  --glow-accent:    0 0 14px rgba(74, 222, 128, 0.16), 0 0 36px rgba(74, 222, 128, 0.06);
+  --glow-accent-strong: 0 0 18px rgba(74, 222, 128, 0.28), 0 0 50px rgba(74, 222, 128, 0.1);
+  /* Shadows: slightly softer */
+  --shadow-deep:    0 20px 52px rgba(0, 0, 0, 0.55), 0 6px 18px rgba(0, 0, 0, 0.38);
   color-scheme: dark;
 }
 
@@ -94,8 +101,8 @@ code, pre { font-family: 'Space Mono', monospace; }
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(74, 222, 128, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(74, 222, 128, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(74, 222, 128, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 222, 128, 0.03) 1px, transparent 1px);
   background-size: 52px 52px;
   animation: grid-drift 32s linear infinite;
 }
@@ -132,13 +139,13 @@ html[data-theme='light'] .app-bg-grid {
     );
 }
 
-/* 3 — static corner glows (GoQuant footer feel) */
+/* 3 — static corner glows */
 .app-bg-corner-tl {
   position: absolute;
   width: 600px; height: 600px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(20, 80, 35, 0.45) 0%, transparent 70%);
-  filter: blur(80px);
+  background: radial-gradient(circle, rgba(20, 80, 35, 0.22) 0%, transparent 70%);
+  filter: blur(90px);
   top: -200px; left: -200px;
   animation: corner-breathe 14s ease-in-out infinite;
 }
@@ -147,8 +154,8 @@ html[data-theme='light'] .app-bg-grid {
   position: absolute;
   width: 700px; height: 700px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(10, 60, 25, 0.5) 0%, rgba(5, 40, 15, 0.3) 40%, transparent 70%);
-  filter: blur(100px);
+  background: radial-gradient(circle, rgba(10, 60, 25, 0.26) 0%, rgba(5, 40, 15, 0.14) 40%, transparent 70%);
+  filter: blur(110px);
   bottom: -250px; right: -200px;
   animation: corner-breathe 18s ease-in-out infinite;
   animation-delay: -7s;
@@ -174,13 +181,12 @@ html[data-theme='light'] .app-bg-corner-br { opacity: 0.35; }
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(74, 222, 128, 0.18)  0%,
-    rgba(34, 197, 94,  0.09) 35%,
-    rgba(10, 80,  30,  0.04) 60%,
+    rgba(74, 222, 128, 0.08)  0%,
+    rgba(34, 197, 94,  0.04) 35%,
+    rgba(10, 80,  30,  0.02) 60%,
     transparent               80%
   );
-  filter: blur(36px);
-  /* anchor so transforms are relative to centre */
+  filter: blur(48px);
   top: calc(50% - 210px);
   left: calc(50% - 210px);
   animation: bulb-travel 50s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
@@ -193,11 +199,11 @@ html[data-theme='light'] .app-bg-corner-br { opacity: 0.35; }
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(134, 239, 172, 0.55) 0%,
-    rgba(74,  222, 128, 0.25) 40%,
+    rgba(134, 239, 172, 0.22) 0%,
+    rgba(74,  222, 128, 0.10) 40%,
     transparent                70%
   );
-  filter: blur(10px);
+  filter: blur(14px);
   top: calc(50% - 60px);
   left: calc(50% - 60px);
   animation: bulb-travel 50s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
@@ -260,12 +266,12 @@ html[data-theme='light'] .app-bg-bulb-core {
   position: sticky;
   top: 0;
   z-index: 100;
-  padding: 0.85rem 0;
+  padding: 0.65rem 0;
   background: rgba(5, 12, 6, 0.86);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   border-bottom: 1px solid rgba(74, 222, 128, 0.1);
-  box-shadow: 0 1px 0 rgba(74, 222, 128, 0.07), 0 4px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 0 rgba(74, 222, 128, 0.05), 0 4px 24px rgba(0, 0, 0, 0.32);
 }
 
 html[data-theme='light'] .app-navbar {
@@ -278,8 +284,8 @@ html[data-theme='light'] .app-navbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 90%;
+  margin: 0 1rem;
   padding: 0 1.5rem;
 }
 
@@ -289,12 +295,14 @@ html[data-theme='light'] .app-navbar {
   gap: 0.6rem;
 }
 
-.navbar-logo-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent), 0 0 22px rgba(74, 222, 128, 0.5);
-  animation: pulse-dot 2.5s ease-in-out infinite;
+.navbar-logo-image {
+  display: block;
+  height: 40px;
+  width: auto;
+}
+
+html[data-theme='dark'] .navbar-logo-image {
+  background-color: var(--ink);
 }
 
 @keyframes pulse-dot {
@@ -431,14 +439,14 @@ This cuts out the inner content-box, leaving just the padded ring.
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  padding: 2px;                     /* ring thickness           */
+  padding: 0.5px;                     /* ring thickness           */
   background: conic-gradient(
     from var(--border-angle),
     transparent               0deg,
     transparent             310deg,
     rgba(74, 222, 128, 0.08) 328deg,
     rgba(74, 222, 128, 0.55) 346deg,
-    rgba(134, 239, 172, 1.0) 353deg,
+    rgba(134, 239, 172, 0.65) 353deg,
     rgba(74, 222, 128, 0.55) 358deg,
     transparent              360deg
   );
@@ -614,7 +622,7 @@ select.form-control-styled {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  padding: 2px;
+  padding: 0.5px;
   background: conic-gradient(
     from var(--border-angle),
     transparent               0deg,
@@ -1068,7 +1076,7 @@ select.form-control-styled {
 }
 
 .history-table-head {
-  padding: 0.65rem 1rem;
+  padding: 0.45rem 0.7rem;
   border: 1px solid var(--border);
   border-radius: 0.55rem;
   background: rgba(74, 222, 128, 0.06);
