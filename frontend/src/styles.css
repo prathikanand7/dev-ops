@@ -404,15 +404,14 @@ html[data-theme='light'] .app-navbar {
   background: var(--accent);
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* __________________________________________________________________________________________________
    GLASS CARD  — revolving perimeter border on hover
    ─────────────────────────────────────────────────────────────
-   The conic-gradient is masked so ONLY the 2px border strip
-   is visible — no interior torch/radar effect at all.
-
-   Technique: padding: 2px on ::before + mask-composite: xor
-   cuts out the inner content-box, leaving just the padded ring.
-   ══════════════════════════════════════════════════════════════ */
+ Only the 2px border string is visible.
+padding: 2px on ::before
+mask-composite: xor
+This cuts out the inner content-box, leaving just the padded ring.
+    __________________________________________________________________________________________________ */
 .glass-card {
   position: relative;
   background: var(--surface);
