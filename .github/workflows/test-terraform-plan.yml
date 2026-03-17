@@ -62,6 +62,53 @@ jobs:
             -var="container_image=${{ secrets.CONTAINER_IMAGE }}" \
             -var="batch_execution_role_arn=${{ secrets.BATCH_EXECUTION_ROLE_ARN }}"
 
+  discover-modules:
+    name: "Discover modules with tests"
+    runs-on: ubuntu-latest
+    outputs:
+      modules: ${{ steps.find.outputs.modules }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Find modules with .tftest.hcl files
+        id: find
+        run: |
+          BASE="lifewatch_batch_platform/terraform/modules"
+          # Find all directories containing at least one .tftest.hcl file
+          # Output a JSON array of paths relative to the modules/ dir
+          modules=$(find "$BASE" -name "*.tftest.hcl" -printf '%h\n' \
+            | sed "s|$BASE/||" \
+            | sort -u \
+            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+          echo "Found modules: $modules"
+
+  test-modules:
+    name: "Test ${{ matrix.module }}"
+    needs: discover-modules
+    if: needs.discover-modules.outputs.modules != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJson(needs.discover-modules.outputs.modules) }}
+    defaults:
+      run:
+        working-directory: lifewatch_batch_platform/terraform/modules/${{ matrix.module }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: eu-west-1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.7
+      - name: Terraform Init
+        run: terraform init -input=false
       - name: Terraform Test
-        if: ${{ hashFiles(format('{0}/**/*.tftest.hcl', env.TERRAFORM_ENV_DIR)) != '' }}
         run: terraform test
