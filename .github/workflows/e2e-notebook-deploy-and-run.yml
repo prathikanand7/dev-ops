@@ -1,0 +1,199 @@
+name: Notebook E2E Deploy and Run
+# Deploy the entire infrastructure and execute a notebook end-to-end to verify everything works together as expected. 
+
+on:
+  workflow_run:
+    workflows: ["Deploy Worker Image to ECR"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  TERRAFORM_ENV_DIR: ${{ secrets.TERRAFORM_ENV_DIR }}
+
+concurrency:
+  group: terraform-batch-dev-state
+  cancel-in-progress: false
+
+jobs:
+  deploy-and-run-e2e:
+    name: Terraform Deploy + Notebook E2E
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve checkout ref
+        id: ref
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "value=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.value }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.7
+
+      - name: Compress Lambdas
+        run: |
+          chmod +x ./compress_lambdas.sh
+          ./compress_lambdas.sh
+
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_ENV_DIR }}
+        run: terraform init -input=false
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TERRAFORM_ENV_DIR }}
+        run: |
+          terraform apply \
+            -lock-timeout=20m \
+            -input=false \
+            -auto-approve \
+            -var="container_image=${{ secrets.CONTAINER_IMAGE }}" \
+            -var="batch_execution_role_arn=${{ secrets.BATCH_EXECUTION_ROLE_ARN }}"
+
+      - name: Capture API Outputs
+        working-directory: ${{ env.TERRAFORM_ENV_DIR }}
+        run: |
+          echo "E2E_API_BASE_URL=$(terraform output -raw api_gateway_url)" >> "$GITHUB_ENV"
+          echo "E2E_API_KEY=$(terraform output -raw api_key)" >> "$GITHUB_ENV"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install E2E Test Dependencies
+        run: python -m pip install --upgrade pip requests
+
+      - name: Run Notebook E2E Test (EC2 200GB)
+        run: |
+          python lifewatch_batch_platform/terraform/client_requests/e2e_notebook_run.py \
+            --api-base-url "${E2E_API_BASE_URL}" \
+            --api-key "${E2E_API_KEY}" \
+            --notebook-path "demo_input/Data_cleaning.ipynb" \
+            --data-file-path "demo_input/Template_MBO_Example_raw_v3.xlsx" \
+            --environment-path "demo_input/environment.yaml" \
+            --execution-profile "ec2_200gb" \
+            --poll-interval-seconds 20 \
+            --timeout-seconds 3600 \
+            --output-dir "${TERRAFORM_ENV_DIR}/e2e_outputs/ec2_200gb"
+
+      - name: Run Notebook E2E Test (Standard)
+        run: |
+          python lifewatch_batch_platform/terraform/client_requests/e2e_notebook_run.py \
+            --api-base-url "${E2E_API_BASE_URL}" \
+            --api-key "${E2E_API_KEY}" \
+            --notebook-path "demo_input/Data_cleaning.ipynb" \
+            --data-file-path "demo_input/Template_MBO_Example_raw_v3.xlsx" \
+            --environment-path "demo_input/environment.yaml" \
+            --execution-profile "standard" \
+            --poll-interval-seconds 20 \
+            --timeout-seconds 3600 \
+            --output-dir "${TERRAFORM_ENV_DIR}/e2e_outputs/standard"
+
+      - name: Run Negative API Key E2E Check
+        run: |
+          set -euo pipefail
+          mkdir -p "${TERRAFORM_ENV_DIR}/e2e_outputs/negative"
+
+          status_code=$(
+            curl -sS -o /tmp/e2e_negative_auth_response.json -w "%{http_code}" \
+              -X POST "${E2E_API_BASE_URL}/batch/jobs" \
+              -H "x-api-key: invalid-e2e-key" \
+              -F "notebook=@demo_input/Data_cleaning.ipynb;type=application/x-ipynb+json" \
+              -F "execution_profile=ec2_200gb"
+          )
+
+          cat /tmp/e2e_negative_auth_response.json \
+            > "${TERRAFORM_ENV_DIR}/e2e_outputs/negative/invalid_api_key_response.json"
+
+          if [ "${status_code}" != "401" ] && [ "${status_code}" != "403" ]; then
+            echo "Expected auth rejection (401/403), got ${status_code}."
+            cat /tmp/e2e_negative_auth_response.json
+            exit 1
+          fi
+
+          printf "Negative auth check passed with status %s\n" "${status_code}" \
+            > "${TERRAFORM_ENV_DIR}/e2e_outputs/negative/assertion.txt"
+
+      - name: Upload E2E Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notebook-e2e-artifacts
+          path: ${{ env.TERRAFORM_ENV_DIR }}/e2e_outputs
+          if-no-files-found: warn
+
+      - name: Terminate and Verify No Batch EC2 Instances Remain
+        if: always()
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 36); do
+            INSTANCE_IDS_RAW=$(aws ec2 describe-instances \
+              --region "${AWS_REGION}" \
+              --filters "Name=tag:Name,Values=lifewatch-batch-ec2-*" "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
+              --query "Reservations[].Instances[].InstanceId" \
+              --output text)
+
+            if [ -z "${INSTANCE_IDS_RAW}" ] || [ "${INSTANCE_IDS_RAW}" = "None" ]; then
+              echo "No Batch EC2 instances remain after E2E execution."
+              break
+            fi
+
+            mapfile -t INSTANCE_IDS < <(printf '%s\n' "${INSTANCE_IDS_RAW}" | tr '\t' '\n' | sed '/^$/d')
+            if [ "${#INSTANCE_IDS[@]}" -gt 0 ]; then
+              echo "Found lingering Batch EC2 instances (attempt ${attempt}/36): ${INSTANCE_IDS[*]}"
+              aws ec2 terminate-instances \
+                --region "${AWS_REGION}" \
+                --instance-ids "${INSTANCE_IDS[@]}" >/dev/null
+            fi
+            sleep 10
+          done
+
+          FINAL_COUNT=$(aws ec2 describe-instances \
+            --region "${AWS_REGION}" \
+            --filters "Name=tag:Name,Values=lifewatch-batch-ec2-*" "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
+            --query "length(Reservations[].Instances[])" \
+            --output text)
+
+          if [ "${FINAL_COUNT}" != "0" ]; then
+            echo "Batch EC2 cleanup failed. Instances still present: ${FINAL_COUNT}"
+            aws ec2 describe-instances \
+              --region "${AWS_REGION}" \
+              --filters "Name=tag:Name,Values=lifewatch-batch-ec2-*" "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
+              --query "Reservations[].Instances[].{Id:InstanceId,State:State.Name,LaunchTime:LaunchTime,AZ:Placement.AvailabilityZone,Name:Tags[?Key=='Name']|[0].Value}" \
+              --output table
+            exit 1
+          fi
+
+          echo "Batch EC2 cleanup complete."
+
+      - name: Teardown Scope Notice
+        if: always()
+        run: |
+          echo "Scope of cleanup: EC2 compute instances only."
+          echo "Terraform-managed core infrastructure is intentionally preserved."

@@ -2,16 +2,22 @@ name: "Terraform CI"
 
 on:
   push:
-    branches: ["main"]
+    paths:
+      - 'lifewatch_batch_platform/terraform/**'
+      - '.github/workflows/test-terraform-plan.yml'
   pull_request:
-    branches: ["main"]
-
+    paths:
+      - 'lifewatch_batch_platform/terraform/**'
+      - '.github/workflows/test-terraform-plan.yml'
 concurrency:
   group: terraform-batch-dev-state
   cancel-in-progress: false
 
 permissions:
   contents: read
+
+env:
+  TERRAFORM_ENV_DIR: ${{ secrets.TERRAFORM_ENV_DIR }}
 
 jobs:
   terraform:
@@ -20,7 +26,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./lifewatch_batch_platform/terraform/environments/dev
+        working-directory: ${{ env.TERRAFORM_ENV_DIR }}
 
     steps:
       - name: Checkout Code
@@ -57,5 +63,5 @@ jobs:
             -var="batch_execution_role_arn=${{ secrets.BATCH_EXECUTION_ROLE_ARN }}"
 
       - name: Terraform Test
-        if: ${{ hashFiles('terraform/environments/batch-dev/**/*.tftest.hcl') != '' }}
+        if: ${{ hashFiles(format('{0}/**/*.tftest.hcl', env.TERRAFORM_ENV_DIR)) != '' }}
         run: terraform test
