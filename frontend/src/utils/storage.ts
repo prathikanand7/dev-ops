@@ -1,4 +1,5 @@
 import type { JobHistoryItem, ParamType, SubmissionDraft } from '../types';
+import { DEFAULT_EXECUTION_PROFILE, isKnownExecutionProfile } from '../config/jobProfiles';
 
 export const SUBMISSION_DRAFT_KEY = 'nop-submission-draft';
 
@@ -43,10 +44,12 @@ export function safeLoadSubmissionDraft(): SubmissionDraft {
   try {
     const raw = window.localStorage.getItem(SUBMISSION_DRAFT_KEY);
     if (!raw) {
-      return { formParams: {}, notebookLoaded: false, extractInfo: null, executionProfile: 'standard' };
+      return { formParams: {}, notebookLoaded: false, extractInfo: null, executionProfile: DEFAULT_EXECUTION_PROFILE };
     }
     const parsed = JSON.parse(raw) as Partial<SubmissionDraft>;
-    const executionProfile = parsed.executionProfile === 'ec2_200gb' ? 'ec2_200gb' : 'standard';
+    const executionProfile = typeof parsed.executionProfile === 'string' && isKnownExecutionProfile(parsed.executionProfile)
+      ? parsed.executionProfile
+      : DEFAULT_EXECUTION_PROFILE;
     return {
       formParams: parsed.formParams && typeof parsed.formParams === 'object' ? parsed.formParams : {},
       notebookLoaded: !!parsed.notebookLoaded,
@@ -54,6 +57,6 @@ export function safeLoadSubmissionDraft(): SubmissionDraft {
       executionProfile,
     };
   } catch {
-    return { formParams: {}, notebookLoaded: false, extractInfo: null, executionProfile: 'standard' };
+    return { formParams: {}, notebookLoaded: false, extractInfo: null, executionProfile: DEFAULT_EXECUTION_PROFILE };
   }
 }

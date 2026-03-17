@@ -28,7 +28,9 @@ Features:
 - Optional extra upload files such as `.xlsx` or `.xls`
 - Automatic notebook parameter extraction from a tagged parameters cell
 - Editable parameter fields with inferred types: `string`, `number`, and `boolean`
-- Execution profile selection: `standard` or `ec2_200gb`
+- Execution profile selector driven by the shared backend profile catalog
+- Per-profile compute details: backend type, vCPU, memory, and storage
+- Indicative hourly cost estimate for the selected execution profile
 - Submit button stays disabled until required inputs are present
 - Job status panel for checking status, logs, and results after submission
 - Automatic job ID handoff from the submission response into the status panel
@@ -78,6 +80,8 @@ frontend/
 ├── index.html
 ├── package.json
 ├── README.md
+├── scripts/
+│   └── generate-job-profiles.mjs
 ├── test.http
 ├── tsconfig.json
 ├── vite.config.ts
@@ -96,6 +100,9 @@ frontend/
     │       ├── ApiConnectionCard.tsx
     │       ├── JobStatusCard.tsx
     │       └── SubmitJobCard.tsx
+    ├── config/
+    │   ├── jobProfiles.generated.ts
+    │   └── jobProfiles.ts
     ├── types/
     │   └── index.ts
     └── utils/
@@ -111,6 +118,9 @@ frontend/
 - `src/components/job_history/`: presentational UI for historical job browsing and modal views
 - `src/components/DropZone.tsx`: controlled file upload/drop area
 - `src/components/FilePreview.tsx`: upload file preview rendering
+- `scripts/generate-job-profiles.mjs`: reads the root `job_profiles.json` and generates frontend profile config before dev/build/lint
+- `src/config/jobProfiles.generated.ts`: generated execution profile data file, derived from the backend profile catalog
+- `src/config/jobProfiles.ts`: stable wrapper exposing helpers around the generated execution profile data
 - `src/types/index.ts`: shared frontend TypeScript types
 - `src/utils/api.ts`: API response decoding and S3 URL helpers
 - `src/utils/notebook.ts`: notebook parsing, file reading, and result download helpers
@@ -151,7 +161,7 @@ The submission request is `multipart/form-data` and includes:
 
 - `notebook`: uploaded notebook file
 - `environment`: uploaded environment file
-- `execution_profile`: `standard` or `ec2_200gb`
+- `execution_profile`: selected backend profile key, for example `standard` or `ec2_200gb`
 - extracted parameter fields as plain scalar form values
 - optional additional upload files
 
@@ -235,6 +245,8 @@ The submission request is `multipart/form-data` and includes:
 - History artifacts are hydrated separately so successful runs can expose ZIP links after list load
 - Missing or delayed log streams are surfaced as user-facing info instead of breaking the page
 - Parameter extraction failure does not block submission if the required files are present
+- Cost estimates are indicative hourly estimates only; total cost depends on actual runtime
+- Execution profile metadata is generated from the repository root `job_profiles.json` during `dev`, `build`, and `lint`
 
 ## Getting Started
 

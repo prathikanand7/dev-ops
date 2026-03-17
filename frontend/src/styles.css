@@ -927,6 +927,108 @@ select.form-control-styled {
   margin-top: 0.4rem;
 }
 
+.execution-profile-panel {
+  margin-top: 0.85rem;
+  padding: 0.9rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background:
+    linear-gradient(180deg, rgba(74, 222, 128, 0.08), rgba(74, 222, 128, 0.03)),
+    var(--surface);
+}
+
+.execution-profile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.execution-profile-eyebrow {
+  margin: 0 0 0.22rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent2);
+}
+
+.execution-profile-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.execution-profile-description {
+  margin: 0.28rem 0 0;
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.execution-profile-price {
+  flex-shrink: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--accent3);
+  text-align: right;
+  line-height: 1;
+}
+
+.execution-profile-price span {
+  display: block;
+  margin-top: 0.22rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.execution-profile-specs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.execution-profile-spec {
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.execution-profile-spec-label {
+  display: block;
+  margin-bottom: 0.24rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.execution-profile-spec-value {
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+
+.execution-profile-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.8rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.execution-profile-disclaimer code {
+  color: var(--accent3);
+}
+
 /* ─── Job history page ─────────────────────────────────────── */
 .history-actions-row {
   display: flex;

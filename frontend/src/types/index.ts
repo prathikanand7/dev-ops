@@ -8,6 +8,18 @@ export type JobResultsResponse = { job_id: string; status?: string; download_url
 export type ThemeMode = 'dark' | 'light';
 export type AppPage   = 'submission' | 'history';
 
+export type ExecutionProfileDefinition = {
+  displayName: string;
+  description: string;
+  backendType: string;
+  vcpu: number;
+  maxVcpus: number;
+  memoryMb: number;
+  storageGb: number;
+  pricingPerHour: number;
+  isDefault: boolean;
+};
+
 /* ─── Param form types ───────────────────────────────────────── */
 export type ParamType  = 'number' | 'boolean' | 'string';
 export type ParamEntry = { value: string; type: ParamType; };
@@ -17,7 +29,7 @@ export type SubmissionDraft = {
   formParams: FormParams;
   notebookLoaded: boolean;
   extractInfo: string | null;
-  executionProfile: 'standard' | 'ec2_200gb';
+  executionProfile: string;
 };
 
 /* ─── Job history types ──────────────────────────────────────── */

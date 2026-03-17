@@ -1,7 +1,7 @@
 import React from 'react';
 import { FiAlertCircle, FiCheckCircle, FiInfo, FiPlay, FiZap } from 'react-icons/fi';
 import { DropZone } from '../DropZone';
-import type { FormParams, ParamEntry, RunResponse } from '../../types';
+import type { ExecutionProfileDefinition, FormParams, ParamEntry, RunResponse } from '../../types';
 
 type SubmitJobCardProps = {
   files: File[];
@@ -12,8 +12,11 @@ type SubmitJobCardProps = {
   hasParams: boolean;
   formParams: FormParams;
   renderParamField: (key: string, entry: ParamEntry) => React.ReactNode;
-  executionProfile: 'standard' | 'ec2_200gb';
-  setExecutionProfile: (value: 'standard' | 'ec2_200gb') => void;
+  executionProfile: string;
+  executionProfiles: Array<[string, ExecutionProfileDefinition]>;
+  selectedExecutionProfile: ExecutionProfileDefinition | null;
+  currency: string;
+  setExecutionProfile: (value: string) => void;
   handleSubmit: (e: React.FormEvent) => Promise<void>;
   canSubmit: boolean;
   isSubmitting: boolean;
@@ -32,6 +35,9 @@ export const SubmitJobCard: React.FC<SubmitJobCardProps> = ({
   formParams,
   renderParamField,
   executionProfile,
+  executionProfiles,
+  selectedExecutionProfile,
+  currency,
   setExecutionProfile,
   handleSubmit,
   canSubmit,
@@ -40,6 +46,14 @@ export const SubmitJobCard: React.FC<SubmitJobCardProps> = ({
   runError,
   runResult,
 }) => {
+  const priceFormatter = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const memoryGiB = selectedExecutionProfile ? selectedExecutionProfile.memoryMb / 1024 : null;
+
   return (
     <div className="glass-card">
       <div className="card-inner">
@@ -93,15 +107,54 @@ export const SubmitJobCard: React.FC<SubmitJobCardProps> = ({
                 id="execution-profile"
                 className="form-control-styled"
                 value={executionProfile}
-                onChange={(e) => setExecutionProfile(e.target.value as 'standard' | 'ec2_200gb')}
+                onChange={(e) => setExecutionProfile(e.target.value)}
               >
-                <option value="standard">Standard</option>
-                <option value="ec2_200gb">Large EC2 (200 GB)</option>
+                {executionProfiles.map(([profileKey, profile]) => (
+                  <option key={profileKey} value={profileKey}>
+                    {`${profile.displayName} • ${priceFormatter.format(profile.pricingPerHour)}/hour`}
+                  </option>
+                ))}
               </select>
-              <p className="form-hint">
-                <FiInfo size={15} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                Use <code>ec2_200gb</code> for high-storage workloads.
-              </p>
+
+              {selectedExecutionProfile && (
+                <div className="execution-profile-panel">
+                  <div className="execution-profile-header">
+                    <div>
+                      <p className="execution-profile-eyebrow">Estimated Cost</p>
+                      <h6 className="execution-profile-title">{selectedExecutionProfile.displayName}</h6>
+                      <p className="execution-profile-description">{selectedExecutionProfile.description}</p>
+                    </div>
+                    <div className="execution-profile-price">
+                      {priceFormatter.format(selectedExecutionProfile.pricingPerHour)}
+                      <span>/hour</span>
+                    </div>
+                  </div>
+
+                  <div className="execution-profile-specs">
+                    <div className="execution-profile-spec">
+                      <span className="execution-profile-spec-label">Backend</span>
+                      <strong className="execution-profile-spec-value">{selectedExecutionProfile.backendType}</strong>
+                    </div>
+                    <div className="execution-profile-spec">
+                      <span className="execution-profile-spec-label">vCPU</span>
+                      <strong className="execution-profile-spec-value">{selectedExecutionProfile.vcpu}</strong>
+                    </div>
+                    <div className="execution-profile-spec">
+                      <span className="execution-profile-spec-label">Memory</span>
+                      <strong className="execution-profile-spec-value">{memoryGiB ? `${memoryGiB} GB` : '-'}</strong>
+                    </div>
+                    <div className="execution-profile-spec">
+                      <span className="execution-profile-spec-label">Storage</span>
+                      <strong className="execution-profile-spec-value">{selectedExecutionProfile.storageGb} GB</strong>
+                    </div>
+                  </div>
+
+                  <p className="execution-profile-disclaimer">
+                    <FiInfo size={13} />
+                    Indicative hourly estimate only. Final costs vary based on runtime and usage.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="btn-row">
@@ -133,7 +186,10 @@ export const SubmitJobCard: React.FC<SubmitJobCardProps> = ({
               <div className="alert-neon alert-success-neon">
                 <h6><FiCheckCircle size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />Job Queued</h6>
                 <div className="kv-row"><span className="kv-label">Job ID</span><span className="kv-value">{runResult.job_id}</span></div>
-                <div className="kv-row"><span className="kv-label">Profile</span><span className="kv-value">{runResult.execution_profile || executionProfile}</span></div>
+                <div className="kv-row"><span className="kv-label">Profile</span><span className="kv-value">{selectedExecutionProfile ? `${selectedExecutionProfile.displayName} (${runResult.execution_profile || executionProfile})` : (runResult.execution_profile || executionProfile)}</span></div>
+                {selectedExecutionProfile && (
+                  <div className="kv-row"><span className="kv-label">Est. Cost</span><span className="kv-value">{`${priceFormatter.format(selectedExecutionProfile.pricingPerHour)}/hour`}</span></div>
+                )}
                 {runResult.message && <div className="kv-row"><span className="kv-label">Message</span><span className="kv-value">{runResult.message}</span></div>}
               </div>
             )}

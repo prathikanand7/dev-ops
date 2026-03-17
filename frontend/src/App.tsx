@@ -6,6 +6,12 @@ import { ApiConnectionCard } from './components/job_submission/ApiConnectionCard
 import { SubmitJobCard } from './components/job_submission/SubmitJobCard';
 import { JobStatusCard } from './components/job_submission/JobStatusCard';
 import { JobHistoryTable } from './components/job_history/JobHistoryTable';
+import {
+  DEFAULT_EXECUTION_PROFILE,
+  EXECUTION_PROFILE_OPTIONS,
+  JOB_PROFILE_CURRENCY,
+  getExecutionProfile,
+} from './config/jobProfiles';
 import type {
   RunResponse, JobStatusResponse, JobLogsResponse, JobResultsResponse,
   ThemeMode, AppPage, ParamEntry, FormParams, SubmissionDraft,
@@ -36,7 +42,7 @@ export const App: React.FC = () => {
   const [extractInfo,     setExtractInfo]     = useState<string | null>(null);
 
   /* Job submission */
-  const [executionProfile, setExecutionProfile] = useState<'standard' | 'ec2_200gb'>(() => submissionDraftRef.current.executionProfile);
+  const [executionProfile, setExecutionProfile] = useState<string>(() => submissionDraftRef.current.executionProfile || DEFAULT_EXECUTION_PROFILE);
   const [files,        setFiles]        = useState<File[]>([]);
   const [runResult,    setRunResult]    = useState<RunResponse | null>(null);
   const [runError,     setRunError]     = useState<string | null>(null);
@@ -83,6 +89,10 @@ export const App: React.FC = () => {
   const activeParamsItem   = useMemo(
     () => jobHistory.find((item) => item.jobId === activeParamsJobId) || null,
     [jobHistory, activeParamsJobId],
+  );
+  const selectedExecutionProfile = useMemo(
+    () => getExecutionProfile(executionProfile) ?? getExecutionProfile(DEFAULT_EXECUTION_PROFILE),
+    [executionProfile],
   );
 
   /* Derive disabled reason so we can show the user exactly what's missing */
@@ -688,6 +698,9 @@ export const App: React.FC = () => {
                 formParams={formParams}
                 renderParamField={renderParamField}
                 executionProfile={executionProfile}
+                executionProfiles={EXECUTION_PROFILE_OPTIONS}
+                selectedExecutionProfile={selectedExecutionProfile}
+                currency={JOB_PROFILE_CURRENCY}
                 setExecutionProfile={setExecutionProfile}
                 handleSubmit={handleSubmit}
                 canSubmit={canSubmit}
