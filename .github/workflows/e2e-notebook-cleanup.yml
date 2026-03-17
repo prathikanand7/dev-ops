@@ -35,14 +35,22 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.7
 
       - name: Terraform Destroy (Keep Non-Empty Payload Bucket)
-        working-directory: ./terraform/environments/batch-dev
+        working-directory: ./lifewatch_batch_platform/terraform/environments/dev
         run: |
           set -euo pipefail
-          terraform init
+          terraform init -input=false
           set +e
-          terraform destroy -lock-timeout=20m -auto-approve -no-color 2>&1 | tee /tmp/terraform-destroy.log
+          terraform destroy \
+            -lock-timeout=20m \
+            -auto-approve \
+            -no-color \
+            -var="container_image=${{ secrets.CONTAINER_IMAGE }}" \
+            -var="batch_execution_role_arn=${{ secrets.BATCH_EXECUTION_ROLE_ARN }}" \
+            2>&1 | tee /tmp/terraform-destroy.log
           destroy_exit=${PIPESTATUS[0]}
           set -e
 

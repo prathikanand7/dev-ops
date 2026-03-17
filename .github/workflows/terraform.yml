@@ -57,5 +57,5 @@ jobs:
             -var="batch_execution_role_arn=${{ secrets.BATCH_EXECUTION_ROLE_ARN }}"
 
       - name: Terraform Test
-        if: ${{ hashFiles('terraform/environments/batch-dev/**/*.tftest.hcl') != '' }}
+        if: ${{ hashFiles('lifewatch_batch_platform/terraform/environments/dev/**/*.tftest.hcl') != '' }}
         run: terraform test

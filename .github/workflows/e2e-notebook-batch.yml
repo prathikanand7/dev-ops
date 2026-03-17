@@ -54,20 +54,28 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.7
 
       - name: Terraform Init
-        working-directory: ./terraform/environments/batch-dev
-        run: terraform init
+        working-directory: ./lifewatch_batch_platform/terraform/environments/dev
+        run: terraform init -input=false
 
       - name: Terraform Apply
-        working-directory: ./terraform/environments/batch-dev
-        run: terraform apply -lock-timeout=20m -auto-approve
+        working-directory: ./lifewatch_batch_platform/terraform/environments/dev
+        run: |
+          terraform apply \
+            -lock-timeout=20m \
+            -input=false \
+            -auto-approve \
+            -var="container_image=${{ secrets.CONTAINER_IMAGE }}" \
+            -var="batch_execution_role_arn=${{ secrets.BATCH_EXECUTION_ROLE_ARN }}"
 
       - name: Capture API Outputs
-        working-directory: ./terraform/environments/batch-dev
+        working-directory: ./lifewatch_batch_platform/terraform/environments/dev
         run: |
           echo "E2E_API_BASE_URL=$(terraform output -raw api_gateway_url)" >> "$GITHUB_ENV"
-          echo "E2E_API_KEY=$(terraform output -raw lifewatch_api_key)" >> "$GITHUB_ENV"
+          echo "E2E_API_KEY=$(terraform output -raw api_key)" >> "$GITHUB_ENV"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -79,7 +87,7 @@ jobs:
 
       - name: Run Notebook E2E Test
         run: |
-          python terraform/environments/batch-dev/e2e_notebook_run.py \
+          python lifewatch_batch_platform/terraform/client_requests/e2e_notebook_run.py \
             --api-base-url "${E2E_API_BASE_URL}" \
             --api-key "${E2E_API_KEY}" \
             --notebook-path "demo_input/Data_cleaning.ipynb" \
@@ -88,24 +96,30 @@ jobs:
             --execution-profile "ec2_200gb" \
             --poll-interval-seconds 20 \
             --timeout-seconds 3600 \
-            --output-dir "terraform/environments/batch-dev/e2e_outputs"
+            --output-dir "lifewatch_batch_platform/terraform/environments/dev/e2e_outputs"
 
       - name: Upload E2E Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: notebook-e2e-artifacts
-          path: terraform/environments/batch-dev/e2e_outputs
+          path: lifewatch_batch_platform/terraform/environments/dev/e2e_outputs
           if-no-files-found: warn
 
       - name: Terraform Destroy (Keep Non-Empty Payload Bucket)
         if: always()
-        working-directory: ./terraform/environments/batch-dev
+        working-directory: ./lifewatch_batch_platform/terraform/environments/dev
         run: |
           set -euo pipefail
-          terraform init
+          terraform init -input=false
           set +e
-          terraform destroy -lock-timeout=20m -auto-approve -no-color 2>&1 | tee /tmp/terraform-destroy.log
+          terraform destroy \
+            -lock-timeout=20m \
+            -auto-approve \
+            -no-color \
+            -var="container_image=${{ secrets.CONTAINER_IMAGE }}" \
+            -var="batch_execution_role_arn=${{ secrets.BATCH_EXECUTION_ROLE_ARN }}" \
+            2>&1 | tee /tmp/terraform-destroy.log
           destroy_exit=${PIPESTATUS[0]}
           set -e
 
