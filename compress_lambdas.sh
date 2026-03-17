@@ -1,4 +1,5 @@
 #!/bin/bash
+# Package each Lambda handler with the shared CORS helper for Terraform deployment.
 
 SOURCE_DIR="./lifewatch_batch_platform/terraform/backend_lamdas"
 TARGET_DIR="./lifewatch_batch_platform/terraform/backend_lambda_artifacts"

@@ -1,3 +1,5 @@
+"""Shared API Gateway response helper with default CORS headers."""
+
 import json
 from typing import Any, Dict
 

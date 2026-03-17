@@ -1,3 +1,5 @@
+"""Manual client script for GET /batch/jobs/{job_id}/logs."""
+
 import requests
 import sys
 from fetch_api_key import fetch_api_key

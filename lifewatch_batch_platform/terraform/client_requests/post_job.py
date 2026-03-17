@@ -1,3 +1,8 @@
+"""Manual client script for POST /batch/jobs.
+
+Useful for ad-hoc API verification outside GitHub Actions.
+"""
+
 import requests
 from fetch_api_key import fetch_api_key
 from fetch_api_url import fetch_api_url

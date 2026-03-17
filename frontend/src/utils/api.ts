@@ -6,6 +6,7 @@ export function decodeApiBody<T>(raw: unknown): T {
 }
 
 export function deriveS3Uri(downloadUrl: string): string | null {
+  // Supports both virtual-hosted-style and path-style S3 URLs.
   try {
     const parsed = new URL(downloadUrl);
     const host = parsed.hostname;

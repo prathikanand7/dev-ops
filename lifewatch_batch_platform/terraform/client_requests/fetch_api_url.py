@@ -1,3 +1,5 @@
+"""Resolve API base URL from environment first, then Terraform output fallback."""
+
 import os
 import subprocess
 

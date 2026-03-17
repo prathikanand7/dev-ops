@@ -1,3 +1,9 @@
+"""Lambda handler for GET /batch/jobs/history_list.
+
+Builds a consolidated history view by combining S3-stored job metadata with
+current AWS Batch status information.
+"""
+
 import json
 import boto3
 import os

@@ -1,3 +1,9 @@
+"""Lambda handler for GET /batch/jobs/{job_id}.
+
+Maps platform job IDs to AWS Batch job IDs using S3 metadata and returns the
+current Batch status payload.
+"""
+
 import boto3
 import json
 import os
