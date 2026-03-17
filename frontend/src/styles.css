@@ -442,7 +442,7 @@ This cuts out the inner content-box, leaving just the padded ring.
     rgba(74, 222, 128, 0.55) 358deg,
     transparent              360deg
   );
-  /* Show only the padding strip — mask out the content-box interior */
+  /* Show only the padding strip - mask out the content-box interior */
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
