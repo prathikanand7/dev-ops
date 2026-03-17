@@ -1,5 +1,3 @@
-# tests/job_definition_ec2.tftest.hcl
-
 run "ec2_job_definition" {
   command = plan
 

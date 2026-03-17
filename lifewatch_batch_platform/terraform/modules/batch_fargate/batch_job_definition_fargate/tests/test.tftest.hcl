@@ -1,5 +1,3 @@
-# tests/job_definition_fargate.tftest.hcl
-
 run "fargate_job_definition" {
   command = plan
 

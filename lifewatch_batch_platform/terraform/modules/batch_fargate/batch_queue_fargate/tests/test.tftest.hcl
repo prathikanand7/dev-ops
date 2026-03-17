@@ -1,5 +1,3 @@
-# tests/job_queue_fargate.tftest.hcl
-
 run "fargate_job_queue" {
   command = plan
 

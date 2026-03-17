@@ -1,5 +1,3 @@
-# tests/job_queue_ec2.tftest.hcl
-
 run "ec2_job_queue" {
   command = plan
 

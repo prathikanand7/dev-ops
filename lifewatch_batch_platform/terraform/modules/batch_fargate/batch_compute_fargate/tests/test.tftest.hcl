@@ -1,5 +1,3 @@
-# tests/compute_env_fargate.tftest.hcl
-
 run "fargate_compute_env" {
   command = plan
 
