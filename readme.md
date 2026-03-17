@@ -1,6 +1,7 @@
 # LifeWatch Notebook Platform DevOps
 
 Infrastructure, CI/CD, and validation assets for running notebooks through AWS Batch behind an API Gateway and Lambda control plane.
+<!-- Maintainer note: keep this README aligned with active workflow filenames in .github/workflows. -->
 
 ## Scope
 
@@ -29,7 +30,7 @@ dev-ops/
 ├── worker/                                      # Batch worker image definition
 ├── demo_input/                                  # Notebook and payload fixtures for tests/manual runs
 ├── terraform-bootstrap/                         # Remote-state bootstrap resources
-└── job_profiles.json                            # Shared execution-profile catalog
+└── job_profiles.json                            # Shared execution-profile catalogue
 ```
 
 ## Core Workflows
@@ -39,7 +40,7 @@ dev-ops/
 | Smoke Test Worker Containerization | `.github/workflows/smoke-test-worker-containerization.yml` | Builds worker image and validates container startup. |
 | Deploy Worker Image to ECR | `.github/workflows/deploy-worker-ecr.yml` | Publishes worker image tags to ECR. |
 | Terraform CI | `.github/workflows/test-terraform-plan.yml` | Runs `fmt`, `validate`, `plan`, and optional `terraform test`. |
-| Notebook E2E Deploy and Run | `.github/workflows/e2e-notebook-deploy-and-run.yml` | Applies infra, runs notebook E2E matrix, uploads artifacts, then performs EC2-only cleanup. |
+| Notebook E2E Deploy and Run | `.github/workflows/e2e-notebook-deploy-and-run.yml` | Applies infra, runs notebook E2E matrix, uploads artefacts, then performs EC2-only cleanup. |
 
 ## Documentation Index
 
@@ -68,3 +69,4 @@ For detailed infrastructure inputs, outputs, and module dependencies, use:
 - Never commit API keys, AWS keys, or Terraform state.
 - Required credentials must be injected via GitHub Actions secrets.
 - E2E API authentication is validated through both positive and negative tests.
+<!-- Policy reminder: do not document full stack teardown for shared environments. -->

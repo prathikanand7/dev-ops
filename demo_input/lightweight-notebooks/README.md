@@ -1,6 +1,7 @@
 # Lightweight Notebook Fixtures
 
 This folder contains minimal notebook fixtures used for fast validation workflows and documentation examples.
+<!-- Maintainer note: keep fixture filenames stable unless dependent docs/tests are updated in the same PR. -->
 
 ## Files
 
@@ -15,4 +16,4 @@ This folder contains minimal notebook fixtures used for fast validation workflow
 
 ## Usage
 
-Use these fixtures when you need to validate notebook ingestion and execution behavior without running heavy workloads.
+Use these fixtures when you need to validate notebook ingestion and execution behaviour without running heavy workloads.

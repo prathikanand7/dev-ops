@@ -1,6 +1,7 @@
 # Notebook E2E Testing Runbook
 
 This runbook defines how notebook end-to-end validation is executed in AWS and what cleanup scope is allowed in the shared `dev` environment.
+<!-- Maintainer note: this runbook must mirror .github/workflows/e2e-notebook-deploy-and-run.yml. -->
 
 ## Workflow
 
@@ -28,7 +29,7 @@ The workflow executes:
 2. Notebook E2E on `standard`
 3. Negative authentication check with an invalid API key (expects `401` or `403`)
 
-Each run uploads artifacts under:
+Each run uploads artefacts under:
 
 - `${TERRAFORM_ENV_DIR}/e2e_outputs/ec2_200gb`
 - `${TERRAFORM_ENV_DIR}/e2e_outputs/standard`
@@ -51,13 +52,13 @@ The `dev` Terraform stack is shared and must stay available.
 3. Run `terraform init` and `terraform apply` in `TERRAFORM_ENV_DIR`.
 4. Read `api_gateway_url` and `api_key` Terraform outputs.
 5. Execute notebook E2E scenarios.
-6. Upload artifacts.
+6. Upload artefacts.
 7. Terminate any lingering Batch EC2 instances and verify zero remain.
 
 ## Failure Handling
 
 - If notebook execution fails:
-  - artifacts are still uploaded (`if: always()`).
+  - artefacts are still uploaded (`if: always()`).
   - EC2 cleanup still runs (`if: always()`).
 - If EC2 cleanup fails:
   - workflow fails and prints instance inventory table for investigation.

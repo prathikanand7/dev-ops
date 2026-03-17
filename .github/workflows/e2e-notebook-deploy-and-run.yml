@@ -22,6 +22,7 @@ concurrency:
 jobs:
   deploy-and-run-e2e:
     name: Terraform Deploy + Notebook E2E
+    # Keep the push guard for compatibility if a push trigger is reintroduced later.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'push' ||
