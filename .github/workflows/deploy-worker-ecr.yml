@@ -4,7 +4,7 @@ name: Deploy Worker Image to ECR
 
 on:
   workflow_run:
-    workflows: ["Smoke Test Worker Containerisation"]
+    workflows: ["Smoke Test Worker Containerization"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
