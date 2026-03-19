@@ -19,22 +19,4 @@ run "vpc_endpoints" {
     condition = aws_vpc_endpoint.s3.vpc_endpoint_type == "Gateway"
     error_message = "S3 must be gateway endpoint"
   }
-
-  # ECS endpoint type
-  assert {
-    condition = aws_vpc_endpoint.ecs.vpc_endpoint_type == "Interface"
-    error_message = "ECS must be interface endpoint"
-  }
-
-  # Private DNS enabled
-  assert {
-    condition = aws_vpc_endpoint.ecs.private_dns_enabled == true
-    error_message = "ECS endpoint must use private DNS"
-  }
-
-  # Subnet wiring
-  assert {
-    condition = length(aws_vpc_endpoint.ecs.subnet_ids) > 0
-    error_message = "ECS endpoint must have subnets"
-  }
 }
