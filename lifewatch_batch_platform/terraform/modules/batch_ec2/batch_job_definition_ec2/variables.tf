@@ -26,6 +26,12 @@ variable "memory_mib" {
   default     = 16384
 }
 
+variable "job_timeout_seconds" {
+  description = "Timeout duration of a job. Job is CANCELLED after timeout expires."
+  type = number
+  default = 7200 // 2 hours
+}
+
 variable "s3_bucket_arn" {
   description = "ARN of the S3 bucket the job role needs read/write access to."
   type        = string
