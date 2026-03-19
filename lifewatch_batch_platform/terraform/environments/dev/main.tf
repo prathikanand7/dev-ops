@@ -99,6 +99,10 @@ resource "terraform_data" "profile_validation" {
       condition     = each.value.backend_type == "FARGATE" ? each.value.storage_gb >= 21 : each.value.storage_gb > 0
       error_message = "ERROR: Profile '${each.key}' has invalid storage_gb. Fargate requires >= 21, EC2 requires > 0."
     }
+    precondition {
+      condition     = try(each.value.job_timeout_seconds) >= 60
+      error_message = "ERROR: Profile '${each.key}' has job_timeout_seconds < 60. AWS Batch requires a minimum of 60 seconds."
+    }
   }
 }
 
@@ -137,6 +141,7 @@ module "batch_job_definition_fargate" {
   vcpus                 = try(each.value.vcpu, var.fargate_vcpus)
   memory_mib            = try(each.value.memory_mb, var.fargate_memory_mib)
   ephemeral_storage_gib = try(each.value.storage_gb, var.fargate_ephemeral_storage_gib)
+  job_timeout_seconds   = try(each.value.job_timeout_seconds, var.fargate_job_timeout_seconds)
 
   tags = var.tags
 }
@@ -184,6 +189,7 @@ module "batch_job_definition_ec2" {
   s3_bucket_arn   = module.s3_batch_payloads.bucket_arn
   vcpus           = try(each.value.vcpu, var.ec2_vcpus)
   memory_mib      = try(each.value.memory_mb, var.ec2_memory_mib)
+  job_timeout_seconds   = try(each.value.job_timeout_seconds, var.ec2_job_timeout_seconds)
 
   tags = var.tags
 }

@@ -7,6 +7,10 @@ resource "aws_batch_job_definition" "ec2" {
   type                  = "container"
   platform_capabilities = ["EC2"]
 
+  timeout {
+    attempt_duration_seconds = var.job_timeout_seconds
+  }
+
   container_properties = jsonencode({
     image   = var.container_image
     command = var.container_command

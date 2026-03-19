@@ -26,6 +26,12 @@ variable "memory_mib" {
   default     = 8192
 }
 
+variable "job_timeout_seconds" {
+  description = "Timeout duration of a job. Job is CANCELLED after timeout expires."
+  type = number
+  default = 7200 // 2 hours
+}
+
 variable "ephemeral_storage_gib" {
   description = "Ephemeral storage (GiB) available to the Fargate task."
   type        = number
