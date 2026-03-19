@@ -6,7 +6,7 @@ Creates private AWS service connectivity using VPC endpoints for Batch compute w
 
 | Endpoint | Type    | Justification                                               |
 | -------- | ------- | ----------------------------------------------------------- |
-| S3       | Gateway | Free — routes all worker.py S3 traffic privately at no cost |
+| S3       | Gateway | Free -routes all worker.py S3 traffic privately at no cost |
 
 ## Usage
 
