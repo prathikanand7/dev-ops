@@ -17,19 +17,36 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Run an end-to-end AWS Batch notebook execution test against the deployed API."
     )
-    parser.add_argument("--api-base-url", required=True, help="API base URL, e.g. https://.../dev")
-    parser.add_argument("--api-key", required=True, help="API key used in x-api-key header")
-    parser.add_argument("--notebook-path", required=True, help="Path to notebook .ipynb")
-    parser.add_argument("--data-file-path", required=True, help="Path to main data input file")
-    parser.add_argument("--environment-path", required=True, help="Path to environment.yaml")
+    parser.add_argument(
+        "--api-base-url", required=True, help="API base URL, e.g. https://.../dev"
+    )
+    parser.add_argument(
+        "--api-key", required=True, help="API key used in x-api-key header"
+    )
+    parser.add_argument(
+        "--notebook-path", required=True, help="Path to notebook .ipynb"
+    )
+    parser.add_argument(
+        "--data-file-path", required=True, help="Path to main data input file"
+    )
+    parser.add_argument(
+        "--environment-path", required=True, help="Path to environment.yaml"
+    )
     parser.add_argument(
         "--execution-profile",
         default="ec2_200gb",
         choices=["standard", "ec2_200gb"],
         help="Batch execution profile",
     )
-    parser.add_argument("--poll-interval-seconds", type=int, default=20, help="Polling interval in seconds")
-    parser.add_argument("--timeout-seconds", type=int, default=3600, help="Overall timeout in seconds")
+    parser.add_argument(
+        "--poll-interval-seconds",
+        type=int,
+        default=20,
+        help="Polling interval in seconds",
+    )
+    parser.add_argument(
+        "--timeout-seconds", type=int, default=3600, help="Overall timeout in seconds"
+    )
     parser.add_argument(
         "--output-dir",
         default="lifewatch_batch_platform/terraform/environments/dev/e2e_outputs",
@@ -69,7 +86,9 @@ def request_json(
         try:
             payload = response.json()
         except ValueError as exc:
-            raise RuntimeError(f"Non-JSON response from {url} ({response.status_code}): {body_text}") from exc
+            raise RuntimeError(
+                f"Non-JSON response from {url} ({response.status_code}): {body_text}"
+            ) from exc
 
         if response.status_code < 400:
             return payload
@@ -80,7 +99,9 @@ def request_json(
                 f"Transient API error from {url} ({response.status_code}) on attempt {attempt}/{retries}; retrying in {retry_delay_seconds}s ..."
             )
             time.sleep(retry_delay_seconds)
-            last_error = RuntimeError(f"API error from {url} ({response.status_code}): {payload}")
+            last_error = RuntimeError(
+                f"API error from {url} ({response.status_code}): {payload}"
+            )
             continue
 
         raise RuntimeError(f"API error from {url} ({response.status_code}): {payload}")
@@ -92,7 +113,9 @@ def request_json(
 
 def submit_job(args, headers):
     submit_url = f"{args.api_base_url.rstrip('/')}/batch/jobs"
-    print(f"Submitting notebook job to {submit_url} using profile={args.execution_profile} ...")
+    print(
+        f"Submitting notebook job to {submit_url} using profile={args.execution_profile} ..."
+    )
 
     with (
         open(args.notebook_path, "rb") as notebook_file,
@@ -100,15 +123,26 @@ def submit_job(args, headers):
         open(args.environment_path, "rb") as env_file,
     ):
         files = {
-            "notebook": (os.path.basename(args.notebook_path), notebook_file.read(), "application/x-ipynb+json"),
+            "notebook": (
+                os.path.basename(args.notebook_path),
+                notebook_file.read(),
+                "application/x-ipynb+json",
+            ),
             "upload_01": (
                 os.path.basename(args.data_file_path),
                 data_file.read(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             ),
-            "environment": (os.path.basename(args.environment_path), env_file.read(), "application/x-yaml"),
+            "environment": (
+                os.path.basename(args.environment_path),
+                env_file.read(),
+                "application/x-yaml",
+            ),
             # Notebook parameters used in the current demo flow
-            "param_01_input_data_filename": (None, os.path.basename(args.data_file_path)),
+            "param_01_input_data_filename": (
+                None,
+                os.path.basename(args.data_file_path),
+            ),
             "param_02_input_data_sheet": (None, "BIRDS"),
             "param_03_input_metadata_sheet": (None, "METADATA"),
             "param_04_output_samples_ecological_parameters": (None, "false"),
@@ -135,7 +169,9 @@ def submit_job(args, headers):
         raise RuntimeError(f"Submit response missing job_id: {payload}")
 
     if batch_job_id:
-        print(f"Submitted OK. notebook_job_id={notebook_job_id} batch_job_id={batch_job_id}")
+        print(
+            f"Submitted OK. notebook_job_id={notebook_job_id} batch_job_id={batch_job_id}"
+        )
     else:
         print(f"Submitted OK. notebook_job_id={notebook_job_id}")
     return payload, notebook_job_id, batch_job_id
@@ -166,7 +202,9 @@ def _fetch_with_candidate_ids(api_base_url, headers, endpoint_suffix, candidate_
     raise RuntimeError("No candidate IDs available for endpoint lookup.")
 
 
-def poll_batch_status(api_base_url, headers, candidate_ids, poll_interval, timeout_seconds):
+def poll_batch_status(
+    api_base_url, headers, candidate_ids, poll_interval, timeout_seconds
+):
     active_status_id = None
     deadline = time.time() + timeout_seconds
     last_status = None
@@ -205,7 +243,9 @@ def poll_batch_status(api_base_url, headers, candidate_ids, poll_interval, timeo
 
 
 def get_logs(api_base_url, headers, candidate_ids):
-    _, logs_payload = _fetch_with_candidate_ids(api_base_url, headers, "/logs", candidate_ids)
+    _, logs_payload = _fetch_with_candidate_ids(
+        api_base_url, headers, "/logs", candidate_ids
+    )
     raw_logs = logs_payload.get("logs", "")
     if isinstance(raw_logs, list):
         return "\n".join(str(line) for line in raw_logs)
@@ -286,7 +326,9 @@ def main():
     job_output_dir = base_output / notebook_job_id
     job_output_dir.mkdir(parents=True, exist_ok=True)
 
-    logs_candidate_ids = [id_ for id_ in [status_lookup_id, notebook_job_id, batch_job_id] if id_]
+    logs_candidate_ids = [
+        id_ for id_ in [status_lookup_id, notebook_job_id, batch_job_id] if id_
+    ]
     logs_text = get_logs(args.api_base_url, headers, logs_candidate_ids)
     (job_output_dir / "batch_logs.txt").write_text(logs_text, encoding="utf-8")
     print(f"Saved logs to {job_output_dir / 'batch_logs.txt'}")
@@ -310,7 +352,9 @@ def main():
         "results_count": len(results_payload.get("results", [])),
         "written_files": written_files,
     }
-    (job_output_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    (job_output_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2), encoding="utf-8"
+    )
     print(f"E2E SUCCESS. Summary saved to {job_output_dir / 'summary.json'}")
     return 0
 

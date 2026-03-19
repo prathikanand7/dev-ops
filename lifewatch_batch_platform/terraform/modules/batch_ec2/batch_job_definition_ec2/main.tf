@@ -24,4 +24,3 @@ resource "aws_batch_job_definition" "ec2" {
     Name = "${var.project_name}-${var.profile_name}-job-definition"
   })
 }
-

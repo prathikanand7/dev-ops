@@ -30,7 +30,7 @@ dev-ops/
 You will need to do this every time you want to develop locally.
 ```
 cd server
-docker compose up --build -d 
+docker compose up --build -d
 ```
 This will spin up the following server components:
 - PostgreSQL Database               # Stand-in for RDS, not used in production
@@ -94,6 +94,26 @@ docker compose exec web python manage.py test
 ## CI/CD
 A GitHub Actions workflow is located at `.github/workflows/ci.yaml` and runs automatically on push or can be triggered manually.
 It builds everything as described above, uses a cache to speed up things, and runs a GET to the login screen to verify things are running.
+
+## Pre-commit Hooks
+
+This repository includes a `.pre-commit-config.yaml` with fast checks for:
+- file hygiene (whitespace, EOF, YAML/JSON/TOML)
+- Python lint/format for worker and backend Lambda/client scripts
+- Terraform format + validation on changed Terraform directories
+- frontend ESLint for TypeScript/React sources
+- notebook output stripping under `demo_input`
+
+Install and enable hooks:
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+Run all hooks manually:
+```bash
+pre-commit run --all-files
+```
 
 ## AWS Deployment with Zappa
 

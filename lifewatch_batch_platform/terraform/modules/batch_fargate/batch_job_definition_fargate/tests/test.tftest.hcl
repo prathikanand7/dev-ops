@@ -2,16 +2,16 @@ run "fargate_job_definition" {
   command = plan
 
   variables {
-    project_name           = "test"
-    profile_name           = "dev"
-    container_image        = "nginx"
-    container_command      = ["run"]
-    vcpus                  = 2
-    memory_mib             = 4096
-    ephemeral_storage_gib  = 50
-    execution_role_arn     = "arn:aws:iam::123456789012:role/execution"
-    job_role_arn           = "arn:aws:iam::123456789012:role/job"
-    s3_bucket_arn     = "arn:aws:s3:::dummy-bucket"
+    project_name          = "test"
+    profile_name          = "dev"
+    container_image       = "nginx"
+    container_command     = ["run"]
+    vcpus                 = 2
+    memory_mib            = 4096
+    ephemeral_storage_gib = 50
+    execution_role_arn    = "arn:aws:iam::123456789012:role/execution"
+    job_role_arn          = "arn:aws:iam::123456789012:role/job"
+    s3_bucket_arn         = "arn:aws:s3:::dummy-bucket"
 
     tags = {
       Env = "test"

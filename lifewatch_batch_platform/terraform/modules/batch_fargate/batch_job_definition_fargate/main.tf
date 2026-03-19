@@ -23,7 +23,7 @@ resource "aws_batch_job_definition" "fargate" {
     environment = []
 
     resourceRequirements = [
-      { type = "VCPU",   value = tostring(var.vcpus) },
+      { type = "VCPU", value = tostring(var.vcpus) },
       { type = "MEMORY", value = tostring(var.memory_mib) }
     ]
 
@@ -32,16 +32,15 @@ resource "aws_batch_job_definition" "fargate" {
     }
 
     runtimePlatform = {
-      cpuArchitecture      = "X86_64"
+      cpuArchitecture       = "X86_64"
       operatingSystemFamily = "LINUX"
     }
 
     executionRoleArn = var.execution_role_arn
-    jobRoleArn = var.job_role_arn
+    jobRoleArn       = var.job_role_arn
   })
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.profile_name}-job-definition"
   })
 }
-

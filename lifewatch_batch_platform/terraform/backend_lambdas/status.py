@@ -7,6 +7,7 @@ batch = boto3.client("batch")
 s3 = boto3.client("s3")
 BUCKET = os.environ["BUCKET"]
 
+
 def lambda_handler(event, context):
     """
     Returns the status of a job.
@@ -24,7 +25,9 @@ def lambda_handler(event, context):
             meta = json.loads(meta_obj["Body"].read().decode("utf-8"))
             batch_job_id = meta["batch_job_id"]
         except s3.exceptions.NoSuchKey:
-            return cors_response(404, {"error": f"Job metadata not found for job_id: {job_id}"})
+            return cors_response(
+                404, {"error": f"Job metadata not found for job_id: {job_id}"}
+            )
 
         # Describe the job using the  Batch ID
         response = batch.describe_jobs(jobs=[batch_job_id])
@@ -33,15 +36,19 @@ def lambda_handler(event, context):
 
         job = response["jobs"][0]
 
-        return cors_response(200, {
-            "job_id": job_id,
-            "job_name": job.get("jobName"),
-            "status": job.get("status"),
-            "createdAt": job.get("createdAt"),
-            "startedAt": job.get("startedAt"),
-            "stoppedAt": job.get("stoppedAt"),
-        })
+        return cors_response(
+            200,
+            {
+                "job_id": job_id,
+                "job_name": job.get("jobName"),
+                "status": job.get("status"),
+                "createdAt": job.get("createdAt"),
+                "startedAt": job.get("startedAt"),
+                "stoppedAt": job.get("stoppedAt"),
+            },
+        )
 
     except Exception as e:
         import traceback
+
         return cors_response(500, {"error": str(e), "trace": traceback.format_exc()})

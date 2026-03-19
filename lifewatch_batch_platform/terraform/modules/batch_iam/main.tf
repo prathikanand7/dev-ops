@@ -25,7 +25,7 @@ resource "aws_iam_role_policy_attachment" "batch_service_role" {
 resource "aws_iam_role_policy" "batch_service_custom_policy" {
   name = "${var.project_name}-batch-custom-policy"
   role = aws_iam_role.batch_service_role.name
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -104,8 +104,8 @@ resource "aws_iam_role" "batch_job_role" {
 }
 
 resource "aws_iam_role_policy" "batch_job_s3" {
-  name   = "${var.project_name}-batch-job-s3"
-  role   = aws_iam_role.batch_job_role.id
+  name = "${var.project_name}-batch-job-s3"
+  role = aws_iam_role.batch_job_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
