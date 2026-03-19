@@ -2,19 +2,19 @@ run "validate_batch_compute_environment" {
   command = plan
 
   variables {
-    project_name           = "test-project"
-    profile_name           = "dev"
-    service_role_arn       = "arn:aws:iam::123456789012:role/AWSBatchServiceRole"
-    instance_profile_arn   = "arn:aws:iam::123456789012:instance-profile/ecsInstanceRole"
-    allocation_strategy    = "BEST_FIT_PROGRESSIVE"
-    max_vcpus              = 16
-    instance_types         = ["t3.medium"]
-    subnet_ids             = ["subnet-12345678"]
-    security_group_ids     = ["sg-12345678"]
+    project_name         = "test-project"
+    profile_name         = "dev"
+    service_role_arn     = "arn:aws:iam::123456789012:role/AWSBatchServiceRole"
+    instance_profile_arn = "arn:aws:iam::123456789012:instance-profile/ecsInstanceRole"
+    allocation_strategy  = "BEST_FIT_PROGRESSIVE"
+    max_vcpus            = 16
+    instance_types       = ["t3.medium"]
+    subnet_ids           = ["subnet-12345678"]
+    security_group_ids   = ["sg-12345678"]
 
-    ebs_iops               = 3000
-    ebs_throughput         = 125
-    ebs_volume_size_gb     = 50
+    ebs_iops           = 3000
+    ebs_throughput     = 125
+    ebs_volume_size_gb = 50
 
     tags = {
       Environment = "test"

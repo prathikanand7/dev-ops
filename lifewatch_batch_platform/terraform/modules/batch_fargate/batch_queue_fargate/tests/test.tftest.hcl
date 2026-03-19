@@ -14,17 +14,17 @@ run "fargate_job_queue" {
   }
 
   assert {
-    condition = aws_batch_job_queue.fargate.priority == 5
+    condition     = aws_batch_job_queue.fargate.priority == 5
     error_message = "Priority incorrect"
   }
 
   assert {
-    condition = aws_batch_job_queue.fargate.compute_environment_order[0].order == 1
+    condition     = aws_batch_job_queue.fargate.compute_environment_order[0].order == 1
     error_message = "Compute environment order must be 1"
   }
 
   assert {
-    condition = aws_batch_job_queue.fargate.job_state_time_limit_action[0].action == "CANCEL"
+    condition     = aws_batch_job_queue.fargate.job_state_time_limit_action[0].action == "CANCEL"
     error_message = "Runnable jobs must cancel after timeout"
   }
 }

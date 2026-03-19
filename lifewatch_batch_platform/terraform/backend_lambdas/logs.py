@@ -10,6 +10,7 @@ s3 = boto3.client("s3")
 LOG_GROUP = "/aws/batch/job"
 BUCKET = os.environ["BUCKET"]
 
+
 def lambda_handler(event, context):
     """
     Returns CloudWatch logs for a Batch job.
@@ -26,7 +27,9 @@ def lambda_handler(event, context):
             meta = json.loads(meta_obj["Body"].read().decode("utf-8"))
             batch_job_id = meta["batch_job_id"]
         except s3.exceptions.NoSuchKey:
-            return cors_response(404, {"error": f"Job metadata not found for job_id: {job_id}"})
+            return cors_response(
+                404, {"error": f"Job metadata not found for job_id: {job_id}"}
+            )
 
         # Get the job description
         response = batch_client.describe_jobs(jobs=[batch_job_id])
@@ -42,9 +45,7 @@ def lambda_handler(event, context):
 
         # Fetch log events
         log_events = logs_client.get_log_events(
-            logGroupName=LOG_GROUP,
-            logStreamName=log_stream,
-            startFromHead=True
+            logGroupName=LOG_GROUP, logStreamName=log_stream, startFromHead=True
         )
 
         messages = [e["message"] for e in log_events.get("events", [])]
@@ -53,4 +54,5 @@ def lambda_handler(event, context):
 
     except Exception as e:
         import traceback
+
         return cors_response(500, {"error": str(e), "trace": traceback.format_exc()})

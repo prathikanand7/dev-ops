@@ -20,7 +20,7 @@ run "s3_batch_payloads" {
 
   # Tag check
   assert {
-    condition = aws_s3_bucket.batch_payloads.tags["Name"] == "test-batch-payloads"
+    condition     = aws_s3_bucket.batch_payloads.tags["Name"] == "test-batch-payloads"
     error_message = "Name tag incorrect"
   }
 }

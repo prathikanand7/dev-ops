@@ -218,10 +218,10 @@ locals {
 resource "aws_api_gateway_method" "options" {
   for_each = local.cors_routes
 
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = each.value.resource_id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = each.value.resource_id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
   api_key_required = false
 }
 

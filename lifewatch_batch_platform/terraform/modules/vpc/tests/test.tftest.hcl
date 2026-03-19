@@ -2,14 +2,14 @@ run "vpc" {
   command = plan
 
   variables {
-    project_name           = "lifewatch"
-    region                 = "eu-west-1"
-    vpc_cidr               = "10.0.0.0/16"
-    public_subnet_a_cidr   = "10.0.103.0/24"
-    public_subnet_b_cidr   = "10.0.102.0/24"
-    private_subnet_a_cidr  = "10.0.1.0/24"
-    private_subnet_b_cidr  = "10.0.2.0/24"
-    internet_cidr          = "0.0.0.0/0"
+    project_name          = "lifewatch"
+    region                = "eu-west-1"
+    vpc_cidr              = "10.0.0.0/16"
+    public_subnet_a_cidr  = "10.0.103.0/24"
+    public_subnet_b_cidr  = "10.0.102.0/24"
+    private_subnet_a_cidr = "10.0.1.0/24"
+    private_subnet_b_cidr = "10.0.2.0/24"
+    internet_cidr         = "0.0.0.0/0"
 
     tags = {
       Environment = "dev"

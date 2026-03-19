@@ -61,9 +61,9 @@ run "cors_response_headers_are_set_on_all_routes" {
   assert {
     condition = alltrue([
       for k, v in aws_api_gateway_integration_response.options :
-        lookup(v.response_parameters, "method.response.header.Access-Control-Allow-Origin", null) != null &&
-        lookup(v.response_parameters, "method.response.header.Access-Control-Allow-Methods", null) != null &&
-        lookup(v.response_parameters, "method.response.header.Access-Control-Allow-Headers", null) != null
+      lookup(v.response_parameters, "method.response.header.Access-Control-Allow-Origin", null) != null &&
+      lookup(v.response_parameters, "method.response.header.Access-Control-Allow-Methods", null) != null &&
+      lookup(v.response_parameters, "method.response.header.Access-Control-Allow-Headers", null) != null
     ])
     error_message = "All CORS integration responses must set Origin, Methods, and Headers response parameters."
   }
@@ -75,7 +75,7 @@ run "cors_allow_headers_includes_x_api_key" {
   assert {
     condition = alltrue([
       for k, v in aws_api_gateway_integration_response.options :
-        can(regex("x-api-key", v.response_parameters["method.response.header.Access-Control-Allow-Headers"]))
+      can(regex("x-api-key", v.response_parameters["method.response.header.Access-Control-Allow-Headers"]))
     ])
     error_message = "CORS Allow-Headers must include x-api-key — required by browser preflight for API key auth."
   }
@@ -88,11 +88,11 @@ run "all_lambda_integrations_are_aws_proxy" {
 
   assert {
     condition = alltrue([
-      aws_api_gateway_integration.post_jobs_lambda.type        == "AWS_PROXY",
+      aws_api_gateway_integration.post_jobs_lambda.type == "AWS_PROXY",
       aws_api_gateway_integration.get_history_list_lambda.type == "AWS_PROXY",
-      aws_api_gateway_integration.job_status_lambda.type       == "AWS_PROXY",
-      aws_api_gateway_integration.logs_lambda.type             == "AWS_PROXY",
-      aws_api_gateway_integration.job_results_lambda.type      == "AWS_PROXY",
+      aws_api_gateway_integration.job_status_lambda.type == "AWS_PROXY",
+      aws_api_gateway_integration.logs_lambda.type == "AWS_PROXY",
+      aws_api_gateway_integration.job_results_lambda.type == "AWS_PROXY",
     ])
     error_message = "All Lambda integrations must be AWS_PROXY type."
   }
@@ -104,11 +104,11 @@ run "all_lambda_integrations_use_post_method" {
   # API Gateway always invokes Lambda via POST regardless of the client-facing HTTP method.
   assert {
     condition = alltrue([
-      aws_api_gateway_integration.post_jobs_lambda.integration_http_method        == "POST",
+      aws_api_gateway_integration.post_jobs_lambda.integration_http_method == "POST",
       aws_api_gateway_integration.get_history_list_lambda.integration_http_method == "POST",
-      aws_api_gateway_integration.job_status_lambda.integration_http_method       == "POST",
-      aws_api_gateway_integration.logs_lambda.integration_http_method             == "POST",
-      aws_api_gateway_integration.job_results_lambda.integration_http_method      == "POST",
+      aws_api_gateway_integration.job_status_lambda.integration_http_method == "POST",
+      aws_api_gateway_integration.logs_lambda.integration_http_method == "POST",
+      aws_api_gateway_integration.job_results_lambda.integration_http_method == "POST",
     ])
     error_message = "All Lambda integrations must use POST as the integration HTTP method."
   }

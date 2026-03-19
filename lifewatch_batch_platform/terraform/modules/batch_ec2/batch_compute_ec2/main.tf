@@ -74,4 +74,3 @@ resource "aws_batch_compute_environment" "ec2" {
     Name = "${var.project_name}-${var.profile_name}-environment"
   })
 }
-

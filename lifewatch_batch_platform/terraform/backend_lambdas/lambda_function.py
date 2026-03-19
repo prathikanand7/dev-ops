@@ -15,6 +15,7 @@ BUCKET = os.environ["BUCKET"]
 
 JOB_PROFILES_CONFIG = json.loads(os.environ.get("JOB_PROFILES_CONFIG", "{}"))
 
+
 def normalize_execution_profile(raw_profile):
     normalized_key = (raw_profile or "standard").strip().lower()
     for profile_key, profile_data in JOB_PROFILES_CONFIG.items():
@@ -26,29 +27,39 @@ def normalize_execution_profile(raw_profile):
     # Default to 'standard'
     return "standard"
 
+
 def resolve_batch_target(execution_profile):
     if execution_profile not in JOB_PROFILES_CONFIG:
         raise ValueError(f"Unsupported execution profile: {execution_profile}")
-    
+
     config = JOB_PROFILES_CONFIG[execution_profile]
     return config["queue"], config["definition"]
+
 
 def lambda_handler(event, context):
     try:
         # Initialize Job Context
         job_id = str(uuid.uuid4())
         s3_prefix = f"jobs/{job_id}/"
-        
+
         # Extract and decode the request body (API Gateway handling)
-        content_type = event.get("headers", {}).get("content-type") or event.get("headers", {}).get("Content-Type", "")
+        content_type = event.get("headers", {}).get("content-type") or event.get(
+            "headers", {}
+        ).get("Content-Type", "")
         if not content_type.startswith("multipart/form-data"):
             return cors_response(400, {"error": "Request must be multipart/form-data"})
 
         raw_body = event.get("body", "")
-        body_bytes = base64.b64decode(raw_body) if event.get("isBase64Encoded") else raw_body.encode("utf-8")
+        body_bytes = (
+            base64.b64decode(raw_body)
+            if event.get("isBase64Encoded")
+            else raw_body.encode("utf-8")
+        )
 
         # Use Python's built-in email parser to parse multipart data (no external libraries needed)
-        headers_and_body = f"Content-Type: {content_type}\r\n\r\n".encode("utf-8") + body_bytes
+        headers_and_body = (
+            f"Content-Type: {content_type}\r\n\r\n".encode("utf-8") + body_bytes
+        )
         msg = BytesParser(policy=default).parsebytes(headers_and_body)
 
         notebook_content = None
@@ -74,46 +85,60 @@ def lambda_handler(event, context):
                 # If no filename, treat it as a parameter key-value pair
                 params[field_name] = payload.decode("utf-8").strip()
 
-        raw_execution_profile = params.get("execution_profile") or params.get("compute_profile")
+        raw_execution_profile = params.get("execution_profile") or params.get(
+            "compute_profile"
+        )
         execution_profile = normalize_execution_profile(raw_execution_profile)
         if not execution_profile:
-            return cors_response(400, {
-                "error": "Invalid execution_profile. Allowed values: standard, ec2_200gb"
-            })
+            return cors_response(
+                400,
+                {
+                    "error": "Invalid execution_profile. Allowed values: standard, ec2_200gb"
+                },
+            )
 
-        selected_job_queue, selected_job_definition = resolve_batch_target(execution_profile)
+        selected_job_queue, selected_job_definition = resolve_batch_target(
+            execution_profile
+        )
 
         if not notebook_content:
             return cors_response(400, {"error": "Missing mandatory 'notebook' file."})
 
         notebook_json = json.loads(notebook_content.decode("utf-8"))
-        
+
         # Auto-detect language to choose the correct assignment operator
-        lang = notebook_json.get("metadata", {}).get("language_info", {}).get("name", "r").lower()
+        lang = (
+            notebook_json.get("metadata", {})
+            .get("language_info", {})
+            .get("name", "r")
+            .lower()
+        )
         assign_op = "=" if lang == "python" else "<-"
 
         # Format the parameters dynamically
         formatted_params = {}
         for key, val in params.items():
             if key.startswith("param_"):
-                if val.lstrip('-').replace(".", "", 1).isdigit():
-                    formatted_params[key] = f'{key} {assign_op} {val}\n'
+                if val.lstrip("-").replace(".", "", 1).isdigit():
+                    formatted_params[key] = f"{key} {assign_op} {val}\n"
                 else:
                     formatted_params[key] = f'{key} {assign_op} "{val}"\n'
 
         # Inject LifeWatch configuration overrides
-        formatted_params.update({
-            "conf_temporary_data_directory": f'conf_temporary_data_directory {assign_op} "./outputs"\n',
-            "conf_virtual_lab_biotisan_euromarec": f'conf_virtual_lab_biotisan_euromarec {assign_op} "vl-biotisan-euromarec"\n',
-            "conf_naavre_public": f'conf_naavre_public {assign_op} "naa-vre-public"\n',
-            "conf_naavre_user_data": f'conf_naavre_user_data {assign_op} ""\n',
-            "conf_cloud_storage_path": f'conf_cloud_storage_path {assign_op} "."\n'
-        })
+        formatted_params.update(
+            {
+                "conf_temporary_data_directory": f'conf_temporary_data_directory {assign_op} "./outputs"\n',
+                "conf_virtual_lab_biotisan_euromarec": f'conf_virtual_lab_biotisan_euromarec {assign_op} "vl-biotisan-euromarec"\n',
+                "conf_naavre_public": f'conf_naavre_public {assign_op} "naa-vre-public"\n',
+                "conf_naavre_user_data": f'conf_naavre_user_data {assign_op} ""\n',
+                "conf_cloud_storage_path": f'conf_cloud_storage_path {assign_op} "."\n',
+            }
+        )
 
         # Dictionary to hold the final merged parameters
         final_params = {}
-        
-        # Regex to find default parameter assignments 
+
+        # Regex to find default parameter assignments
         param_regex = re.compile(r"^(param_[a-zA-Z0-9_]+)\s*(?:<-|=)\s*(.*)")
 
         # Loop through all cells and substitute the existing lines
@@ -121,15 +146,14 @@ def lambda_handler(event, context):
             if cell.get("cell_type") == "code":
                 new_source = []
                 for line in cell.get("source", []):
-                    
                     # Extract defaults
                     match = param_regex.match(line.strip())
                     if match:
                         p_key = match.group(1)
                         p_val_raw = match.group(2)
-                        
-                        p_val_clean = p_val_raw.split('#')[0].strip().strip("'\"")
-                        
+
+                        p_val_clean = p_val_raw.split("#")[0].strip().strip("'\"")
+
                         # Store it as a default
                         if p_key not in final_params:
                             final_params[p_key] = p_val_clean
@@ -140,12 +164,12 @@ def lambda_handler(event, context):
                         if re.match(rf"^{re.escape(param_key)}\s*(<-|=)", line):
                             new_source.append(param_line)
                             replaced = True
-                            break # Move to the next line in the cell once replaced
-                    
+                            break  # Move to the next line in the cell once replaced
+
                     # If it's not a parameter or config line, keep the original line
                     if not replaced:
                         new_source.append(line)
-                        
+
                 # Update the cell's source code
                 cell["source"] = new_source
 
@@ -157,13 +181,23 @@ def lambda_handler(event, context):
                 final_params[k] = v
 
         # Upload Artifacts to S3
-        s3.put_object(Bucket=BUCKET, Key=f"{s3_prefix}notebook.ipynb", Body=updated_notebook_bytes)
-        
+        s3.put_object(
+            Bucket=BUCKET, Key=f"{s3_prefix}notebook.ipynb", Body=updated_notebook_bytes
+        )
+
         if environment_content:
-            s3.put_object(Bucket=BUCKET, Key=f"{s3_prefix}environment.yaml", Body=environment_content)
-            
+            s3.put_object(
+                Bucket=BUCKET,
+                Key=f"{s3_prefix}environment.yaml",
+                Body=environment_content,
+            )
+
         for f in files_to_upload:
-            s3.put_object(Bucket=BUCKET, Key=f"{s3_prefix}inputs/{f['filename']}", Body=f["content"])
+            s3.put_object(
+                Bucket=BUCKET,
+                Key=f"{s3_prefix}inputs/{f['filename']}",
+                Body=f["content"],
+            )
 
         # Submit the Batch Job
         response = batch.submit_job(
@@ -174,9 +208,9 @@ def lambda_handler(event, context):
                 "environment": [
                     # Pass the S3 location so the worker knows where to pull from
                     {"name": "JOB_ID", "value": job_id},
-                    {"name": "S3_JOB_PREFIX", "value": f"s3://{BUCKET}/{s3_prefix}"}
+                    {"name": "S3_JOB_PREFIX", "value": f"s3://{BUCKET}/{s3_prefix}"},
                 ]
-            }
+            },
         )
 
         # Tracking file in S3 links the custom job_id to the AWS Batch ID
@@ -184,22 +218,33 @@ def lambda_handler(event, context):
         meta_payload = {
             "batch_job_id": response["jobId"],
             "execution_profile": execution_profile,
-            "notebook_name": next((f["filename"] for f in files_to_upload if f["filename"].endswith(".ipynb")), "notebook.ipynb"),
+            "notebook_name": next(
+                (
+                    f["filename"]
+                    for f in files_to_upload
+                    if f["filename"].endswith(".ipynb")
+                ),
+                "notebook.ipynb",
+            ),
             "environment_name": "environment.yaml" if environment_content else "none",
-            "params": final_params
+            "params": final_params,
         }
         s3.put_object(
             Bucket=BUCKET,
             Key=f"{s3_prefix}meta.json",
-            Body=json.dumps(meta_payload).encode("utf-8")
+            Body=json.dumps(meta_payload).encode("utf-8"),
         )
 
-        return cors_response(200, {
-            "message": "Job successfully mapped and submitted",
-            "job_id": job_id,
-            "execution_profile": execution_profile
-        })
+        return cors_response(
+            200,
+            {
+                "message": "Job successfully mapped and submitted",
+                "job_id": job_id,
+                "execution_profile": execution_profile,
+            },
+        )
 
     except Exception as e:
         import traceback
+
         return cors_response(500, {"error": str(e), "trace": traceback.format_exc()})

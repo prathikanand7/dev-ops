@@ -15,7 +15,7 @@ run "batch_iam_roles" {
   ################################
 
   assert {
-    condition = aws_iam_role.batch_service_role.name == "test-batch-service-role"
+    condition     = aws_iam_role.batch_service_role.name == "test-batch-service-role"
     error_message = "Batch service role name incorrect"
   }
 
@@ -40,7 +40,7 @@ run "batch_iam_roles" {
 
   # Ensure instance profile is linked
   assert {
-    condition = aws_iam_instance_profile.ec2_instance_profile.role == aws_iam_role.ec2_instance_role.name
+    condition     = aws_iam_instance_profile.ec2_instance_profile.role == aws_iam_role.ec2_instance_role.name
     error_message = "Instance profile not linked to EC2 role"
   }
 
@@ -82,12 +82,12 @@ run "batch_iam_roles" {
   ################################
 
   assert {
-    condition = aws_iam_role_policy_attachment.ec2_instance_ecs.policy_arn == "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+    condition     = aws_iam_role_policy_attachment.ec2_instance_ecs.policy_arn == "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
     error_message = "Missing ECS policy attachment"
   }
 
   assert {
-    condition = aws_iam_role_policy_attachment.ec2_instance_ecr_readonly.policy_arn == "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+    condition     = aws_iam_role_policy_attachment.ec2_instance_ecr_readonly.policy_arn == "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
     error_message = "Missing ECR read-only policy"
   }
 }

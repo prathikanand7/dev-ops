@@ -2,15 +2,15 @@ run "ec2_job_definition" {
   command = plan
 
   variables {
-    project_name     = "test"
-    profile_name     = "dev"
-    container_image  = "nginx"
+    project_name      = "test"
+    profile_name      = "dev"
+    container_image   = "nginx"
     container_command = ["echo", "hello"]
-    vcpus            = 2
-    memory_mib       = 1024
-    job_role_arn     = "arn:aws:iam::123456789012:role/test-role"
+    vcpus             = 2
+    memory_mib        = 1024
+    job_role_arn      = "arn:aws:iam::123456789012:role/test-role"
 
-    s3_bucket_arn     = "arn:aws:s3:::dummy-bucket"
+    s3_bucket_arn = "arn:aws:s3:::dummy-bucket"
 
     tags = {
       Env = "test"

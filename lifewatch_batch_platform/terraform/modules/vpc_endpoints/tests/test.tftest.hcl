@@ -16,7 +16,7 @@ run "vpc_endpoints" {
 
   # S3 endpoint type
   assert {
-    condition = aws_vpc_endpoint.s3.vpc_endpoint_type == "Gateway"
+    condition     = aws_vpc_endpoint.s3.vpc_endpoint_type == "Gateway"
     error_message = "S3 must be gateway endpoint"
   }
 }

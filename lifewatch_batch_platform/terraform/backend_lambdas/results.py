@@ -1,11 +1,11 @@
 import os
-import json
 import boto3
 from botocore.exceptions import ClientError
 from handle_cors import response as cors_response
 
 s3 = boto3.client("s3")
 BUCKET = os.environ["BUCKET"]
+
 
 def lambda_handler(event, context):
     """
@@ -23,7 +23,7 @@ def lambda_handler(event, context):
         failed_key = f"{base_prefix}failed_outputs.zip"
 
         file_key = None
-        
+
         # Try to verify the successful outputs.zip exists
         try:
             # Using head_object instead of get_object saves RAM and execution time
@@ -31,17 +31,19 @@ def lambda_handler(event, context):
             file_key = success_key
         except ClientError as e:
             # head_object returns a 404 string instead of 'NoSuchKey'
-            if e.response['Error']['Code'] == '404':
-                
+            if e.response["Error"]["Code"] == "404":
                 # If it doesn't exist, check if there is a failed_outputs.zip
                 try:
                     s3.head_object(Bucket=BUCKET, Key=failed_key)
                     file_key = failed_key
                 except ClientError as e_fallback:
-                    if e_fallback.response['Error']['Code'] == '404':
-                        return cors_response(404, {
-                            "error": f"No outputs found for job {job_id}. The job may still be running, or it crashed before generating outputs."
-                        })
+                    if e_fallback.response["Error"]["Code"] == "404":
+                        return cors_response(
+                            404,
+                            {
+                                "error": f"No outputs found for job {job_id}. The job may still be running, or it crashed before generating outputs."
+                            },
+                        )
                     else:
                         raise e_fallback
             else:
@@ -51,20 +53,19 @@ def lambda_handler(event, context):
 
         # Generate a secure URL valid for 1 hour (3600 seconds)
         presigned_url = s3.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': BUCKET, 'Key': file_key},
-            ExpiresIn=3600
+            "get_object", Params={"Bucket": BUCKET, "Key": file_key}, ExpiresIn=3600
         )
 
-        return cors_response(200, {
-            "job_id": job_id,
-            "status": "success" if file_key == success_key else "partial_failure",
-            "download_url": presigned_url
-        })
+        return cors_response(
+            200,
+            {
+                "job_id": job_id,
+                "status": "success" if file_key == success_key else "partial_failure",
+                "download_url": presigned_url,
+            },
+        )
 
     except Exception as e:
         import traceback
-        return cors_response(500, {
-            "error": str(e),
-            "trace": traceback.format_exc()
-        })
+
+        return cors_response(500, {"error": str(e), "trace": traceback.format_exc()})
