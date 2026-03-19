@@ -91,8 +91,8 @@ variable "fargate_ephemeral_storage_gib" {
 
 variable "fargate_job_timeout_seconds" {
   description = "Timeout duration of a job. Job is CANCELLED after timeout expires."
-  type = number
-  default = 7200 // 2 hours
+  type        = number
+  default     = 7200 // 2 hours
 }
 
 ################################
@@ -131,8 +131,8 @@ variable "ec2_memory_mib" {
 
 variable "ec2_job_timeout_seconds" {
   description = "Timeout duration of a job. Job is CANCELLED after timeout expires."
-  type = number
-  default = 7200 // 2 hours
+  type        = number
+  default     = 7200 // 2 hours
 }
 
 ################################

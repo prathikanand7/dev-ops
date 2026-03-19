@@ -183,13 +183,13 @@ module "batch_job_definition_ec2" {
   source       = "../../modules/batch_ec2/batch_job_definition_ec2"
   for_each     = local.ec2_profiles
 
-  project_name    = var.project_name
-  profile_name    = each.key
-  container_image = var.container_image
-  s3_bucket_arn   = module.s3_batch_payloads.bucket_arn
-  vcpus           = try(each.value.vcpu, var.ec2_vcpus)
-  memory_mib      = try(each.value.memory_mb, var.ec2_memory_mib)
-  job_timeout_seconds   = try(each.value.job_timeout_seconds, var.ec2_job_timeout_seconds)
+  project_name        = var.project_name
+  profile_name        = each.key
+  container_image     = var.container_image
+  s3_bucket_arn       = module.s3_batch_payloads.bucket_arn
+  vcpus               = try(each.value.vcpu, var.ec2_vcpus)
+  memory_mib          = try(each.value.memory_mb, var.ec2_memory_mib)
+  job_timeout_seconds = try(each.value.job_timeout_seconds, var.ec2_job_timeout_seconds)
 
   tags = var.tags
 }
