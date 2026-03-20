@@ -39,8 +39,8 @@ run "all_five_cors_routes_have_options_method" {
   command = plan
 
   assert {
-    condition     = length(aws_api_gateway_method.options) == 5
-    error_message = "Expected OPTIONS methods for all 5 routes: jobs, history_list, job_id, job_logs, job_results."
+    condition     = (length(split("operationId: \"cors", aws_api_gateway_rest_api.api.body)) - 1) == 5
+    error_message = "Expected 5 CORS OPTIONS operations in openapi body: jobs, history_list, job_id, job_logs, job_results."
   }
 }
 
@@ -48,10 +48,8 @@ run "all_options_integrations_are_mock_type" {
   command = plan
 
   assert {
-    condition = alltrue([
-      for k, v in aws_api_gateway_integration.options : v.type == "MOCK"
-    ])
-    error_message = "All OPTIONS integrations must be MOCK — Lambda must never be invoked for preflight."
+    condition     = (length(split("type: \"MOCK\"", aws_api_gateway_rest_api.api.body)) - 1) == 5
+    error_message = "All OPTIONS integrations in openapi body must be MOCK, Lambda must never be invoked for preflight."
   }
 }
 
@@ -60,12 +58,11 @@ run "cors_response_headers_are_set_on_all_routes" {
 
   assert {
     condition = alltrue([
-      for k, v in aws_api_gateway_integration_response.options :
-      lookup(v.response_parameters, "method.response.header.Access-Control-Allow-Origin", null) != null &&
-      lookup(v.response_parameters, "method.response.header.Access-Control-Allow-Methods", null) != null &&
-      lookup(v.response_parameters, "method.response.header.Access-Control-Allow-Headers", null) != null
+      (length(split("method.response.header.Access-Control-Allow-Origin", aws_api_gateway_rest_api.api.body)) - 1) == 5,
+      (length(split("method.response.header.Access-Control-Allow-Methods", aws_api_gateway_rest_api.api.body)) - 1) == 5,
+      (length(split("method.response.header.Access-Control-Allow-Headers", aws_api_gateway_rest_api.api.body)) - 1) == 5,
     ])
-    error_message = "All CORS integration responses must set Origin, Methods, and Headers response parameters."
+    error_message = "All 5 OPTIONS responses must set Origin, Methods, and Headers response parameters."
   }
 }
 
@@ -73,11 +70,8 @@ run "cors_allow_headers_includes_x_api_key" {
   command = plan
 
   assert {
-    condition = alltrue([
-      for k, v in aws_api_gateway_integration_response.options :
-      can(regex("x-api-key", v.response_parameters["method.response.header.Access-Control-Allow-Headers"]))
-    ])
-    error_message = "CORS Allow-Headers must include x-api-key — required by browser preflight for API key auth."
+    condition = (length(split("Content-Type,x-api-key,Authorization", aws_api_gateway_rest_api.api.body)) - 1) >= 5
+    error_message = "CORS Allow-Headers must include x-api-key, required by browser preflight for API key auth."
   }
 }
 
@@ -87,14 +81,8 @@ run "all_lambda_integrations_are_aws_proxy" {
   command = plan
 
   assert {
-    condition = alltrue([
-      aws_api_gateway_integration.post_jobs_lambda.type == "AWS_PROXY",
-      aws_api_gateway_integration.get_history_list_lambda.type == "AWS_PROXY",
-      aws_api_gateway_integration.job_status_lambda.type == "AWS_PROXY",
-      aws_api_gateway_integration.logs_lambda.type == "AWS_PROXY",
-      aws_api_gateway_integration.job_results_lambda.type == "AWS_PROXY",
-    ])
-    error_message = "All Lambda integrations must be AWS_PROXY type."
+    condition     = (length(split("type: \"AWS_PROXY\"", aws_api_gateway_rest_api.api.body)) - 1) == 5
+    error_message = "All 5 functional Lambda integrations must be AWS_PROXY type."
   }
 }
 
@@ -103,14 +91,8 @@ run "all_lambda_integrations_use_post_method" {
 
   # API Gateway always invokes Lambda via POST regardless of the client-facing HTTP method.
   assert {
-    condition = alltrue([
-      aws_api_gateway_integration.post_jobs_lambda.integration_http_method == "POST",
-      aws_api_gateway_integration.get_history_list_lambda.integration_http_method == "POST",
-      aws_api_gateway_integration.job_status_lambda.integration_http_method == "POST",
-      aws_api_gateway_integration.logs_lambda.integration_http_method == "POST",
-      aws_api_gateway_integration.job_results_lambda.integration_http_method == "POST",
-    ])
-    error_message = "All Lambda integrations must use POST as the integration HTTP method."
+    condition     = (length(split("httpMethod: \"POST\"", aws_api_gateway_rest_api.api.body)) - 1) == 5
+    error_message = "All Lambda integrations in openapi body must use POST as the integration HTTP method."
   }
 }
 
@@ -120,14 +102,8 @@ run "all_non_options_methods_require_api_key" {
   command = plan
 
   assert {
-    condition = alltrue([
-      aws_api_gateway_method.post_jobs.api_key_required,
-      aws_api_gateway_method.get_history_list.api_key_required,
-      aws_api_gateway_method.get_job_status.api_key_required,
-      aws_api_gateway_method.get_logs.api_key_required,
-      aws_api_gateway_method.get_job_results.api_key_required,
-    ])
-    error_message = "All non-OPTIONS methods must have api_key_required = true."
+    condition     = (length(split("- ApiKeyAuth: []", aws_api_gateway_rest_api.api.body)) - 1) == 5
+    error_message = "All 5 non-OPTIONS operations must require ApiKeyAuth."
   }
 }
 
@@ -135,10 +111,22 @@ run "options_methods_do_not_require_api_key" {
   command = plan
 
   assert {
+    condition     = (length(split("security: []", aws_api_gateway_rest_api.api.body)) - 1) == 5
+    error_message = "All OPTIONS operations must use security: [] to avoid API key requirements for browser preflight."
+  }
+}
+
+run "gateway_level_cors_responses_exist" {
+  command = plan
+
+  assert {
     condition = alltrue([
-      for k, v in aws_api_gateway_method.options : !coalesce(v.api_key_required, false)
+      aws_api_gateway_gateway_response.cors_4xx.response_type == "DEFAULT_4XX",
+      aws_api_gateway_gateway_response.cors_5xx.response_type == "DEFAULT_5XX",
+      aws_api_gateway_gateway_response.cors_missing_authentication_token.response_type == "MISSING_AUTHENTICATION_TOKEN",
+      aws_api_gateway_gateway_response.cors_resource_not_found.response_type == "RESOURCE_NOT_FOUND",
     ])
-    error_message = "OPTIONS methods must NOT require an API key — this breaks browser CORS preflight."
+    error_message = "Expected gateway-level CORS responses for DEFAULT_4XX, DEFAULT_5XX, MISSING_AUTHENTICATION_TOKEN, and RESOURCE_NOT_FOUND."
   }
 }
 
