@@ -7,6 +7,11 @@ s3 = boto3.client("s3")
 BUCKET = os.environ["BUCKET"]
 
 
+def _is_s3_not_found(error: ClientError) -> bool:
+    code = str(error.response.get("Error", {}).get("Code", ""))
+    return code in {"404", "NoSuchKey", "NotFound"}
+
+
 def lambda_handler(event, context):
     """
     Returns a pre-signed URL to download the zipped output of a Batch job.
@@ -30,14 +35,13 @@ def lambda_handler(event, context):
             s3.head_object(Bucket=BUCKET, Key=success_key)
             file_key = success_key
         except ClientError as e:
-            # head_object returns a 404 string instead of 'NoSuchKey'
-            if e.response["Error"]["Code"] == "404":
+            if _is_s3_not_found(e):
                 # If it doesn't exist, check if there is a failed_outputs.zip
                 try:
                     s3.head_object(Bucket=BUCKET, Key=failed_key)
                     file_key = failed_key
                 except ClientError as e_fallback:
-                    if e_fallback.response["Error"]["Code"] == "404":
+                    if _is_s3_not_found(e_fallback):
                         return cors_response(
                             404,
                             {

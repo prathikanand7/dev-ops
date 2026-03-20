@@ -30,7 +30,7 @@ export const App: React.FC = () => {
   const [theme, setTheme] = useState<ThemeMode>('light');
 
   /* Connection */
-  const [baseUrl, setBaseUrl] = useState('https://n69rb6bzvl.execute-api.eu-west-1.amazonaws.com/dev');
+  const [baseUrl, setBaseUrl] = useState('https://jbhjywlm03.execute-api.eu-west-1.amazonaws.com/dev');
   const [apiKey,  setApiKey]  = useState('');
 
   /* Param form */
@@ -67,6 +67,7 @@ export const App: React.FC = () => {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [logsLoadingJobIds, setLogsLoadingJobIds] = useState<Record<string, boolean>>({});
   const [artifactHydratingJobIds, setArtifactHydratingJobIds] = useState<Record<string, boolean>>({});
+  const [artifactUnavailableJobIds, setArtifactUnavailableJobIds] = useState<Record<string, boolean>>({});
   const [activeLogsJobId, setActiveLogsJobId] = useState<string | null>(null);
   const [activeParamsJobId, setActiveParamsJobId] = useState<string | null>(null);
 
@@ -78,6 +79,7 @@ export const App: React.FC = () => {
   const logsReadyStatuses  = ['RUNNING', 'SUCCEEDED', 'FAILED'];
   const canFetchLogsNow    = logsReadyStatuses.includes(currentJobStatus);
   const canFetchResultsNow = currentJobStatus === 'SUCCEEDED';
+  const maxArtifactHydrationBatch = 8;
   const hasParams          = Object.keys(formParams).length > 0;
   const activeLogsItem     = useMemo(
     () => jobHistory.find((item) => item.jobId === activeLogsJobId) || null,
@@ -210,7 +212,9 @@ export const App: React.FC = () => {
   }
 
   async function hydrateHistoryArtifacts(items: JobHistoryItem[]): Promise<void> {
-    const candidates = items.filter((item) => item.status === 'SUCCEEDED' && !item.artifactUrl);
+    const candidates = items
+      .filter((item) => item.status === 'SUCCEEDED' && !item.artifactUrl && !artifactUnavailableJobIds[item.jobId])
+      .slice(0, maxArtifactHydrationBatch);
     if (candidates.length === 0) return;
 
     setArtifactHydratingJobIds((prev) => {
@@ -227,20 +231,42 @@ export const App: React.FC = () => {
           const res = await fetch(`${normalizedBaseUrl}/batch/jobs/${item.jobId}/results`, {
             headers: { 'x-api-key': apiKey },
           });
+          if (res.status === 404) {
+            return { jobId: item.jobId, missing: true as const };
+          }
           if (!res.ok) return null;
           const data = decodeApiBody<JobResultsResponse>((await res.json()) as unknown);
-          if (!data.download_url) return null;
+          if (!data.download_url) {
+            return { jobId: item.jobId, missing: true as const };
+          }
           return {
             jobId: item.jobId,
             artifactUrl: data.download_url,
             s3Uri: deriveS3Uri(data.download_url),
+            missing: false as const,
           };
         } catch {
           return null;
         }
       }));
 
-      const patches = results.filter((result): result is { jobId: string; artifactUrl: string; s3Uri: string | null } => !!result);
+      const missingIds = results
+        .filter((result): result is { jobId: string; missing: true } => !!result && result.missing)
+        .map((result) => result.jobId);
+
+      if (missingIds.length > 0) {
+        setArtifactUnavailableJobIds((prev) => {
+          const next = { ...prev };
+          missingIds.forEach((jobId) => {
+            next[jobId] = true;
+          });
+          return next;
+        });
+      }
+
+      const patches = results.filter(
+        (result): result is { jobId: string; artifactUrl: string; s3Uri: string | null; missing: false } => !!result && !result.missing,
+      );
       if (patches.length === 0) return;
 
       const patchMap = new Map(patches.map((patch) => [patch.jobId, patch]));
@@ -282,6 +308,14 @@ export const App: React.FC = () => {
         .map((item) => normalizeHistoryItem(item as Partial<JobHistoryItem> & Record<string, unknown>))
         .filter((item) => item.jobId);
       setJobHistory(mapped);
+      setArtifactUnavailableJobIds((prev) => {
+        const next: Record<string, boolean> = {};
+        const idSet = new Set(mapped.map((item) => item.jobId));
+        Object.entries(prev).forEach(([jobId, isUnavailable]) => {
+          if (isUnavailable && idSet.has(jobId)) next[jobId] = true;
+        });
+        return next;
+      });
       void hydrateHistoryArtifacts(mapped);
     } catch (err) {
       setHistoryError((err as Error).message);

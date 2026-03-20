@@ -14,9 +14,6 @@ servers:
       stage:
         default: "dev"
 
-security:
-  - ApiKeyAuth: []
-
 paths:
   /batch/jobs:
     post:
@@ -62,10 +59,9 @@ paths:
         passthroughBehavior: "WHEN_NO_MATCH"
 
     options:
-      summary: "CORS preflight"
+      summary: "CORS preflight for /batch/jobs"
       operationId: "corsJobs"
-      security:
-        - {}
+      security: []
       x-amazon-apigateway-auth:
         type: "NONE"
       responses:
@@ -90,16 +86,15 @@ paths:
         contentHandling: "CONVERT_TO_TEXT"
         requestTemplates:
           application/json: '{"statusCode": 200}'
-          "*/*": '{"statusCode": 200}'
         responses:
           default:
             statusCode: "200"
             responseParameters:
               method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Allow-Methods: "'OPTIONS, POST'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key,Authorization'"
             responseTemplates:
-              application/json: '{"statusCode": 200}'
+              application/json: ""
 
   /batch/jobs/history_list:
     get:
@@ -124,10 +119,9 @@ paths:
         passthroughBehavior: "WHEN_NO_MATCH"
 
     options:
-      summary: "CORS preflight"
+      summary: "CORS preflight for /batch/jobs/history_list"
       operationId: "corsHistoryList"
-      security:
-        - {}
+      security: []
       x-amazon-apigateway-auth:
         type: "NONE"
       responses:
@@ -146,6 +140,7 @@ paths:
               required: true
               schema:
                 type: string
+          content: {}
       x-amazon-apigateway-integration:
         type: "MOCK"
         contentHandling: "CONVERT_TO_TEXT"
@@ -190,12 +185,13 @@ paths:
         passthroughBehavior: "WHEN_NO_MATCH"
 
     options:
-      summary: "CORS preflight"
+      summary: "CORS preflight for /batch/jobs/{job_id}"
       operationId: "corsJobId"
-      security:
-        - {}
+      security: []
       x-amazon-apigateway-auth:
         type: "NONE"
+      parameters:
+        - $ref: "#/components/parameters/JobId"
       responses:
         "200":
           description: "CORS preflight response."
@@ -212,6 +208,7 @@ paths:
               required: true
               schema:
                 type: string
+          content: {}
       x-amazon-apigateway-integration:
         type: "MOCK"
         contentHandling: "CONVERT_TO_TEXT"
@@ -256,25 +253,30 @@ paths:
         passthroughBehavior: "WHEN_NO_MATCH"
 
     options:
-      summary: "CORS preflight"
+      summary: "CORS preflight for /batch/jobs/{job_id}/logs"
       operationId: "corsJobLogs"
-      security:
-        - [{}]
+      security: []
       x-amazon-apigateway-auth:
         type: "NONE"
+      parameters:
+        - $ref: "#/components/parameters/JobId"
       responses:
         "200":
           description: "CORS preflight response."
           headers:
             Access-Control-Allow-Origin:
+              required: true
               schema:
                 type: string
             Access-Control-Allow-Methods:
+              required: true
               schema:
                 type: string
             Access-Control-Allow-Headers:
+              required: true
               schema:
                 type: string
+          content: {}
       x-amazon-apigateway-integration:
         type: "MOCK"
         contentHandling: "CONVERT_TO_TEXT"
@@ -319,12 +321,13 @@ paths:
         passthroughBehavior: "WHEN_NO_MATCH"
 
     options:
-      summary: "CORS preflight"
+      summary: "CORS preflight for /batch/jobs/{job_id}/results"
       operationId: "corsJobResults"
-      security:
-        - {}
+      security: []
       x-amazon-apigateway-auth:
         type: "NONE"
+      parameters:
+        - $ref: "#/components/parameters/JobId"
       responses:
         "200":
           description: "CORS preflight response."
@@ -341,6 +344,7 @@ paths:
               required: true
               schema:
                 type: string
+          content: {}
       x-amazon-apigateway-integration:
         type: "MOCK"
         contentHandling: "CONVERT_TO_TEXT"
