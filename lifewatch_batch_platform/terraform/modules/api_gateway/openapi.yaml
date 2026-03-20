@@ -90,6 +90,7 @@ paths:
         contentHandling: "CONVERT_TO_TEXT"
         requestTemplates:
           application/json: '{"statusCode": 200}'
+          "*/*": '{"statusCode": 200}'
         responses:
           default:
             statusCode: "200"
