@@ -1,0 +1,116 @@
+name: "Terraform CI"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "lifewatch_batch_platform/terraform/**"
+      - ".github/workflows/test-terraform-plan.yml"
+  pull_request:
+    paths:
+      - "lifewatch_batch_platform/terraform/**"
+      - ".github/workflows/test-terraform-plan.yml"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TERRAFORM_ENV_DIR: ${{ secrets.TERRAFORM_ENV_DIR }}
+
+jobs:
+  terraform:
+    name: "Terraform Plan"
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ${{ env.TERRAFORM_ENV_DIR }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: eu-west-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.7
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        run: |
+          terraform plan \
+            -lock=false \
+            -input=false \
+            -no-color \
+            -var="container_image=${{ secrets.CONTAINER_IMAGE }}" \
+            -var="batch_execution_role_arn=${{ secrets.BATCH_EXECUTION_ROLE_ARN }}"
+
+  discover-modules:
+    name: "Discover modules with tests"
+    runs-on: ubuntu-latest
+    outputs:
+      modules: ${{ steps.find.outputs.modules }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Find modules with .tftest.hcl files
+        id: find
+        run: |
+          BASE="lifewatch_batch_platform/terraform/modules"
+          # Find test files, then normalize test/tests dirs back to module roots.
+          modules=$(find "$BASE" -name "*.tftest.hcl" -printf '%h\n' \
+            | sed -E 's#/(tests?)$##' \
+            | sed "s|^$BASE/||" \
+            | sort -u \
+            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+          echo "Found modules: $modules"
+
+  test-modules:
+    name: "Test ${{ matrix.module }}"
+    needs: [terraform, discover-modules]
+    if: needs.discover-modules.outputs.modules != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJson(needs.discover-modules.outputs.modules) }}
+    defaults:
+      run:
+        working-directory: lifewatch_batch_platform/terraform/modules/${{ matrix.module }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: eu-west-1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.7
+      - name: Terraform Init
+        run: terraform init -input=false
+      - name: Terraform Test
+        run: terraform test

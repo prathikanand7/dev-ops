@@ -30,7 +30,7 @@ try:
 
 except requests.HTTPError as e:
     print(f"HTTP error: {e}")
-    if 'response' in locals() and hasattr(response, 'text'):
+    if "response" in locals() and hasattr(response, "text"):
         print(f"Response: {response.text}")
 except Exception as e:
     print(f"Error: {e}")

@@ -1,0 +1,44 @@
+name: Smoke Test Worker Containerization
+# This workflow builds the worker and runs a smoke test to verify that the containerization is working correctly.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "worker/**"
+      - ".github/workflows/smoke-test-worker-containerization.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-worker-pod:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Worker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./worker
+          load: true
+          tags: r-notebook-worker:test
+          cache-from: type=gha,scope=worker-cache
+          cache-to: type=gha,mode=max,scope=worker-cache
+
+      - name: Verify Worker Containerisation
+        run: |
+          docker run --rm r-notebook-worker:test \
+            python -c "import os, boto3, papermill; assert os.path.exists('/app/worker.py'); print('worker-containerisation-ok')"

@@ -1,0 +1,46 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-yaml
+      - id: check-added-large-files
+        args: [--maxkb=1500]
+      - id: detect-private-key
+      - id: detect-aws-credentials
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^(worker/.*\.py|lifewatch_batch_platform/terraform/(backend_lambdas|client_requests)/.*\.py)$
+      - id: ruff-format
+        files: ^(worker/.*\.py|lifewatch_batch_platform/terraform/(backend_lambdas|client_requests)/.*\.py)$
+
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
+    hooks:
+      - id: nbstripout
+        files: ^demo_input/.*\.ipynb$
+
+  - repo: local
+    hooks:
+      - id: terraform-fmt
+        name: Terraform fmt
+        entry: terraform fmt -recursive
+        language: system
+        pass_filenames: false
+        files: ^(lifewatch_batch_platform/terraform|terraform-bootstrap)/.*\.tf$
+
+      - id: frontend-eslint
+        name: Frontend ESLint
+        entry: npm --prefix frontend run lint
+        language: system
+        pass_filenames: false
+        files: ^frontend/(src/.*\.(ts|tsx)|package\.json|tsconfig\.json|vite\.config\.ts)$

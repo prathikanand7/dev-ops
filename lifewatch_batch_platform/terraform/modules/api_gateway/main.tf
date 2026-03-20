@@ -2,6 +2,16 @@
 # REST API — driven by OpenAPI spec
 ################################
 
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.34"
+    }
+  }
+}
+
+
 resource "aws_api_gateway_rest_api" "api" {
   name               = "${var.project_name}-api"
   binary_media_types = ["multipart/form-data", "*/*"]

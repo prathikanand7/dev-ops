@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SOURCE_DIR="./lifewatch_batch_platform/terraform/backend_lamdas"
+SOURCE_DIR="./lifewatch_batch_platform/terraform/backend_lambdas"
 TARGET_DIR="./lifewatch_batch_platform/terraform/backend_lambda_artifacts"
 
 mkdir -p "$TARGET_DIR"
