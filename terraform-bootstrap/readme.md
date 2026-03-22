@@ -2,6 +2,7 @@
 
 Bootstrap stack for shared Terraform remote state resources.
 This configuration allows us to store Terraform state on AWS S3, which in turn allows us to collaborate more easily, as there is a single point of truth for the state of the infrastructure.
+This configuration allows us to store Terraform state on AWS S3, which in turn allows us to collaborate more easily, as there is a single point of truth for the state of the infrastructure.
 
 ## Purpose
 
