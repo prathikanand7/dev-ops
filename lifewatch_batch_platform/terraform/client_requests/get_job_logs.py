@@ -16,9 +16,7 @@ job_id = sys.argv[1]
 
 url = f"{API_BASE_URL}/batch/jobs/{job_id}/logs"
 
-headers = {
-    "x-api-key": API_KEY
-}
+headers = {"x-api-key": API_KEY}
 
 try:
     response = requests.get(url, headers=headers)

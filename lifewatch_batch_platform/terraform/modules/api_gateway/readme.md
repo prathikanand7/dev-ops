@@ -1,6 +1,20 @@
 # Module: `api_gateway`
 
-Provisions an AWS API Gateway REST API with Lambda integrations, CORS preflight support, and a versioned deployment stage.
+Provisions an AWS API Gateway REST API for the Lifewatch batch platform.
+
+This module is primarily **OpenAPI-driven**:
+
+- Route/method/integration definitions come from `openapi.yaml`.
+- Terraform still manages deployment/stage and gateway-level response behavior.
+
+---
+
+## Implementation model
+
+1. `aws_api_gateway_rest_api` imports the full API spec from `openapi.yaml` via `templatefile(...)`.
+2. `aws_api_gateway_deployment` redeploys when the rendered OpenAPI body changes.
+3. `aws_api_gateway_stage` publishes the deployment to the configured stage.
+4. `aws_api_gateway_gateway_response` resources add CORS headers on API Gateway-level error paths.
 
 ---
 
@@ -25,11 +39,11 @@ Provisions an AWS API Gateway REST API with Lambda integrations, CORS preflight 
 |---|---|---|---|
 | `project_name` | `string` | yes | Prefix used to name the REST API (`<project_name>-api`) |
 | `stage_name` | `string` | yes | Stage name to deploy to (e.g. `dev`, `staging`, `prod`) |
-| `batch_trigger_lambda_arn` | `string` | yes | Invoke ARN of the Lambda for `POST /batch/jobs` |
-| `job_status_lambda_arn` | `string` | yes | Invoke ARN of the Lambda for `GET /batch/jobs/{job_id}` |
-| `job_logs_lambda_arn` | `string` | yes | Invoke ARN of the Lambda for `GET /batch/jobs/{job_id}/logs` |
-| `job_results_lambda_arn` | `string` | yes | Invoke ARN of the Lambda for `GET /batch/jobs/{job_id}/results` |
-| `job_history_list_lambda_arn` | `string` | yes | Invoke ARN of the Lambda for `GET /batch/jobs/history_list` |
+| `batch_trigger_lambda_arn` | `string` | yes | Invoke ARN for `POST /batch/jobs` |
+| `job_status_lambda_arn` | `string` | yes | Invoke ARN for `GET /batch/jobs/{job_id}` |
+| `job_logs_lambda_arn` | `string` | yes | Invoke ARN for `GET /batch/jobs/{job_id}/logs` |
+| `job_results_lambda_arn` | `string` | yes | Invoke ARN for `GET /batch/jobs/{job_id}/results` |
+| `job_history_list_lambda_arn` | `string` | yes | Invoke ARN for `GET /batch/jobs/history_list` |
 
 ---
 
@@ -37,26 +51,39 @@ Provisions an AWS API Gateway REST API with Lambda integrations, CORS preflight 
 
 | Name | Description |
 |---|---|
-| `api_id` | ID of the REST API — pass to the `api_key_usage_plan` module |
-| `stage_name` | Name of the deployed stage — pass to the `api_key_usage_plan` module |
-| `invoke_url` | Full base URL for calling the API (e.g. `https://<id>.execute-api.<region>.amazonaws.com/<stage>`) |
-| `deployment_id` | ID of the active deployment resource |
+| `api_id` | ID of the REST API |
+| `stage_name` | Name of the deployed stage |
+| `invoke_url` | Base invoke URL of the stage |
+| `deployment_id` | ID of the active deployment |
 
 ---
 
-## CORS
+## CORS behavior
 
-All functional routes expose an `OPTIONS` method backed by a `MOCK` integration so browsers can complete preflight checks without invoking Lambda.
+CORS is handled in two layers:
 
-> **Note:** `Access-Control-Allow-Origin` is currently set to `*`. Restrict this to your frontend origin(s) before deploying to production.
+1. **Preflight CORS (route-level, from OpenAPI)**
+   - Each route defines `OPTIONS` with a `MOCK` integration.
+   - Response headers include `Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, and `Access-Control-Allow-Headers`.
 
-Allowed headers: `Content-Type`, `x-api-key`, `Authorization`
+2. **Error CORS (gateway-level, from Terraform resources)**
+   - Gateway responses add CORS headers for API Gateway-generated errors (e.g. missing auth token, missing resource).
+
+Current defaults:
+
+- `Access-Control-Allow-Origin: *`
+- `Access-Control-Allow-Headers: Content-Type,x-api-key,Authorization`
+- `Access-Control-Allow-Methods: OPTIONS,GET,POST`
+
+> Restrict `Access-Control-Allow-Origin` to trusted frontend origins for production.
 
 ---
 
 ## Authentication
 
-All methods set `api_key_required = true`. An API key and usage plan must be attached to the stage via the `api_key_usage_plan` module.
+- Functional routes in `openapi.yaml` use `ApiKeyAuth` (`x-api-key` header).
+- `OPTIONS` routes are unauthenticated (`security: []`) for browser preflight support.
+- Attach API keys and usage plans via the separate `api_key_usage_plan` module.
 
 ---
 
@@ -66,13 +93,13 @@ All methods set `api_key_required = true`. An API key and usage plan must be att
 module "api_gateway" {
   source = "./modules/api_gateway"
 
-  project_name             = "lifewatch"
-  stage_name               = "dev"
-  batch_trigger_lambda_arn = module.lambda_batch.invoke_arn
-  job_status_lambda_arn    = module.lambda_status.invoke_arn
-  job_logs_lambda_arn      = module.lambda_logs.invoke_arn
-  job_results_lambda_arn   = module.lambda_results.invoke_arn
-  job_history_list_lambda_arn   = module.lambda_history_list.invoke_arn
+  project_name              = "lifewatch"
+  stage_name                = "dev"
+  batch_trigger_lambda_arn  = module.lambda_batch.invoke_arn
+  job_status_lambda_arn     = module.lambda_status.invoke_arn
+  job_logs_lambda_arn       = module.lambda_logs.invoke_arn
+  job_results_lambda_arn    = module.lambda_results.invoke_arn
+  job_history_list_lambda_arn = module.lambda_history_list.invoke_arn
 }
 
 module "api_key_usage_plan" {

@@ -11,7 +11,9 @@ DEFAULT_HEADERS: Dict[str, str] = {
 }
 
 
-def response(status_code: int, body: Any, headers: Dict[str, str] | None = None) -> Dict[str, Any]:
+def response(
+    status_code: int, body: Any, headers: Dict[str, str] | None = None
+) -> Dict[str, Any]:
     payload = body if isinstance(body, str) else json.dumps(body)
     return {
         "statusCode": status_code,

@@ -1,7 +1,6 @@
-"""Resolve API base URL from environment first, then Terraform output fallback."""
-
 import os
 import subprocess
+
 
 def fetch_api_url() -> str:
     env_url = os.getenv("LIFEWATCH_API_URL", "").strip()
@@ -18,4 +17,6 @@ def fetch_api_url() -> str:
             return url
     except Exception:
         pass
-    raise RuntimeError("Unable to resolve API URL. Set LIFEWATCH_API_URL or run terraform output first.")
+    raise RuntimeError(
+        "Unable to resolve API URL. Set LIFEWATCH_API_URL or run terraform output first."
+    )

@@ -89,6 +89,12 @@ variable "fargate_ephemeral_storage_gib" {
   default     = 21
 }
 
+variable "fargate_job_timeout_seconds" {
+  description = "Timeout duration of a job. Job is CANCELLED after timeout expires."
+  type        = number
+  default     = 7200 // 2 hours
+}
+
 ################################
 # Batch - EC2
 ################################
@@ -121,6 +127,12 @@ variable "ec2_memory_mib" {
   description = "Memory (MiB) allocated per EC2 job."
   type        = number
   default     = 16384
+}
+
+variable "ec2_job_timeout_seconds" {
+  description = "Timeout duration of a job. Job is CANCELLED after timeout expires."
+  type        = number
+  default     = 7200 // 2 hours
 }
 
 ################################

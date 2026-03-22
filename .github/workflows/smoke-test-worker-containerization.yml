@@ -1,5 +1,5 @@
 name: Smoke Test Worker Containerization
-# This workflow builds the worker and runs a smoke test to verify that the containerization is working correctly. 
+# This workflow builds the worker and runs a smoke test to verify that the containerization is working correctly.
 
 on:
   push:

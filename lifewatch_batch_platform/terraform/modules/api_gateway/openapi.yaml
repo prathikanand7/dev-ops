@@ -1,0 +1,526 @@
+openapi: "3.0.1"
+info:
+  title: "Lifewatch Batch API"
+  description: "REST API for submitting and monitoring notebook-based batch compute jobs on AWS Batch."
+  version: "1.0.0"
+
+servers:
+  - url: "https://{api_id}.execute-api.{region}.amazonaws.com/{stage}"
+    variables:
+      api_id:
+        default: "unknown"
+      region:
+        default: "eu-west-1"
+      stage:
+        default: "dev"
+
+paths:
+  /batch/jobs:
+    post:
+      summary: "Submit a batch job"
+      description: "Accepts a multipart/form-data payload containing a Jupyter notebook, optional input files, an optional conda environment specification, and optional notebook parameters."
+      operationId: "submitJob"
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - notebook
+              properties:
+                notebook:
+                  type: string
+                  format: binary
+                environment:
+                  type: string
+                  format: binary
+                execution_profile:
+                  type: string
+                  enum: [standard, ec2_200gb]
+                  default: standard
+      responses:
+        "200":
+          description: "Job submitted successfully."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobSubmitResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: "AWS_PROXY"
+        httpMethod: "POST"
+        uri: "${batch_trigger_lambda_arn}"
+        passthroughBehavior: "WHEN_NO_MATCH"
+
+    options:
+      summary: "CORS preflight for /batch/jobs"
+      operationId: "corsJobs"
+      security: []
+      x-amazon-apigateway-auth:
+        type: "NONE"
+      responses:
+        "200":
+          description: "CORS preflight response."
+          headers:
+            Access-Control-Allow-Origin:
+              required: true
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              required: true
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              required: true
+              schema:
+                type: string
+          content: {}
+      x-amazon-apigateway-integration:
+        type: "MOCK"
+        contentHandling: "CONVERT_TO_TEXT"
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key,Authorization'"
+            responseTemplates:
+              application/json: ""
+
+  /batch/jobs/history_list:
+    get:
+      summary: "List all job history"
+      description: "Returns a chronologically sorted list of all jobs."
+      operationId: "listJobHistory"
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "List of job history items."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobHistoryListResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: "AWS_PROXY"
+        httpMethod: "POST"
+        uri: "${job_history_list_lambda_arn}"
+        passthroughBehavior: "WHEN_NO_MATCH"
+
+    options:
+      summary: "CORS preflight for /batch/jobs/history_list"
+      operationId: "corsHistoryList"
+      security: []
+      x-amazon-apigateway-auth:
+        type: "NONE"
+      responses:
+        "200":
+          description: "CORS preflight response."
+          headers:
+            Access-Control-Allow-Origin:
+              required: true
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              required: true
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              required: true
+              schema:
+                type: string
+          content: {}
+      x-amazon-apigateway-integration:
+        type: "MOCK"
+        contentHandling: "CONVERT_TO_TEXT"
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key,Authorization'"
+            responseTemplates:
+              application/json: ""
+
+  /batch/jobs/{job_id}:
+    get:
+      summary: "Get job status"
+      description: "Returns current status and timestamps for a job."
+      operationId: "getJobStatus"
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: "Job status and timestamps."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatusResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: "AWS_PROXY"
+        httpMethod: "POST"
+        uri: "${job_status_lambda_arn}"
+        passthroughBehavior: "WHEN_NO_MATCH"
+
+    options:
+      summary: "CORS preflight for /batch/jobs/{job_id}"
+      operationId: "corsJobId"
+      security: []
+      x-amazon-apigateway-auth:
+        type: "NONE"
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: "CORS preflight response."
+          headers:
+            Access-Control-Allow-Origin:
+              required: true
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              required: true
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              required: true
+              schema:
+                type: string
+          content: {}
+      x-amazon-apigateway-integration:
+        type: "MOCK"
+        contentHandling: "CONVERT_TO_TEXT"
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key,Authorization'"
+            responseTemplates:
+              application/json: ""
+
+  /batch/jobs/{job_id}/logs:
+    get:
+      summary: "Get job logs"
+      description: "Retrieves CloudWatch log events for a job."
+      operationId: "getJobLogs"
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: "List of log messages."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobLogsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: "AWS_PROXY"
+        httpMethod: "POST"
+        uri: "${job_logs_lambda_arn}"
+        passthroughBehavior: "WHEN_NO_MATCH"
+
+    options:
+      summary: "CORS preflight for /batch/jobs/{job_id}/logs"
+      operationId: "corsJobLogs"
+      security: []
+      x-amazon-apigateway-auth:
+        type: "NONE"
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: "CORS preflight response."
+          headers:
+            Access-Control-Allow-Origin:
+              required: true
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              required: true
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              required: true
+              schema:
+                type: string
+          content: {}
+      x-amazon-apigateway-integration:
+        type: "MOCK"
+        contentHandling: "CONVERT_TO_TEXT"
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key,Authorization'"
+            responseTemplates:
+              application/json: ""
+
+  /batch/jobs/{job_id}/results:
+    get:
+      summary: "Get job results download URL"
+      description: "Returns a presigned S3 URL valid for 1 hour."
+      operationId: "getJobResults"
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: "Presigned S3 download URL."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobResultsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      x-amazon-apigateway-integration:
+        type: "AWS_PROXY"
+        httpMethod: "POST"
+        uri: "${job_results_lambda_arn}"
+        passthroughBehavior: "WHEN_NO_MATCH"
+
+    options:
+      summary: "CORS preflight for /batch/jobs/{job_id}/results"
+      operationId: "corsJobResults"
+      security: []
+      x-amazon-apigateway-auth:
+        type: "NONE"
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: "CORS preflight response."
+          headers:
+            Access-Control-Allow-Origin:
+              required: true
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              required: true
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              required: true
+              schema:
+                type: string
+          content: {}
+      x-amazon-apigateway-integration:
+        type: "MOCK"
+        contentHandling: "CONVERT_TO_TEXT"
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key,Authorization'"
+            responseTemplates:
+              application/json: ""
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+
+  parameters:
+    JobId:
+      name: job_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: "The custom job UUID returned by POST /batch/jobs."
+
+  schemas:
+    JobSubmitResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Job successfully mapped and submitted"
+        job_id:
+          type: string
+          format: uuid
+        execution_profile:
+          type: string
+          enum: [standard, ec2_200gb]
+
+    JobStatusResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        job_name:
+          type: string
+        status:
+          type: string
+          enum:
+            [SUBMITTED, PENDING, RUNNABLE, STARTING, RUNNING, SUCCEEDED, FAILED]
+        createdAt:
+          type: integer
+          description: "Unix timestamp in milliseconds."
+        startedAt:
+          type: integer
+          description: "Unix timestamp in milliseconds."
+        stoppedAt:
+          type: integer
+          description: "Unix timestamp in milliseconds."
+
+    JobLogsResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        logs:
+          type: array
+          items:
+            type: string
+
+    JobResultsResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [success, partial_failure]
+        download_url:
+          type: string
+          format: uri
+
+    JobHistoryItem:
+      type: object
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        submittedAt:
+          type: string
+          format: date-time
+        notebookName:
+          type: string
+        environmentName:
+          type: string
+        executionProfile:
+          type: string
+        params:
+          type: object
+          additionalProperties:
+            type: string
+        status:
+          type: string
+          enum:
+            [
+              SUBMITTED,
+              PENDING,
+              RUNNABLE,
+              STARTING,
+              RUNNING,
+              SUCCEEDED,
+              FAILED,
+              UNKNOWN,
+            ]
+        logs:
+          type: string
+        artifactUrl:
+          type: string
+          format: uri
+          nullable: true
+        s3Uri:
+          type: string
+        info:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        lastCheckedAt:
+          type: string
+          format: date-time
+
+    JobHistoryListResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobHistoryItem"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        trace:
+          type: string
+
+  responses:
+    BadRequest:
+      description: "Bad request."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    NotFound:
+      description: "Resource not found."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    InternalError:
+      description: "Internal server error."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
