@@ -22,12 +22,14 @@ This module is primarily **OpenAPI-driven**:
 
 | Resource | Description |
 |---|---|
-| `aws_api_gateway_rest_api` | REST API body imported from `openapi.yaml` (including functional methods and OPTIONS preflight methods) |
-| `aws_api_gateway_gateway_response` | Gateway-level error responses with CORS headers (`DEFAULT_4XX`, `DEFAULT_5XX`, `MISSING_AUTHENTICATION_TOKEN`, `RESOURCE_NOT_FOUND`) |
-| `aws_api_gateway_deployment` | Versioned deployment with OpenAPI hash trigger |
-| `aws_api_gateway_stage` | Deploys the active API to `stage_name` |
-
----
+| `aws_api_gateway_rest_api` | The REST API with multipart/form-data binary support |
+| `aws_api_gateway_resource` | Routes: `/batch`, `/batch/jobs`, `/batch/jobs/{job_id}`, `/batch/jobs/{job_id}/logs`, `/batch/jobs/{job_id}/results`, `/batch/jobs/history_list` |
+| `aws_api_gateway_method` | `POST /batch/jobs`, `GET` on status/logs/results/history_list, `OPTIONS` on all routes |
+| `aws_api_gateway_integration` | `AWS_PROXY` Lambda integrations for all functional routes; `MOCK` integrations for CORS preflight |
+| `aws_api_gateway_method_response` | `200` responses declaring CORS headers on all OPTIONS routes |
+| `aws_api_gateway_integration_response` | Injects `Access-Control-Allow-*` headers into preflight responses |
+| `aws_api_gateway_deployment` | Versioned deployment with sha1 change-detection trigger |
+| `aws_api_gateway_stage` | Deploys the API to the configured stage name |
 
 ## Routes (from OpenAPI)
 
