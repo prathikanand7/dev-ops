@@ -1,155 +1,175 @@
-# Notebook Platform - Local Setup Guide
+# LifeWatch Notebook Platform DevOps
+
+Infrastructure, CI/CD, and validation assets for running notebooks through AWS Batch behind an API Gateway and Lambda control plane.
+
+## Components
+
+- Terraform infrastructure for the dev environment.
+- Lambda handlers and API request client scripts.
+- Worker container build and publish pipeline.
+- End-to-end notebook validation on AWS.
+- Frontend operator UI for job submission and history.
+- Demo notebook fixtures, including lightweight examples.
+
+## Setup Decisions
+
+The dev environment is shared by teammates.
+
+- Notebook E2E workflows must not run terraform destroy.
+- Cleanup is limited to transient AWS Batch EC2 instances created during execution.
+- Terraform-managed infrastructure is intentionally preserved after E2E runs.
 
 ## Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
+- Terraform 1.6 or newer.
+- AWS CLI configured with credentials that can manage the target dev stack.
+- Docker (for worker image build and local checks).
+- Node.js 18+ and npm (for frontend local runs).
+- Python 3.10+ (for helper scripts and selected workflows).
 
-## Project Structure
-```
+## Repository Layout
+
+```text
 dev-ops/
-├── server/                     # Django web app + Celery worker config
-│   ├── jobs/                   # Core app (models, views, tasks)
-│   ├── notebook_platform/      # Django project settings
-│   ├── k8s-manifests/          # Kubernetes manifests (optional, not sure if we will use these w/ Terraform)
-│   ├── docker-compose.yml
-│   ├── Dockerfile
-│   └── requirements.txt
-├── worker/                     # Notebook execution worker
-│   ├── Dockerfile
-│   ├── worker.py
-│   └── inputs/
-│       └── environment.yaml    # Base env for all runners, can be updated in runtime based on input files
-└── .github/
-    └── workflows/
-        └── ci.yaml             # Define actions
+├── .github/workflows/                           # CI/CD and E2E workflows
+├── lifewatch_batch_platform/terraform/          # Terraform env + reusable modules + client scripts
+├── frontend/                                    # React + TypeScript operator UI
+├── worker/                                      # Batch worker image definition
+├── demo_input/                                  # Notebook and payload fixtures for tests/manual runs
+├── terraform-bootstrap/                         # Remote-state bootstrap resources
+└── job_profiles.json                            # Shared execution-profile catalogue
 ```
+
+## Core Workflows
+
+| Workflow | File | Purpose |
+|---|---|---|
+| Smoke Test Worker Containerization | .github/workflows/smoke-test-worker-containerization.yml | Builds worker image and validates container startup. |
+| Deploy Worker Image to ECR | .github/workflows/deploy-worker-ecr.yml | Publishes worker image tags to ECR. |
+| Terraform CI | .github/workflows/test-terraform-plan.yml | Runs fmt, validate, plan, and optional terraform test. |
+| Notebook E2E Deploy and Run | .github/workflows/e2e-notebook-deploy-and-run.yml | Applies infra, runs notebook E2E matrix, uploads artifacts, then performs EC2-only cleanup. |
+
+## Documentation Index
+
+- [Notebook E2E Runbook](.github/workflows/e2e-notebook-testing.md)
+- [Lightweight Notebook Fixtures](demo_input/lightweight-notebooks/README.md)
+- [Terraform dev Environment](lifewatch_batch_platform/terraform/environments/dev/readme.md)
+- [Frontend Guide](frontend/README.md)
+- [Terraform Bootstrap Guide](terraform-bootstrap/readme.md)
+
 ## Quick Start
 
-### 1. Build and Start All Services
-You will need to do this every time you want to develop locally.
-```
-cd server
-docker compose up --build -d
-```
-This will spin up the following server components:
-- PostgreSQL Database               # Stand-in for RDS, not used in production
-- Redis Cache (Used by Celery)      # Stand-in for ElastiCache, not used in production
-- Minio                             # Stand-in for S3, not used in production
-- Celery Service
-- Django Server
+### Frontend
 
-### 2. Run Database Migrations (First Time ONLY)
-This is usually needed when running for the first time, or when making changes to the models.
-In a separate terminal:
-```
-docker compose exec web python manage.py migrate
-```
-### 3. Create a Superuser (First Time ONLY)
-```
-docker compose exec web python manage.py createsuperuser
-```
-### 4. Start minikube
-```
-minikube start --driver=docker
-```
-### 5. Apply rbac.yaml (First Time ONLY)
-```
-cd server
-kubectl apply -f minikube-rbac.yaml
-```
-### 6. Build Worker
-This will build the image inside minikube.
-```
-minikube image build -t r-notebook-worker:latest .
-```
-### 7. Create Network Proxy (Windows Only)
-```
-kubectl proxy --address='0.0.0.0' --port=8001 --accept-hosts='^.*'
-```
-
-### 8. Access the Application
-```
-http://localhost:8000
-```
-
-## Useful Commands
-```
-# View Jobs (-w to keep in running)
-kubectl get pods -w
-
-# Get the logs of a specific job
-kubectl logs <NAME>
-
-# Run commands inside the web container
-docker compose exec web python <SOME COMMAND>
-
-# Open a shell inside the web container
-docker compose exec web bash
-
-# Run tests inside docker
-docker compose exec web python manage.py test
-```
-
-## CI/CD
-A GitHub Actions workflow is located at `.github/workflows/ci.yaml` and runs automatically on push or can be triggered manually.
-It builds everything as described above, uses a cache to speed up things, and runs a GET to the login screen to verify things are running.
-
-## Pre-commit Hooks
-
-This repository includes a `.pre-commit-config.yaml` with fast checks for:
-- file hygiene (whitespace, EOF, YAML/JSON/TOML)
-- Python lint/format for worker and backend Lambda/client scripts
-- Terraform format + validation on changed Terraform directories
-- frontend ESLint for TypeScript/React sources
-- notebook output stripping under `demo_input`
-
-Install and enable hooks:
 ```bash
-pip install pre-commit
-pre-commit install
+cd frontend
+npm install
+npm run dev
 ```
 
-Run all hooks manually:
+### Terraform Dev Environment
+
 ```bash
-pre-commit run --all-files
+cd lifewatch_batch_platform/terraform/environments/dev
+terraform init
+terraform plan
 ```
 
-## AWS Deployment with Zappa
+## Deployment Order (Recommended)
 
-The Django server is deployed to AWS Lambda using Zappa. To keep secrets out of version control, we use a template for the Zappa configuration and inject environment variables during deployment.
+1. Initialize remote state bootstrap resources from terraform-bootstrap if not already provisioned.
+2. Apply the dev environment Terraform stack.
+3. Build and publish worker image to ECR.
+4. Run notebook E2E workflows.
 
-### AWS Prerequisites
-Before deploying, ensure the following resources and credentials exist in your AWS account:
-- **IAM User:** Credentials configured locally or in the CI/CD pipeline with permissions to manage Lambda, API Gateway, S3, and IAM roles.
-- **S3 Deployment Bucket:** A bucket for Zappa to store its zip packages during deployment. Different that the Django storage bucket.
-- **RDS PostgreSQL Instance:** Production database (replacing the local Docker Postgres).
-- **S3 Storage Bucket:** A bucket for Django's static and media files (replacing the local Minio setup).
+## Onboarding Checklist
 
-### Environment
-We use `zappa_settings.template.json` as our base. The secrets are provided and replaced through environment variables. If deploying locally, export these variables in the terminal or use an env file. In CI/CD, set these as pipeline secrets.
+Use this checklist for new contributors working on the dev environment.
 
-These must be set:
+1. Clone the repository and verify toolchain versions from Prerequisites.
+2. Confirm AWS access by running aws sts get-caller-identity.
+3. Ensure access to required GitHub repository secrets (see matrix below).
+4. Run Terraform init and plan from lifewatch_batch_platform/terraform/environments/dev.
+5. Run worker smoke test locally with docker build ./worker and a quick container run.
+6. Start frontend locally (npm run dev) and verify API base URL configuration.
+7. Review the E2E runbook before triggering shared-environment workflows.
+
+## Local Validation Commands
+
+```bash
+# Terraform style and validation
+terraform fmt -recursive
+terraform -chdir=lifewatch_batch_platform/terraform/environments/dev validate
+
+# Module tests (if present)
+terraform -chdir=lifewatch_batch_platform/terraform/modules/api_gateway test
+
+# Frontend checks
+cd frontend && npm run build
 ```
-export AWS_REGION="eu-west-1"
-export S3_ZAPPA_BUCKET_NAME="your-zappa-deploy-bucket"
-export DJANGO_SECRET_KEY="your_secure_secret_key"
-export DATABASE_URL="postgres://user:url_encoded_password@rds-host:5432/dbname"
-export AWS_STORAGE_BUCKET_NAME="your-app-storage-bucket"
-export ALLOWED_HOSTS="your-api-gateway-url.amazonaws.com"
-export WORKER_CALLBACK_URL="https://your-api-gateway-url.amazonaws.com"
-export WORKER_WEBHOOK_SECRET="your_secret"
-```
 
-### Build and Deploy
-Generate the final configuration file and deploy:
-```
-# Generate the active settings file by replacing placeholders
-envsubst < zappa_settings.template.json > zappa_settings.json
+## Terraform Environment Notes
 
-# Deploy for the first time
-zappa deploy dev
+For detailed infrastructure inputs, outputs, and module dependencies, use:
 
-# OR, update an existing deployment
-zappa update dev
-```
+lifewatch_batch_platform/terraform/environments/dev/readme.md
+
+## Security and Secrets
+
+- Never commit API keys, AWS keys, or Terraform state.
+- Required credentials must be injected via GitHub Actions secrets or secured local environment configuration.
+- E2E API authentication is validated through both positive and negative tests.
+- For local Terraform runs, var files may be used, for example terraform apply -var-file secrets.tfvars.
+- Preferred CI pattern is environment variables and secret stores instead of long-lived local secret files.
+
+## GitHub Secrets by Workflow
+
+The following repository secrets are required by CI/CD workflows.
+
+| Workflow | Required secrets |
+|---|---|
+| Smoke Test Worker Containerization | None |
+| Deploy Worker Image to ECR | AWS_ACCESS_KEY, AWS_SECRET_KEY |
+| Terraform CI | TERRAFORM_ENV_DIR, AWS_ACCESS_KEY, AWS_SECRET_KEY, CONTAINER_IMAGE, BATCH_EXECUTION_ROLE_ARN |
+| Notebook E2E Deploy and Run | TERRAFORM_ENV_DIR, AWS_ACCESS_KEY, AWS_SECRET_KEY, CONTAINER_IMAGE, BATCH_EXECUTION_ROLE_ARN |
+
+Notes:
+- TERRAFORM_ENV_DIR should point to the active environment directory, for example lifewatch_batch_platform/terraform/environments/dev.
+- Rotate AWS credentials regularly and prefer short-lived credentials where possible.
+
+## Troubleshooting
+
+### Terraform CI fails at plan
+
+- Confirm TERRAFORM_ENV_DIR points to a valid environment folder.
+- Verify CONTAINER_IMAGE and BATCH_EXECUTION_ROLE_ARN are set in repository secrets.
+- Re-run terraform init locally in the same environment directory to reproduce.
+
+### terraform test fails after module refactor
+
+- Check whether tests still reference removed resources after architecture changes.
+- Update assertions to match source of truth (for example OpenAPI body imports versus explicit method resources).
+- Run module tests locally before pushing.
+
+### E2E fails with API auth errors
+
+- Validate API key output from Terraform and ensure request header uses x-api-key.
+- Run the negative API key check expectations: 401 or 403 should be treated as pass for invalid keys.
+- Confirm gateway-level CORS responses are present for API Gateway-generated errors.
+
+### E2E completes but leaves compute instances
+
+- Verify EC2 cleanup step logs in the E2E workflow artifacts.
+- Check for instances tagged with lifewatch-batch-ec2-* and terminate manually if needed.
+- Keep terraform destroy disabled for shared dev environment policy compliance.
+
+### Worker image deploy does not trigger downstream E2E
+
+- Confirm Deploy Worker Image to ECR ran on main and completed successfully.
+- Check workflow_run trigger conditions and branch filters in dependent workflows.
+- Use manual workflow_dispatch as a controlled fallback.
+
+## Notes on Scope
+
+- This repository is focused on infrastructure and delivery workflows.
+- Application-level backend behavior and frontend runtime details are documented in their respective subproject guides.
