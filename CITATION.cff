@@ -1,0 +1,19 @@
+cff-version: 1.0.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Verhiel"
+    given-names: "Kayle"
+    orcid: "https://orcid.org/0009-0006-3097-3470"
+  - family-names: "Nikolaou"
+    given-names: "Giorgo"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: "Krishnan"
+    given-names: "Prathik Anand"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: "Ardanaz"
+    given-names: "Eneko Retolaza"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+title: "On-demand infrastructure for virtual research environments"
+version: 3.0.0
+date-released: 2026-3-22
+url: "https://github.com/prathikanand7/dev-ops"
