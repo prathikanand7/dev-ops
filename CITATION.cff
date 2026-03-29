@@ -10,9 +10,9 @@ authors:
   - family-names: "Anand Krishnan"
     given-names: "Prathik"
     orcid: "https://orcid.org/0009-0009-7049-6156"
-  - family-names: "Ardanaz"
-    given-names: "Eneko Retolaza"
-    orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: "Retolaza Ardanaz"
+    given-names: "Eneko"
+    orcid: "https://orcid.org/0009-0000-2320-0302"
 title: "On-demand infrastructure for virtual research environments"
 version: 3.0.0
 date-released: 2026-3-22
